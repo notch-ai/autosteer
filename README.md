@@ -9,7 +9,8 @@ AutoSteer is a desktop application that enhances your Claude Code experience wit
 
 ## Demo
 
-<https://github.com/user-attachments/assets/08444578-6c0d-4c0d-97d5-3544b1184993>
+https://github.com/user-attachments/assets/869df7cd-a880-427f-9b3f-124cb1630b27
+
 
 > [!NOTE]
 > This project is not affiliated with, endorsed by, or sponsored by Anthropic. Claude is a trademark of Anthropic, PBC. This is an independent project using Claude.

@@ -1,0 +1,2 @@
+/* Import global styles - Tailwind directives are in tailwind-tokens.css */
+@import '../styles/global.css';

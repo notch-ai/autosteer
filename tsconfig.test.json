@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["jest", "@testing-library/jest-dom", "node", "vite/client"],
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src/**/*",
+    "tests/**/*",
+    "playwright.config.ts",
+    "playwright-electron.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "out"
+  ]
+}

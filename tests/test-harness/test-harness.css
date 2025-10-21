@@ -1,0 +1,105 @@
+/* Test Harness Styles */
+
+.test-harness-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 2rem;
+  background: var(--background);
+  color: var(--text);
+}
+
+.test-harness-placeholder,
+.test-harness-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  text-align: center;
+  padding: 2rem;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.test-harness-placeholder h2,
+.test-harness-error h2 {
+  margin: 0 0 1rem 0;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.test-harness-placeholder p,
+.test-harness-error p {
+  margin: 0.5rem 0;
+  color: var(--text-tertiary);
+}
+
+.test-harness-error ul {
+  text-align: left;
+  margin: 1rem 0;
+  padding-left: 1rem;
+}
+
+.test-harness-error li {
+  margin: 0.25rem 0;
+  color: var(--text-tertiary);
+  font-family: monospace;
+}
+
+.test-harness-component {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  min-height: 400px;
+}
+
+.test-harness-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.test-harness-info {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: var(--background-secondary);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.test-harness-info small {
+  color: var(--text-tertiary);
+  font-family: monospace;
+  font-size: 0.875rem;
+}
+
+/* Ensure test components have proper spacing */
+.test-harness-component > * {
+  max-width: 100%;
+}
+
+/* Override any absolute positioning in test mode */
+.test-harness-container * {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+/* Allow components that specifically need positioning */
+.test-harness-container .modal,
+.test-harness-container .dropdown,
+.test-harness-container .tooltip,
+.test-harness-container .anchored-modal {
+  position: absolute !important;
+}

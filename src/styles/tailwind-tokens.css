@@ -1,0 +1,419 @@
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tailwind-compatible design tokens and CSS variables */
+/* Merged from design-tokens.css for consolidated theme management */
+
+/* Font Face Declarations - Using Fira Code from Google Fonts */
+/* Fira Code is loaded via link tag in index.html */
+/* Weights available: 300, 400, 500, 600, 700 */
+
+:root {
+  /* ===== Theme-specific variables will be injected by ThemeContext ===== */
+  /* These are the CSS variables that will be dynamically set:
+     --primary, --primary-hover, --primary-active
+     --background, --background-secondary, --background-tertiary, --background-elevated
+     --text, --text-secondary, --text-tertiary, --text-inverse
+     --border, --border-secondary, --border-tertiary
+     --success, --warning, --error, --info
+     --glow, --glow-intense, --shadow
+     --accent, --accent-secondary, --highlight, --comment
+  */
+
+  /* ===== Base Color Palette ===== */
+  /* Primary brand colors */
+  --base-brand-blue: #404ce8;
+  --base-brand-blue-hover: #3641d0;
+  --base-brand-blue-active: #3b46dc;
+
+  /* Accent colors */
+  --base-purple: #bd93f9;
+  --base-purple-alt: #6366f1;
+  --base-cyan: #00ffcc;
+  --base-cyan-light: #33ffdd;
+
+  /* Neutrals */
+  --base-black: #000000;
+  --base-black-soft: #0a0a0a;
+  --base-white: #ffffff;
+
+  /* Semantic colors */
+  --base-success: #4caf50;
+  --base-success-alt: #10b981;
+  --base-warning: #ff9800;
+  --base-warning-alt: #f59e0b;
+  --base-error: #f44336;
+  --base-error-alt: #ef4444;
+  --base-info: #2196f3;
+  --base-info-alt: #3b82f6;
+
+  /* Gray scale */
+  --base-gray-50: #f7f8fa;
+  --base-gray-100: #f3f4f6;
+  --base-gray-200: #e5e7eb;
+  --base-gray-300: #d1d5db;
+  --base-gray-400: #9ca3af;
+  --base-gray-500: #6b7280;
+  --base-gray-600: #4b5563;
+  --base-gray-700: #374151;
+  --base-gray-800: #1f2937;
+  --base-gray-900: #111827;
+
+  /* ===== Theme Color Assignments ===== */
+  /* Brand colors */
+  --brand-primary: var(--base-brand-blue);
+  --brand-primary-hover: var(--base-brand-blue-hover);
+  --brand-primary-active: var(--base-brand-blue-active);
+
+  /* Theme-specific assignments (night theme defaults) */
+  --color-purple: var(--base-purple);
+  --color-cyan: var(--base-cyan);
+  --color-black: var(--base-black);
+  --color-white: var(--base-white);
+  --color-success-green: var(--base-success);
+  --color-warning-orange: var(--base-warning);
+  --color-error-red: var(--base-error);
+  --color-info-blue: var(--base-info);
+
+  /* ===== Night Theme Color Scheme ===== */
+  /* Base night theme colors (RGB format for Tailwind opacity support) */
+  --night-background-primary: 25 26 33;     /* #191a21 */
+  --night-background-secondary: 22 22 28;   /* #16161c */
+  --night-surface-hover: 29 30 38;          /* #1d1e26 */
+  --night-surface-active: 37 38 46;         /* #25262e */
+  --night-border: 42 43 54;                 /* #2a2b36 */
+  --night-text-primary: 224 224 230;        /* #e0e0e6 */
+  --night-text-secondary: 139 140 145;      /* #8b8c91 */
+  --night-text-tertiary: 102 102 102;       /* #666666 */
+  --night-accent-primary: 224 224 230;      /* #e0e0e6 */
+  --night-accent-light: 245 245 247;        /* #f5f5f7 */
+  --night-button-special: 38 39 50;         /* #262732 */
+  --night-terminal-bg: 30 30 30;            /* #1e1e1e - XTerm background */
+  --night-terminal-scrollbar: 212 212 212;  /* #d4d4d4 - XTerm foreground for scrollbar */
+  --night-code-highlight-bg: 58 54 30;      /* #3a361e - Muted dark yellow background */
+  --night-code-highlight-border: 78 73 42;  /* #4e492a - Muted dark yellow border */
+
+  /* ===== Day Theme Color Scheme ===== */
+  /* Base day theme colors (RGB format for Tailwind opacity support) */
+  --day-background-primary: 252 252 252;    /* #fcfcfc */
+  --day-background-secondary: 245 245 245;  /* #f5f5f5 */
+  --day-surface-hover: 239 239 239;         /* #efefef */
+  --day-surface-active: 232 232 232;        /* #e8e8e8 */
+  --day-border: 222 222 222;                /* #dedede */
+  --day-text-primary: 33 41 54;             /* #212936 */
+  --day-text-secondary: 143 147 157;        /* #8f939d */
+  --day-text-tertiary: 173 177 184;         /* #adb1b8 */
+  --day-accent-primary: 33 41 54;           /* #212936 */
+  --day-accent-light: 143 147 157;          /* #8f939d */
+  --day-button-special: 255 255 255;        /* #ffffff */
+  --day-terminal-bg: 245 245 245;           /* #f5f5f5 - XTerm background (light) */
+  --day-terminal-scrollbar: 33 41 54;       /* #212936 - XTerm foreground for scrollbar (dark) */
+  --day-code-highlight-bg: 254 252 232;     /* #fefce8 - Muted light yellow background */
+  --day-code-highlight-border: 250 240 137; /* #faf089 - Muted light yellow border */
+
+  /* ===== Active Theme Assignment (Night by default) ===== */
+  --color-background: var(--night-background-primary);
+  --color-surface: var(--night-background-secondary);
+  --color-surface-hover: var(--night-surface-hover);
+  --color-surface-active: var(--night-surface-active);
+  --color-border: var(--night-border);
+  --color-primary: var(--night-accent-primary);
+  --color-primary-light: var(--night-accent-light);
+  --color-text: var(--night-text-primary);
+  --color-text-muted: var(--night-text-secondary);
+  --color-text-dim: var(--night-text-tertiary);
+  --color-icon-inactive: var(--night-text-secondary);
+  --color-button-special: var(--night-button-special);
+  --color-terminal-bg: var(--night-terminal-bg);
+  --color-terminal-scrollbar: var(--night-terminal-scrollbar);
+  --color-code-highlight-bg: var(--night-code-highlight-bg);
+  --color-code-highlight-border: var(--night-code-highlight-border);
+
+  /* ===== Typography ===== */
+  /* Font families */
+  --font-family-fira-code: "Fira Code", monospace;
+  --font-family-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-family-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+
+  /* Font stacks for themes */
+  --font-stack: "Fira Code", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-stack-mono: "Fira Code", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  --font-stack-night: var(--font-family-fira-code);
+  --font-stack-day: var(--font-family-fira-code);
+
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 28px;
+
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-black: 900;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* ===== Spacing ===== */
+  --spacing-2xs: 2px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-2xl: 24px;
+  --spacing-3xl: 32px;
+  --spacing-4xl: 40px;
+  --spacing-5xl: 48px;
+
+  /* ===== Border Radius ===== */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-full: 9999px;
+
+  /* ===== Shadows - Night mode uses white glow effects ===== */
+  --shadow-xs: 0 1px 2px 0 var(--white-opacity-05);
+  --shadow-sm: 0 2px 4px var(--white-opacity-10);
+  --shadow-md: 0 4px 6px var(--white-opacity-15), 0 0 8px var(--white-opacity-05);
+  --shadow-lg: 0 10px 15px var(--white-opacity-15), 0 0 15px var(--white-opacity-10);
+  --shadow-xl: 0 20px 25px var(--white-opacity-20), 0 0 25px var(--white-opacity-15);
+  --shadow-2xl: 0 25px 50px var(--white-opacity-20), 0 0 35px var(--white-opacity-15);
+  --shadow-inner: inset 0 2px 4px 0 var(--white-opacity-30);
+
+  /* ===== Transitions ===== */
+  --transition-fast: 150ms ease-in-out;
+  --transition-base: 200ms ease-in-out;
+  --transition-slow: 300ms ease-in-out;
+  --transition-slower: 500ms ease-in-out;
+
+  /* ===== Z-Index Scale ===== */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-tooltip: 600;
+  --z-notification: 700;
+
+  /* ===== Component Specific ===== */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 64px;
+  --detail-panel-width: 360px;
+  --detail-panel-collapsed-width: 48px;
+  --header-height: 24px;
+  --min-content-width: 400px;
+
+  /* Resizable Panels */
+  --resize-handle-width: 4px;
+  --resize-handle-hover-width: 12px;
+  --resize-handle-color: transparent;
+  --resize-handle-hover-color: var(--gray-opacity-30);
+  --resize-handle-active-color: var(--gray-opacity-50);
+
+  /* ===== Opacity-based Colors (Theme-specific) ===== */
+  /* Black opacity variants */
+  --black-opacity-02: rgba(0, 0, 0, 0.02);
+  --black-opacity-03: rgba(0, 0, 0, 0.03);
+  --black-opacity-04: rgba(0, 0, 0, 0.04);
+  --black-opacity-05: rgba(0, 0, 0, 0.05);
+  --black-opacity-08: rgba(0, 0, 0, 0.08);
+  --black-opacity-10: rgba(0, 0, 0, 0.1);
+  --black-opacity-15: rgba(0, 0, 0, 0.15);
+  --black-opacity-20: rgba(0, 0, 0, 0.2);
+  --black-opacity-30: rgba(0, 0, 0, 0.3);
+  --black-opacity-40: rgba(0, 0, 0, 0.4);
+  --black-opacity-50: rgba(0, 0, 0, 0.5);
+  --black-opacity-60: rgba(0, 0, 0, 0.6);
+  --black-opacity-80: rgba(0, 0, 0, 0.8);
+
+  /* White opacity variants */
+  --white-opacity-05: rgba(255, 255, 255, 0.05);
+  --white-opacity-10: rgba(255, 255, 255, 0.1);
+  --white-opacity-15: rgba(255, 255, 255, 0.15);
+  --white-opacity-20: rgba(255, 255, 255, 0.2);
+  --white-opacity-30: rgba(255, 255, 255, 0.3);
+  --white-opacity-40: rgba(255, 255, 255, 0.4);
+  --white-opacity-50: rgba(255, 255, 255, 0.5);
+
+  /* Gray opacity variants */
+  --gray-opacity-20: rgba(102, 102, 102, 0.2);
+  --gray-opacity-25: rgba(102, 102, 102, 0.25);
+  --gray-opacity-30: rgba(102, 102, 102, 0.3);
+  --gray-opacity-50: rgba(102, 102, 102, 0.5);
+
+  /* ===== shadcn/ui Color Schemes ===== */
+  /* Night theme shadcn variables */
+  --night-background: 222.2 84% 4.9%;
+  --night-foreground: 210 40% 98%;
+  --night-card: 222.2 84% 4.9%;
+  --night-card-foreground: 210 40% 98%;
+  --night-popover: 222.2 84% 4.9%;
+  --night-popover-foreground: 210 40% 98%;
+  --night-primary: 210 40% 98%;
+  --night-primary-foreground: 222.2 84% 4.9%;
+  --night-secondary: 217.2 32.6% 17.5%;
+  --night-secondary-foreground: 210 40% 98%;
+  --night-muted: 240 12% 10%;  /* Matches surface: #16161c */
+  --night-muted-foreground: 234 4% 56%;  /* Matches text-muted: #8b8c91 */
+  --night-accent: 237 13% 13%;  /* Matches surface-hover: #1d1e26 */
+  --night-accent-foreground: 210 40% 98%;
+  --night-destructive: 0 62.8% 30.6%;
+  --night-destructive-foreground: 210 40% 98%;
+  --night-border: 237 20% 20%;  /* #2a2b36 */
+  --night-input: 237 20% 20%;   /* #2a2b36 */
+  --night-ring: 212.7 26.8% 83.9%;
+
+  /* Day theme shadcn variables */
+  --day-background: 0 0% 100%;
+  --day-foreground: 222.2 84% 4.9%;
+  --day-card: 0 0% 100%;
+  --day-card-foreground: 222.2 84% 4.9%;
+  --day-popover: 0 0% 100%;
+  --day-popover-foreground: 222.2 84% 4.9%;
+  --day-primary: 222.2 47.4% 11.2%;
+  --day-primary-foreground: 210 40% 98%;
+  --day-secondary: 210 40% 96%;
+  --day-secondary-foreground: 222.2 84% 4.9%;
+  --day-muted: 0 0% 96%;  /* Matches surface: #f5f5f5 */
+  --day-muted-foreground: 223 8% 59%;  /* Matches text-muted: #8f939d */
+  --day-accent: 0 0% 94%;  /* Matches surface-hover: #efefef */
+  --day-accent-foreground: 222.2 84% 4.9%;
+  --day-destructive: 0 84.2% 60.2%;
+  --day-destructive-foreground: 210 40% 98%;
+  --day-border: 0 0% 87%;  /* #dedede */
+  --day-input: 0 0% 87%;   /* #dedede */
+  --day-ring: 222.2 84% 4.9%;
+
+  /* ===== Active shadcn/ui Variables (Night by default) ===== */
+  --background: var(--night-background);
+  --foreground: var(--night-foreground);
+  --card: var(--night-card);
+  --card-foreground: var(--night-card-foreground);
+  --popover: var(--night-popover);
+  --popover-foreground: var(--night-popover-foreground);
+  --primary: var(--night-primary);
+  --primary-foreground: var(--night-primary-foreground);
+  --secondary: var(--night-secondary);
+  --secondary-foreground: var(--night-secondary-foreground);
+  --muted: var(--night-muted);
+  --muted-foreground: var(--night-muted-foreground);
+  --accent: var(--night-accent);
+  --accent-foreground: var(--night-accent-foreground);
+  --destructive: var(--night-destructive);
+  --destructive-foreground: var(--night-destructive-foreground);
+  --border: var(--night-border);
+  --input: var(--night-input);
+  --ring: var(--night-ring);
+  --radius: 0.5rem;
+}
+
+/* ===== Day Theme Overrides ===== */
+.theme-day {
+  /* Theme-specific color assignments for day theme */
+  --color-purple: var(--base-purple-alt);
+  --color-success-green: var(--base-success-alt);
+  --color-warning-orange: var(--base-warning-alt);
+  --color-error-red: var(--base-error-alt);
+  --color-info-blue: var(--base-info-alt);
+
+  /* Switch to day theme colors */
+  --color-background: var(--day-background-primary);
+  --color-surface: var(--day-background-secondary);
+  --color-surface-hover: var(--day-surface-hover);
+  --color-surface-active: var(--day-surface-active);
+  --color-border: var(--day-border);
+  --color-primary: var(--day-accent-primary);
+  --color-primary-light: var(--day-accent-light);
+  --color-text: var(--day-text-primary);
+  --color-text-muted: var(--day-text-secondary);
+  --color-text-dim: var(--day-text-tertiary);
+  --color-icon-inactive: var(--day-text-secondary);
+  --color-button-special: var(--day-button-special);
+  --color-code-highlight-bg: var(--day-code-highlight-bg);
+  --color-code-highlight-border: var(--day-code-highlight-border);
+
+  /* Day theme shadows */
+  --shadow-xs: 0 1px 2px 0 var(--black-opacity-05);
+  --shadow-sm: 0 2px 4px var(--black-opacity-15);
+  --shadow-md: 0 4px 6px var(--black-opacity-20), 0 0 8px var(--black-opacity-10);
+  --shadow-lg: 0 10px 15px var(--black-opacity-20), 0 0 15px var(--black-opacity-15);
+  --shadow-xl: 0 20px 25px var(--black-opacity-30), 0 0 25px var(--black-opacity-20);
+  --shadow-2xl: 0 25px 50px var(--black-opacity-30), 0 0 35px var(--black-opacity-20);
+  --shadow-inner: inset 0 2px 4px 0 var(--black-opacity-80);
+
+  /* Switch to day theme shadcn variables */
+  --background: var(--day-background);
+  --foreground: var(--day-foreground);
+  --card: var(--day-card);
+  --card-foreground: var(--day-card-foreground);
+  --popover: var(--day-popover);
+  --popover-foreground: var(--day-popover-foreground);
+  --primary: var(--day-primary);
+  --primary-foreground: var(--day-primary-foreground);
+  --secondary: var(--day-secondary);
+  --secondary-foreground: var(--day-secondary-foreground);
+  --muted: var(--day-muted);
+  --muted-foreground: var(--day-muted-foreground);
+  --accent: var(--day-accent);
+  --accent-foreground: var(--day-accent-foreground);
+  --destructive: var(--day-destructive);
+  --destructive-foreground: var(--day-destructive-foreground);
+  --border: var(--day-border);
+  --input: var(--day-input);
+  --ring: var(--day-ring);
+}
+
+/* ===== Tailwind Directives ===== */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Base Layer Customizations ===== */
+@layer base {
+  /* Apply theme fonts */
+  html {
+    font-family: var(--font-stack);
+  }
+
+  /* Spin animation for loading indicators */
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Ensure theme classes cascade properly */
+  :root {
+    /* Color scheme - dark by default (night theme) */
+    color-scheme: dark;
+  }
+
+  .theme-day {
+    /* Color scheme - light for day theme */
+    color-scheme: light;
+  }
+}
+
+/* ===== Utility Layer Customizations ===== */
+@layer utilities {
+  /* Disable transitions for color scheme changes */
+  .theme-transition-none * {
+    transition: none !important;
+  }
+}

@@ -1,0 +1,457 @@
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Prevent text selection in UI elements */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* Allow text selection in content areas */
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+pre,
+code,
+blockquote,
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+
+/* Utility class for enabling text selection */
+.select-text,
+.select-text * {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+/* Utility class for text cursor */
+.cursor-text {
+  cursor: text !important;
+}
+
+/* Status display text selection - override all interference */
+.status-panel-wrapper,
+.status-display-selectable,
+.status-display-selectable *,
+.status-display-selectable span,
+.status-display-selectable div {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  cursor: text !important;
+}
+
+/* Prevent tabs from interfering with selection */
+[data-radix-tabs-content] {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+/* Allow text selection in lists without overriding interactive cursors */
+ul,
+ol,
+li {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Only apply text cursor to content divs/spans, not interactive elements */
+div[contenteditable],
+span[contenteditable],
+.markdown-content div,
+.markdown-content span {
+  cursor: text;
+}
+
+html {
+  height: 100%;
+  /* Prevent elastic scrolling on macOS */
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  font-family: var(--font-stack);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: rgb(var(--color-text));
+  background-color: rgb(var(--color-background));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Better text rendering */
+  text-rendering: optimizeLegibility;
+  font-feature-settings:
+    'liga' 1,
+    'calt' 1;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Task Indicator Styles */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes blink {
+  0%,
+  50%,
+  100% {
+    opacity: 1;
+  }
+  25%,
+  75% {
+    opacity: 0.2;
+  }
+}
+
+.task-indicator--active {
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+/* Respect prefers-reduced-motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .task-indicator--active {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Custom scrollbar styles - use same neutral colors as chat */
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  width: 8px;
+  background-color: transparent;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track,
+.overflow-auto::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-auto::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.overflow-auto::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.3);
+}
+
+/* Text selection */
+::selection {
+  background-color: rgb(var(--color-primary));
+  color: rgb(var(--color-background));
+}
+
+/* Base scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background-color: rgb(var(--color-background));
+}
+
+::-webkit-scrollbar-track {
+  background-color: rgb(var(--color-surface));
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--color-border));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--color-text-muted));
+}
+
+/* Transitions - keep global transitions for smooth interactions */
+* {
+  transition-property:
+    background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-duration: var(--transition-fast);
+  transition-timing-function: ease-in-out;
+}
+
+/* ContentEditable placeholder styles */
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: rgb(var(--color-text-muted));
+  pointer-events: none;
+  position: absolute;
+  opacity: 0.6;
+  /* Position placeholder to the right of cursor */
+  /* Editor has px-2 (8px padding) + cursor width (10px) = 18px total offset */
+  left: 18px;
+}
+
+/* Ensure contenteditable has proper text color */
+[contenteditable] {
+  color: rgb(var(--color-text));
+  caret-color: transparent;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+
+/* CodeMirror cursor base styles - remove borders, set visibility */
+.cm-editor .cm-cursor,
+.cm-editor.cm-focused .cm-cursor,
+.cm-editor .cm-dropCursor,
+.cm-editor.cm-focused .cm-dropCursor,
+.cm-line .cm-cursor,
+.cm-fat-cursor,
+.cm-cursor-primary,
+.cm-fat-cursor.cm-cursor-primary,
+div.cm-cursor,
+div.cm-cursor-primary {
+  /* Remove all borders - use background only */
+  border: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
+  outline: none !important;
+
+  /* Base cursor appearance - color and visibility */
+  background-color: rgb(var(--color-text)) !important;
+  color: rgb(var(--color-background)) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-block !important;
+  /* Width is controlled by vim-mode specific rules below */
+}
+
+/* CodeMirror character hover effect */
+.cm-editor .cm-content .cm-line span:hover {
+  background-color: rgb(var(--color-background)) !important;
+}
+
+/* Focus styles for contenteditable */
+[contenteditable]:focus {
+  outline: none;
+}
+
+/* Remove default black border on focus/selection for all elements */
+*:focus,
+*:focus-visible {
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Remove black border on buttons and interactive elements */
+button:focus,
+button:focus-visible,
+a:focus,
+a:focus-visible,
+input:focus,
+input:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Phase 2: Enhanced dropdown z-index layers with custom properties */
+:root {
+  --z-index-dropdown-base: 40;
+  --z-index-dropdown-overlay: 50;
+  --z-index-dropdown-modal: 60;
+  --z-index-dropdown-tooltip: 70;
+  --z-index-dropdown-critical: 999;
+}
+
+.z-dropdown-base {
+  z-index: var(--z-index-dropdown-base);
+}
+
+.z-dropdown-overlay {
+  z-index: var(--z-index-dropdown-overlay);
+}
+
+.z-dropdown-modal {
+  z-index: var(--z-index-dropdown-modal);
+}
+
+.z-dropdown-tooltip {
+  z-index: var(--z-index-dropdown-tooltip);
+}
+
+/* Critical dropdown layer for error recovery */
+.z-dropdown-critical {
+  z-index: var(--z-index-dropdown-critical);
+}
+
+/* Command menu and popover specific layering with enhanced positioning */
+[data-testid='command-menu'],
+.command-menu-dropdown {
+  z-index: var(--z-index-dropdown-overlay) !important;
+  position: fixed;
+  /* Phase 2: Enhanced shadow and border for better visibility */
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+  border: 1px solid hsl(var(--border));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Ensure dropdown content is always above other elements */
+.dropdown-content-layer {
+  z-index: var(--z-index-dropdown-overlay);
+  position: relative;
+}
+
+/* Phase 2: Error boundary fallback styling */
+.dropdown-error-fallback {
+  z-index: var(--z-index-dropdown-critical);
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Markdown content styles - reduce line height */
+.markdown-content p,
+.markdown-content li,
+.markdown-content ul,
+.markdown-content ol {
+  line-height: 1.4;
+}
+
+/* Inline code highlighting - muted yellow using theme-aware CSS variables */
+.inline-code-highlight {
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: inherit;
+  font-weight: normal;
+  background-color: rgb(var(--color-code-highlight-bg));
+  color: rgb(var(--color-text));
+  border: 1px solid rgb(var(--color-code-highlight-border));
+}
+
+/* XTerm scrollbar styles - theme-aware terminal scrollbar */
+.xterm .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+  background-color: rgb(var(--color-terminal-bg));
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-track {
+  background-color: rgb(var(--color-terminal-bg));
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--color-terminal-scrollbar) / 0.3);
+  border-radius: 4px;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--color-terminal-scrollbar) / 0.5);
+}
+
+/* CodeMirror editor-content - disable horizontal scrollbar, enable text wrapping */
+.editor-content {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+/* CodeMirror cursor styling - thin in INSERT mode (default when vim enabled), block in NORMAL mode */
+/* .editor-content:not(.vim-disabled) .cm-cursor {
+  width: 1px !important;
+  background-color: rgb(var(--color-text)) !important; */
+/* } */
+
+.editor-content.vim-normal-mode .cm-cursor,
+.editor-content.vim-normal-mode .cm-fat-cursor {
+  width: 0.6em !important;
+  background-color: rgb(var(--color-text)) !important;
+}
+
+/* When vim is disabled, use native browser caret */
+.editor-content.vim-disabled .cm-editor,
+.editor-content.vim-disabled .cm-content {
+  caret-color: rgb(var(--color-text)) !important;
+}
+
+/* Hide CodeMirror cursor when vim is disabled (it won't render anyway, but be explicit) */
+.editor-content.vim-disabled .cm-cursor {
+  display: none !important;
+}
+
+/* CodeMirror editor-content vertical scrollbar styles - theme-aware */
+.editor-content::-webkit-scrollbar {
+  width: 8px !important;
+  background-color: rgb(var(--color-background)) !important;
+}
+
+.editor-content::-webkit-scrollbar-track {
+  background-color: rgb(var(--color-surface)) !important;
+}
+
+.editor-content::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--color-border)) !important;
+  border-radius: 4px !important;
+}
+
+.editor-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--color-text-muted)) !important;
+}
+
+/* Firefox scrollbar support for editor-content */
+.editor-content {
+  scrollbar-color: rgb(var(--color-border)) rgb(var(--color-surface)) !important;
+  scrollbar-width: thin !important;
+}
+
+/* Command menu item selection styles - override cmdk defaults */
+[cmdk-item][aria-selected='true'],
+[cmdk-item]:hover {
+  background-color: hsl(var(--accent)) !important;
+}
+
+/* File mentions text truncation - ensure text overflow works in cmdk items */
+[cmdk-item] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+[cmdk-list] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+[cmdk-group] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}

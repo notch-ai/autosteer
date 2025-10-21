@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/**/*",
+    "tests/test-harness/**/*",
+    "vite.config.ts",
+    "!src/main/**/*"
+  ],
+  "exclude": [
+    "src/main/**/*",
+    "node_modules",
+    "dist",
+    "out",
+    "tests/unit",
+    "tests/integration",
+    "tests/__mocks__",
+    "tests/setup*.ts",
+    "tests/*.test.*",
+    "**/*.stories.tsx",
+    "**/*.test.tsx",
+    "**/*.test.ts",
+    "**/__mocks__/**/*",
+    "**/__tests__/**/*"
+  ]
+}

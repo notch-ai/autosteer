@@ -1,0 +1,29 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "autosteer",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "changelog-path": "SKIP",
+      "changelog-sections": [
+        {"type": "feat", "section": "Features", "hidden": false},
+        {"type": "fix", "section": "Bug Fixes", "hidden": false},
+        {"type": "perf", "section": "Performance Improvements", "hidden": false},
+        {"type": "deps", "section": "Dependencies", "hidden": false},
+        {"type": "docs", "section": "Documentation", "hidden": false},
+        {"type": "refactor", "section": "Code Refactoring", "hidden": false},
+        {"type": "test", "section": "Tests", "hidden": false},
+        {"type": "chore", "section": "Miscellaneous", "hidden": true}
+      ],
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "package.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    }
+  }
+}

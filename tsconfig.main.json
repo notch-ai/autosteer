@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "types": ["node", "electron"],
+    "lib": ["ES2022"],
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true
+  },
+  "include": [
+    "src/main/**/*",
+    "src/services/**/*",
+    "src/types/**/*",
+    "src/commons/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "out",
+    "tests",
+    "**/*.stories.tsx",
+    "**/*.test.tsx"
+  ]
+}

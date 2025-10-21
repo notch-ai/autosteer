@@ -1,0 +1,124 @@
+/* Fallback Component Renderer Styles */
+
+.fallback-component-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 2rem;
+  background: var(--background-secondary);
+  border: 2px dashed var(--border-secondary);
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.fallback-component-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 400px;
+}
+
+.fallback-component-icon {
+  margin-bottom: 1rem;
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
+.fallback-component-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  font-family: monospace;
+}
+
+.fallback-component-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  margin-bottom: 1rem;
+  font-style: italic;
+}
+
+.fallback-component-error {
+  font-size: 0.75rem;
+  color: var(--error);
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-tertiary);
+  border-radius: 4px;
+  padding: 0.5rem;
+  margin-top: 1rem;
+  max-width: 100%;
+  word-break: break-word;
+  font-family: monospace;
+}
+
+/* Loading fallback styles */
+.fallback-component-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
+.fallback-loading-spinner {
+  margin-bottom: 1rem;
+  color: var(--primary);
+  animation: fallback-spin 2s linear infinite;
+}
+
+.fallback-loading-text {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+@keyframes fallback-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Ensure consistent sizing */
+.fallback-component-container,
+.fallback-component-loading {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Dark theme adjustments */
+@media (prefers-color-scheme: dark) {
+  .fallback-component-container {
+    background: var(--background-elevated);
+  }
+  
+  .fallback-component-error {
+    background: rgba(220, 38, 127, 0.1);
+    border-color: rgba(220, 38, 127, 0.3);
+  }
+}
+
+/* Theme variant specific styles */
+.theme-night .fallback-component-container {
+  background: var(--background-elevated);
+  border-color: var(--accent, var(--border-secondary));
+}
+
+.theme-night .fallback-component-icon {
+  color: var(--accent, var(--text-tertiary));
+}
+
+.theme-night .fallback-loading-spinner {
+  color: var(--accent, var(--primary));
+}
+
+.theme-day .fallback-component-container {
+  background: var(--background-secondary);
+}

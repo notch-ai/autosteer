@@ -1,0 +1,169 @@
+# Contributing to AutoSteer
+
+Thank you for your interest in contributing to AutoSteer! We welcome contributions from the community and are excited to work with you.
+
+## Code of Conduct
+
+Please be respectful and constructive in all interactions. We strive to maintain a welcoming and inclusive environment for all contributors.
+
+## How to Contribute
+
+### Reporting Issues
+
+- **Search existing issues** before creating a new one to avoid duplicates
+- **Use issue templates** when available
+- **Provide detailed information** including:
+  - Your operating system and version
+  - AutoSteer version
+  - Steps to reproduce the issue
+  - Expected vs actual behavior
+  - Screenshots or error logs when applicable
+
+### Feature Requests
+
+- Check existing issues for similar requests
+- Describe the problem your feature would solve
+- Provide use cases and examples
+- Be open to discussion about implementation approaches
+
+### Pull Requests
+
+#### Before You Start
+
+1. **Fork the repository** and create a new branch from `main`
+2. **Discuss major changes** by opening an issue first
+3. **Check existing PRs** to avoid duplicate work
+4. **Set up your development environment** (see Development Setup below)
+
+#### Development Setup
+
+```bash
+# Clone your fork
+git clone https://github.com/YOUR-USERNAME/autosteer.git
+cd autosteer
+
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm dev
+```
+
+#### Making Changes
+
+1. **Follow existing code style** - We use Prettier for formatting
+2. **Write meaningful commit messages** using [Conventional Commits](https://www.conventionalcommits.org/):
+   - `feat:` for new features
+   - `fix:` for bug fixes
+   - `docs:` for documentation changes
+   - `style:` for formatting changes
+   - `refactor:` for code refactoring
+   - `test:` for test additions or changes
+   - `chore:` for maintenance tasks
+
+3. **Add tests** for new functionality
+4. **Update documentation** if needed
+5. **Run tests and linting** before committing:
+   ```bash
+   pnpm test
+   pnpm lint
+   pnpm typecheck
+   ```
+
+#### Submitting Your PR
+
+1. **Push your changes** to your fork
+2. **Create a pull request** with:
+   - Clear title describing the change
+   - Detailed description of what and why
+   - Reference to related issues using `Fixes #123` or `Relates to #123`
+   - Screenshots for UI changes
+3. **Respond to review feedback** promptly
+4. **Keep your PR up to date** with the main branch
+
+### Code Style Guidelines
+
+- **TypeScript** for all new code
+- **React** components should be functional with hooks
+- **Tailwind CSS** for styling
+- **ESLint** and **Prettier** for code quality
+- Follow the existing patterns in the codebase
+
+### Testing
+
+We use Jest as our primary test framework. Write tests for all new functionality:
+
+- **Unit tests** (`pnpm test:unit`) - For utilities, services, hooks, and business logic
+- **Integration tests** (`pnpm test:integration`) - For critical workflows and cross-component interactions
+- **E2E tests** (`pnpm test:e2e`) - For end-to-end user workflows
+- **Performance tests** - For benchmarking and performance-critical code
+
+Run all tests before submitting:
+```bash
+pnpm test          # Run all tests
+pnpm test:unit     # Run unit tests only
+pnpm test:integration  # Run integration tests only
+pnpm test:e2e      # Run E2E tests only
+```
+
+Manual testing checklist for PRs:
+- [ ] App starts without errors
+- [ ] Basic navigation works
+- [ ] No console errors in development
+- [ ] Changes work as expected
+- [ ] Test on multiple platforms (macOS, Linux, Windows via WSL) when possible
+
+### Documentation
+
+- Update README.md for user-facing changes
+- Add inline comments for complex logic
+- Keep documentation concise and up-to-date
+
+## Project Structure
+
+```
+autosteer/
+├── src/
+│   ├── main/           # Electron main process
+│   ├── components/     # React UI components
+│   ├── features/       # Feature modules
+│   ├── services/       # Application services
+│   ├── stores/         # State management
+│   ├── hooks/          # React hooks
+│   ├── commons/        # Shared utilities
+│   ├── entities/       # Data models
+│   └── types/          # TypeScript types
+├── assets/             # App icons and images
+├── tests/              # Test files
+├── scripts/            # Build and release scripts
+└── .github/workflows/  # CI/CD configuration
+```
+
+## Release Process
+
+We use [Release Please](https://github.com/googleapis/release-please) for automated versioning and releases:
+
+1. PRs are merged to `main` with conventional commit messages
+2. Release Please creates/updates a release PR automatically
+3. When the release PR is merged, it:
+   - Updates version numbers in `package.json`
+   - Creates a git tag for the release
+   - Creates a GitHub release with release notes
+4. The build workflow must be triggered manually to create platform-specific installers
+
+Note: We do not generate a `CHANGELOG.md` file. All release notes are maintained on GitHub releases only.
+
+## Recognition
+
+Contributors will be recognized in:
+
+- Release notes
+- GitHub contributors page
+
+## License
+
+By contributing to AutoSteer, you agree that your contributions will be licensed under the MIT License.
+
+---
+
+Thank you for contributing to AutoSteer! Your efforts help make this project better for everyone. 🚀

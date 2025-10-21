@@ -1,0 +1,14 @@
+# Build output
+.vite/
+dist/
+out/
+
+# Config files
+forge.config.js
+vite.*.config.ts
+
+# Dependencies
+node_modules/
+
+# Test coverage
+coverage/

@@ -1,0 +1,116 @@
+{
+  "validFileChangeRequest": {
+    "type": "file_change_request",
+    "fileChanges": [
+      {
+        "filePath": "src/components/Test.tsx",
+        "changeType": "modify",
+        "oldContent": "const a = 1;",
+        "newContent": "const a = 2;",
+        "diff": "@@ -1 +1 @@\n-const a = 1;\n+const a = 2;"
+      }
+    ],
+    "sessionId": "test-session-123",
+    "messageId": "msg-123"
+  },
+  "toolUseFileEdit": {
+    "type": "assistant",
+    "role": "assistant",
+    "session_id": "test-session-456",
+    "tool_calls": [
+      {
+        "id": "tool-call-789",
+        "name": "file_edit",
+        "type": "tool_use",
+        "input": {
+          "file_path": "src/services/TestService.ts",
+          "old_content": "export class TestService {}",
+          "new_content": "export class TestService {\n  constructor() {}\n}"
+        }
+      }
+    ]
+  },
+  "permissionRequest": {
+    "type": "permission_request",
+    "files": [
+      {
+        "path": "package.json",
+        "action": "modify",
+        "before": "\"version\": \"1.0.0\"",
+        "after": "\"version\": \"1.0.1\""
+      }
+    ],
+    "sessionId": "test-session-789"
+  },
+  "multipleFileChanges": {
+    "type": "file_changes",
+    "changes": [
+      {
+        "filePath": "src/index.ts",
+        "changeType": "create",
+        "newContent": "export * from './lib';"
+      },
+      {
+        "filePath": "src/old.ts",
+        "changeType": "delete",
+        "oldContent": "// deprecated file"
+      },
+      {
+        "filePath": "src/config.json",
+        "changeType": "rename",
+        "newPath": "src/settings.json"
+      }
+    ],
+    "session_id": "test-session-multi"
+  },
+  "toolUseWriteFile": {
+    "type": "assistant",
+    "tool_calls": [
+      {
+        "id": "write-tool-123",
+        "name": "write_file",
+        "input": {
+          "path": "README.md",
+          "content": "# Test Project\n\nThis is a test."
+        }
+      }
+    ]
+  },
+  "invalidMessage": {
+    "type": "system",
+    "subtype": "init",
+    "session_id": "test-session-invalid"
+  },
+  "malformedFileChange": {
+    "type": "file_change_request",
+    "fileChanges": [
+      {
+        "changeType": "modify"
+      }
+    ]
+  },
+  "nestedFileChanges": {
+    "type": "assistant",
+    "content": {
+      "fileChanges": [
+        {
+          "file": "nested/file.js",
+          "type": "modify",
+          "content": "console.log('test');"
+        }
+      ]
+    },
+    "message_id": "nested-123"
+  },
+  "alternativeFormat": {
+    "type": "tool_use",
+    "tool_name": "file_edit",
+    "files": [
+      {
+        "filename": "alt-format.py",
+        "action": "create",
+        "content": "def main():\n    pass"
+      }
+    ]
+  }
+}

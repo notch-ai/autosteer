@@ -1,0 +1,25 @@
+/* Form Elements - Base styles for inputs and form controls */
+/* Component-specific styles have been moved to Tailwind utilities */
+
+/* Input focus styles */
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--input-focus-shadow);
+}
+
+/* Input background styles */
+input,
+textarea,
+select {
+  background-color: rgb(var(--color-surface));
+  border-color: rgb(var(--color-border));
+  color: rgb(var(--color-text));
+}
+
+/* Base input focus behavior */
+input:focus,
+textarea:focus {
+  outline: none;
+}

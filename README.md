@@ -201,7 +201,8 @@ pnpm test:coverage
 
 ### Getting Help
 
-- 🐛 Report bugs via [GitHub Issues](https://github.com/notch-ai/autosteer/issues)
+- Report bugs via [GitHub Issues](https://github.com/notch-ai/autosteer/issues)
+- Request features via [Discussions](https://github.com/notch-ai/autosteer/discussions)
 
 ## 📄 License
 

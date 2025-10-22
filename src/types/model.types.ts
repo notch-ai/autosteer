@@ -8,7 +8,8 @@ export type ModelOption =
   | 'claude-opus-4-20250514'
   | 'claude-opus-4-1-20250805'
   | 'claude-sonnet-4-20250514'
-  | 'claude-sonnet-4-5-20250929';
+  | 'claude-sonnet-4-5-20250929'
+  | 'claude-haiku-4-5-20251001';
 
 export interface ModelConfig {
   value: ModelOption;
@@ -41,6 +42,12 @@ export const MODEL_OPTIONS: ModelConfig[] = [
     label: 'Sonnet 4',
     description: 'High-performance model',
     icon: 'clock',
+  },
+  {
+    value: 'claude-haiku-4-5-20251001',
+    label: 'Haiku 4.5',
+    description: 'Fastest model with near-frontier intelligence',
+    icon: 'zap',
   },
 ];
 

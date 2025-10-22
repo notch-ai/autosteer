@@ -52,6 +52,7 @@ import {
   HelpCircle,
   Contrast,
   GitBranch,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/commons/utils';
@@ -114,7 +115,8 @@ export type IconName =
   | 'question'
   | 'adjust'
   | 'git'
-  | 'git-branch';
+  | 'git-branch'
+  | 'zap';
 
 const iconMap: Record<IconName, LucideIcon> = {
   text: FileText,
@@ -175,6 +177,7 @@ const iconMap: Record<IconName, LucideIcon> = {
   adjust: Contrast,
   git: GitBranch,
   'git-branch': GitBranch,
+  zap: Zap,
 };
 
 interface IconProps {

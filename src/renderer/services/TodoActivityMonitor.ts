@@ -306,9 +306,53 @@ export class TodoActivityMonitor {
     const messageId = message.id;
     data.todoStates.set(messageId, todosWithIds);
 
-    // Update active todos and create/update activities
+    // Check if this is a continuation of the same task set
+    const incomingContents = todosWithIds.map((t) => t.content.trim().toLowerCase()).sort();
+    const existingAllTodos = Array.from(data.activeTodos.values());
+    const existingContents = existingAllTodos
+      .map((t) => t.content.trim().toLowerCase())
+      .sort();
+
+    const contentSetsMatch =
+      incomingContents.length === existingContents.length &&
+      incomingContents.every((content, index) => content === existingContents[index]);
+
+    // Check for status regression (completed → pending/in_progress) which indicates a new task
+    let hasStatusRegression = false;
+    if (contentSetsMatch) {
+      for (const incomingTodo of todosWithIds) {
+        const matchingExisting = existingAllTodos.find(
+          (existing) =>
+            existing.content.trim().toLowerCase() === incomingTodo.content.trim().toLowerCase()
+        );
+        if (
+          matchingExisting &&
+          matchingExisting.status === 'completed' &&
+          (incomingTodo.status === 'pending' || incomingTodo.status === 'in_progress')
+        ) {
+          hasStatusRegression = true;
+          break;
+        }
+      }
+    }
+
+    const isSameTaskSet = contentSetsMatch && !hasStatusRegression;
+
     for (const todo of todosWithIds) {
-      const existingTodo = data.activeTodos.get(todo.id);
+      let existingTodo = data.activeTodos.get(todo.id);
+
+      if (!existingTodo && isSameTaskSet) {
+        for (const [existingId, existing] of data.activeTodos) {
+          const existingContent = existing.content.trim().toLowerCase();
+          const newContent = todo.content.trim().toLowerCase();
+
+          if (existingContent === newContent) {
+            existingTodo = existing;
+            todo.id = existingId;
+            break;
+          }
+        }
+      }
 
       // Track status changes
       if (existingTodo && existingTodo.status !== todo.status) {

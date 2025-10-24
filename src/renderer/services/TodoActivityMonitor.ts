@@ -309,9 +309,7 @@ export class TodoActivityMonitor {
     // Check if this is a continuation of the same task set
     const incomingContents = todosWithIds.map((t) => t.content.trim().toLowerCase()).sort();
     const existingAllTodos = Array.from(data.activeTodos.values());
-    const existingContents = existingAllTodos
-      .map((t) => t.content.trim().toLowerCase())
-      .sort();
+    const existingContents = existingAllTodos.map((t) => t.content.trim().toLowerCase()).sort();
 
     const contentSetsMatch =
       incomingContents.length === existingContents.length &&

@@ -1,5 +1,6 @@
 import { Agent, AgentStatus, AgentType, ChatMessage } from '@/entities';
 import { FileDataStoreService } from '@/services/FileDataStoreService';
+import { MessageConverter } from '@/services/MessageConverter';
 import { SessionManifestService } from '@/services/SessionManifestService';
 import { AgentConfig } from '@/types/config.types';
 import { IPC_CHANNELS } from '@/types/ipc.types';
@@ -605,45 +606,16 @@ export class AgentHandlers {
                   }
 
                   // Extract just the names for simplified display
+                  // Use MessageConverter for consistent tool description formatting across the app
                   const simplifiedToolCalls = toolCalls
                     .filter((tc) => tc.type === 'tool_use')
                     .map((tc) => {
-                      // Special handling for TodoWrite - skip from tool calls display
+                      // Skip TodoWrite from tool calls display
                       if (tc.name === 'TodoWrite') {
-                        // Skip TodoWrite from tool calls display
                         return null;
                       }
-                      // For other tools, include the name and relevant path/description
-                      let description = '';
-                      if (tc.input) {
-                        switch (tc.name) {
-                          case 'Write':
-                          case 'Read':
-                          case 'Edit':
-                          case 'MultiEdit':
-                            description = tc.input.file_path || tc.input.path || '';
-                            break;
-                          case 'Grep':
-                            description = `"${tc.input.pattern || ''}" in ${tc.input.path || '.'}`;
-                            break;
-                          case 'Glob':
-                            description = `${tc.input.pattern || ''} in ${tc.input.path || '.'}`;
-                            break;
-                          case 'LS':
-                            description = tc.input.path || '.';
-                            break;
-                          case 'Bash':
-                            description = tc.input.command || '';
-                            break;
-                          case 'Task':
-                            description = tc.input.description || '';
-                            break;
-                          default:
-                            if (tc.input.path) description = tc.input.path;
-                            else if (tc.input.file_path) description = tc.input.file_path;
-                            else if (tc.input.query) description = tc.input.query;
-                        }
-                      }
+
+                      const description = MessageConverter.formatToolDescription(tc.name, tc.input);
 
                       return {
                         type: 'tool_use' as const,

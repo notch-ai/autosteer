@@ -6,6 +6,7 @@ import {
   type Attachment as ClaudeAttachment,
 } from '@/renderer/services/ClaudeCodeService';
 import { getTodoMonitor } from '@/renderer/services/TodoActivityMonitorManager';
+import { MessageConverter } from '@/services/MessageConverter';
 import { PermissionMode } from '@/types/permission.types';
 import { Project } from '@/types/project.types';
 import type { ConversationOptions } from '@/types/streaming.types';
@@ -997,36 +998,11 @@ export const useCoreStore = create<CoreStore>()(
                         .map((tc) => {
                           if (tc.name === 'TodoWrite') return null;
 
-                          let description = '';
-                          if (tc.input) {
-                            switch (tc.name) {
-                              case 'Write':
-                              case 'Read':
-                              case 'Edit':
-                              case 'MultiEdit':
-                                description = tc.input.file_path || tc.input.path || '';
-                                break;
-                              case 'Grep':
-                                description = `"${tc.input.pattern || ''}" in ${tc.input.path || '.'}`;
-                                break;
-                              case 'Glob':
-                                description = `${tc.input.pattern || ''} in ${tc.input.path || '.'}`;
-                                break;
-                              case 'LS':
-                                description = tc.input.path || '.';
-                                break;
-                              case 'Bash':
-                                description = tc.input.command || '';
-                                break;
-                              case 'Task':
-                                description = tc.input.description || '';
-                                break;
-                              default:
-                                if (tc.input?.path) description = tc.input.path;
-                                else if (tc.input?.file_path) description = tc.input.file_path;
-                                else if (tc.input?.query) description = tc.input.query;
-                            }
-                          }
+                          // Use MessageConverter for tool descriptions - single source of truth
+                          const description = MessageConverter.formatToolDescription(
+                            tc.name!,
+                            tc.input
+                          );
 
                           return {
                             type: 'tool_use' as const,
@@ -1436,7 +1412,7 @@ export const useCoreStore = create<CoreStore>()(
               // Only load the last todo state if found
               if (lastTodoMessage && lastTodoMessage.latestTodos) {
                 logger.info(
-                  `[CoreStore] Loading ${lastTodoMessage.latestTodos.length} todos into TodoActivityMonitor with statuses: ${lastTodoMessage.latestTodos.map((t) => `${t.content}:${t.status}`).join(', ')}`
+                  `[CoreStore] Loading ${lastTodoMessage.latestTodos.length} todos into TodoActivityMonitor with statuses: ${lastTodoMessage.latestTodos.map((t: any) => `${t.content}:${t.status}`).join(', ')}`
                 );
                 const messageWithToolCall = {
                   ...lastTodoMessage,

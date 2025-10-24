@@ -359,8 +359,8 @@ export class ClaudeCodeService {
             updateContent(currentContent);
           }
 
-          // Handle tool uses from simplified tool calls
-          if (chatMsg.simplifiedToolCalls && message.message?.content) {
+          // Handle tool uses from message content
+          if (message.message?.content && Array.isArray(message.message.content)) {
             const contentArray = message.message.content;
             for (const content of contentArray) {
               if (content.type === 'tool_use') {

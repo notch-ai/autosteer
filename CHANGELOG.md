@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/notch-ai/autosteer/compare/v0.1.3...v0.1.4) (2025-10-24)
+
+
+### Code Refactoring
+
+* centralize SDK message transformation with MessageConverter ([67a2896](https://github.com/notch-ai/autosteer/commit/67a289612057ec092c246ddfad8b1966adb77007))
+
 ## [0.1.3](https://github.com/notch-ai/autosteer/compare/v0.1.2...v0.1.3) (2025-10-22)
 
 

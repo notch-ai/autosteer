@@ -9,7 +9,8 @@ AutoSteer is a desktop application that enhances your Claude Code experience wit
 
 ## Demo
 
-https://github.com/user-attachments/assets/869df7cd-a880-427f-9b3f-124cb1630b27
+https://github.com/user-attachments/assets/65219ff1-f600-412a-8a5f-fe7a1880704f
+
 
 
 > [!NOTE]

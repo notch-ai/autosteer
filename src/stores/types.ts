@@ -99,14 +99,6 @@ export interface Attachment {
   size: number;
 }
 
-// Task types
-export interface Task {
-  id: string;
-  content: string;
-  completed: boolean;
-  timestamp: Date;
-  status?: 'pending' | 'in-progress' | 'completed' | 'failed';
-}
 
 // Agent config for creation
 export interface AgentConfig {

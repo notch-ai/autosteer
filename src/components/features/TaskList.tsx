@@ -1,11 +1,7 @@
+import { Task } from '@/types/todo';
 import React from 'react';
-export interface Task {
-  id: string;
-  content: string;
-  completed: boolean;
-  timestamp: Date;
-  status?: 'pending' | 'in-progress' | 'completed' | 'failed';
-}
+
+export type { Task };
 
 interface TaskListProps {
   tasks: Task[];
@@ -19,10 +15,9 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks }) => {
         {tasks.map((task) => (
           <div key={task.id}>
             <div>
-              {task.status === 'in-progress' && '🔄'}
+              {task.status === 'in_progress' && '🔄'}
               {task.status === 'completed' && '✓'}
-              {task.status === 'failed' && '❌'}
-              {(!task.status || task.status === 'pending') && '○'}
+              {task.status === 'pending' && '○'}
             </div>
             <label>{task.content}</label>
           </div>

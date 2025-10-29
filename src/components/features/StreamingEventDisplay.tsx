@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StreamingEvent } from '@/entities';
+import { Task } from '@/types/todo';
 import { Wrench } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -12,14 +13,6 @@ import { TodoDisplay } from './TodoDisplay';
 export interface StreamingEventDisplayProps {
   events: StreamingEvent[];
   className?: string;
-}
-
-interface Task {
-  id: string;
-  content: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  priority: 'low' | 'medium' | 'high';
-  activeForm?: string; // Present continuous form for in-progress display
 }
 
 interface SimplifiedToolCall {

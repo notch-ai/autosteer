@@ -4,13 +4,17 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { TaskAgentActivity, TodoActivities } from '@/renderer/services/TodoActivityMonitor';
 import { getTodoMonitor } from '@/renderer/services/TodoActivityMonitorManager';
 import { useCoreStore } from '@/stores';
-import { CheckCircle2, Loader2, Wrench } from 'lucide-react';
+import { CheckCircle2, Loader2, Wrench, ChevronDown, ChevronRight } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 export const TodoActivityTracker: React.FC = () => {
   const [activities, setActivities] = useState<TodoActivities[]>([]);
   const [taskAgentActivities, setTaskAgentActivities] = useState<TaskAgentActivity[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [todoGroups, setTodoGroups] = useState<Map<string, number>>(new Map());
+  const agentGroupDataRef = React.useRef<Map<string, { groups: Map<string, number>; nextGroup: number }>>(new Map());
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+  const [agentsExpanded, setAgentsExpanded] = useState(true);
   const focusedTodoId = useCoreStore((state) => state.focusedTodoId);
   const selectedAgentId = useCoreStore((state) => state.selectedAgentId);
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
@@ -25,6 +29,19 @@ export const TodoActivityTracker: React.FC = () => {
     setActivities([]);
     setTaskAgentActivities([]);
 
+    // Load or initialize group data for this agent
+    if (!selectedAgentId) {
+      setTodoGroups(new Map());
+      return;
+    }
+
+    let agentData = agentGroupDataRef.current.get(selectedAgentId);
+    if (!agentData) {
+      agentData = { groups: new Map(), nextGroup: 1 };
+      agentGroupDataRef.current.set(selectedAgentId, agentData);
+    }
+    setTodoGroups(new Map(agentData.groups));
+
     const loadActivities = () => {
       if (!selectedAgentId) return;
       const monitor = getTodoMonitor(selectedAgentId);
@@ -32,6 +49,30 @@ export const TodoActivityTracker: React.FC = () => {
 
       const currentActivities = monitor.getAllActivities();
       const currentTaskAgents = monitor.getAllTaskAgentActivities();
+
+      // Get the agent's group data
+      const agentData = agentGroupDataRef.current.get(selectedAgentId);
+      if (!agentData) return;
+
+      // Check for new todos and assign them to groups
+      let hasNewTodos = false;
+      const unassignedTodos: TodoActivities[] = [];
+
+      currentActivities.forEach((activity) => {
+        if (!agentData.groups.has(activity.todoId)) {
+          hasNewTodos = true;
+          unassignedTodos.push(activity);
+        }
+      });
+
+      if (hasNewTodos) {
+        const currentGroupNumber = agentData.nextGroup;
+        unassignedTodos.forEach((activity) => {
+          agentData.groups.set(activity.todoId, currentGroupNumber);
+        });
+        agentData.nextGroup = agentData.nextGroup + 1;
+        setTodoGroups(new Map(agentData.groups));
+      }
 
       setActivities((prev) => {
         const hasNewActivities =
@@ -73,12 +114,24 @@ export const TodoActivityTracker: React.FC = () => {
 
   const getTodosText = () => {
     if (completedCount === 0) {
-      return `${totalCount} todo${totalCount !== 1 ? 's' : ''}`;
+      return `${totalCount} task${totalCount !== 1 ? 's' : ''}`;
     } else if (remainingCount === 0) {
-      return `${completedCount} todo${completedCount !== 1 ? 's' : ''} done`;
+      return `${completedCount} task${completedCount !== 1 ? 's' : ''} done`;
     } else {
-      return `${completedCount} of ${totalCount} todo${totalCount !== 1 ? 's' : ''} done`;
+      return `${completedCount} of ${totalCount} task${totalCount !== 1 ? 's' : ''} done`;
     }
+  };
+
+  const toggleGroup = (groupNumber: number) => {
+    setExpandedGroups((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupNumber)) {
+        newSet.delete(groupNumber);
+      } else {
+        newSet.add(groupNumber);
+      }
+      return newSet;
+    });
   };
 
   return (
@@ -89,8 +142,7 @@ export const TodoActivityTracker: React.FC = () => {
 
       {isExpanded && (
         <ScrollArea ref={scrollAreaRef} className="w-full">
-          <div className="space-y-1 pr-2">
-            {/* Group agents by parent todo */}
+          <div className="space-y-2 pr-2">
             {(() => {
               // Separate agents into owned (have parentTodoId) and orphan (no parentTodoId)
               const ownedAgents = taskAgentActivities.filter((a) => a.taskAgent.parentTodoId);
@@ -106,31 +158,91 @@ export const TodoActivityTracker: React.FC = () => {
                 agentsByTodo.get(todoId)!.push(agent);
               }
 
+              const groupedActivities = new Map<number, TodoActivities[]>();
+              activities.forEach((activity) => {
+                const groupNum = todoGroups.get(activity.todoId) || 1;
+                if (!groupedActivities.has(groupNum)) {
+                  groupedActivities.set(groupNum, []);
+                }
+                groupedActivities.get(groupNum)!.push(activity);
+              });
+
+              const sortedGroups = Array.from(groupedActivities.entries()).sort((a, b) => a[0] - b[0]);
+
               return (
                 <>
-                  {/* Display Todos with their nested agents */}
-                  {activities.map((activity) => (
-                    <div key={activity.todoId}>
-                      <TodoActivityItem
-                        activity={activity}
-                        isFocused={focusedTodoId === activity.todoId}
-                      />
-                      {/* Display child agents under this todo */}
-                      {agentsByTodo.get(activity.todoId)?.map((taskActivity) => (
-                        <div key={taskActivity.taskAgent.id} className="ml-6">
-                          <TaskAgentActivityItem activity={taskActivity} />
-                        </div>
-                      ))}
-                    </div>
-                  ))}
+                  {sortedGroups.map(([groupNum, groupActivities]) => {
+                    const isGroupExpanded = expandedGroups.has(groupNum);
+                    const groupCompleted = groupActivities.filter((a) => a.status === 'completed').length;
+                    const groupTotal = groupActivities.length;
 
-                  {/* Display orphan agents (no parent todo) at the end */}
-                  {orphanAgents.map((taskActivity) => (
-                    <TaskAgentActivityItem
-                      key={taskActivity.taskAgent.id}
-                      activity={taskActivity}
-                    />
-                  ))}
+                    return (
+                      <div key={groupNum} className="space-y-1">
+                        <button
+                          onClick={() => toggleGroup(groupNum)}
+                          className="w-full flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded transition-colors"
+                        >
+                          {isGroupExpanded ? (
+                            <ChevronDown className="h-3 w-3 text-gray-500" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 text-gray-500" />
+                          )}
+                          <span className="text-sm font-medium">Todo {groupNum}</span>
+                          <span className="text-xs text-gray-500">
+                            ({groupCompleted}/{groupTotal})
+                          </span>
+                        </button>
+
+                        {isGroupExpanded && (
+                          <div className="ml-5 space-y-1">
+                            {groupActivities.map((activity) => (
+                              <div key={activity.todoId}>
+                                <TodoActivityItem
+                                  activity={activity}
+                                  isFocused={focusedTodoId === activity.todoId}
+                                />
+                                {/* Display child agents under this todo */}
+                                {agentsByTodo.get(activity.todoId)?.map((taskActivity) => (
+                                  <div key={taskActivity.taskAgent.id} className="ml-6">
+                                    <TaskAgentActivityItem activity={taskActivity} />
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Agents section (no parent todo) */}
+                  {orphanAgents.length > 0 && (
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => setAgentsExpanded(!agentsExpanded)}
+                        className="w-full flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded transition-colors"
+                      >
+                        {agentsExpanded ? (
+                          <ChevronDown className="h-3 w-3 text-gray-500" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3 text-gray-500" />
+                        )}
+                        <span className="text-sm font-medium">Agents</span>
+                        <span className="text-xs text-gray-500">({orphanAgents.length})</span>
+                      </button>
+
+                      {agentsExpanded && (
+                        <div className="ml-5 space-y-1">
+                          {orphanAgents.map((taskActivity) => (
+                            <TaskAgentActivityItem
+                              key={taskActivity.taskAgent.id}
+                              activity={taskActivity}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               );
             })()}

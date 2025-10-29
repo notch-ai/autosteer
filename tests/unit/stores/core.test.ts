@@ -469,7 +469,7 @@ describe('CoreStore Claude Code Integration', () => {
             content: 'Test task 2',
             completed: false,
             timestamp: new Date(),
-            status: 'in-progress',
+            status: 'in_progress',
           },
           {
             id: 'task-3',

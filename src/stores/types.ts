@@ -13,6 +13,7 @@ import { SlashCommand } from '@/types/ipc.types';
 import { ModelOption } from '@/types/model.types';
 import { PermissionMode } from '@/types/permission.types';
 import { Project } from '@/types/project.types';
+import { Task } from '@/types/todo';
 
 // ============================================================================
 // BASE TYPES FOR ALL STORES
@@ -99,7 +100,6 @@ export interface Attachment {
   type: string;
   size: number;
 }
-
 
 // Agent config for creation
 export interface AgentConfig {
@@ -296,8 +296,7 @@ export interface CoreStore {
           id: string;
           content: string;
           status: 'pending' | 'in_progress' | 'completed';
-          priority: 'low' | 'medium' | 'high';
-          activeForm?: string;
+          activeForm: string;
         }>
       | undefined,
     isSessionActive: boolean
@@ -306,8 +305,7 @@ export interface CoreStore {
         id: string;
         content: string;
         status: 'pending' | 'in_progress' | 'completed';
-        priority: 'low' | 'medium' | 'high';
-        activeForm?: string;
+        activeForm: string;
       }>
     | undefined;
   compactHistory: (chatId: string, maxTokens: number) => void;

@@ -10,6 +10,7 @@ import { Agent, ChatMessage, Resource, StreamingEvent, ToolUsage } from '@/entit
 import { VimState } from '@/stores/vimStore';
 import { WorktreeConfig } from '@/types/config.types';
 import { SlashCommand } from '@/types/ipc.types';
+import { ModelOption } from '@/types/model.types';
 import { PermissionMode } from '@/types/permission.types';
 import { Project } from '@/types/project.types';
 
@@ -152,6 +153,7 @@ export interface UserPreferences {
   maxTokens: number;
   badgeNotifications: boolean;
   maxTurns?: number; // Maximum turns per Claude Code session (default: 10)
+  defaultModel?: ModelOption; // Default model for new conversations (see DEFAULT_MODEL in model.types.ts)
 }
 
 // Custom command

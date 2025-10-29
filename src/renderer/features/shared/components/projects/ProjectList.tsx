@@ -13,6 +13,30 @@ export const ProjectList: React.FC = () => {
   const agentsMap = useCoreStore((state) => state.agents);
   const streamingStates = useCoreStore((state) => state.streamingStates);
 
+  // Terminal count from main process (use state to trigger re-renders)
+  const [terminalCount, setTerminalCount] = useState(0);
+  const maxTerminals = 10;
+
+  // Fetch terminal count from main process
+  useEffect(() => {
+    const updateTerminalCount = async () => {
+      try {
+        const terminals = await window.electron.terminal.list();
+        setTerminalCount(terminals.length);
+      } catch (error) {
+        console.error('[ProjectList] Failed to fetch terminal count:', error);
+      }
+    };
+
+    // Update immediately
+    updateTerminalCount();
+
+    // Poll for updates every 2 seconds
+    const interval = setInterval(updateTerminalCount, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Convert Maps to arrays with memoization to prevent re-renders
   // Filter out invalid projects (those without required fields like githubRepo and branchName)
   const projects = useMemo(() => {
@@ -372,7 +396,19 @@ export const ProjectList: React.FC = () => {
           data-section="worktree-header"
           className="flex items-center justify-between px-3 h-10 worktree-header"
         >
-          <h3 className="text-text text-sm font-medium worktree-title">Projects</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-text text-sm font-medium worktree-title">Projects</h3>
+            <span
+              className={`text-xs px-1.5 py-0.5 rounded ${
+                terminalCount >= maxTerminals
+                  ? 'bg-error/10 text-error'
+                  : 'bg-surface-hover text-text-muted'
+              }`}
+              title={`${terminalCount} of ${maxTerminals} terminals active`}
+            >
+              {terminalCount}/{maxTerminals}
+            </span>
+          </div>
           <Button
             id="add-project-btn"
             data-action="add-project"

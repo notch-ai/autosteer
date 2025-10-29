@@ -83,6 +83,14 @@ const AppContent: React.FC = () => {
         const { initialize: initializeSettings } = useSettingsStore.getState();
         await initializeSettings();
 
+        // Sync selected model with default model from settings
+        const defaultModel = useSettingsStore.getState().preferences.defaultModel;
+        if (defaultModel) {
+          const { setSelectedModel } = useUIStore.getState();
+          setSelectedModel(defaultModel);
+          logger.info('[App] Synced selected model with settings:', defaultModel);
+        }
+
         // Initialize LLM service with saved config
         await LLMService.initialize();
 

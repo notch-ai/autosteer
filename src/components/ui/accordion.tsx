@@ -6,19 +6,32 @@ import { cn } from '@/commons/utils';
 
 const Accordion = AccordionPrimitive.Root;
 
+interface AccordionItemProps
+  extends React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item> {
+  className?: string;
+}
+
 const AccordionItem = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Item>
+  AccordionItemProps
 >(({ className, ...props }, ref) => (
+  // @ts-expect-error - Radix UI props incompatible with exactOptionalPropertyTypes
   <AccordionPrimitive.Item ref={ref} className={cn('border-b', className)} {...props} />
 ));
 AccordionItem.displayName = 'AccordionItem';
 
+interface AccordionTriggerProps
+  extends Omit<React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>, 'children'> {
+  className?: string;
+  children?: React.ReactNode;
+}
+
 const AccordionTrigger = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
+  AccordionTriggerProps
 >(({ className, children, ...props }, ref) => (
   <AccordionPrimitive.Header className="flex">
+    {/* @ts-expect-error - Radix UI props incompatible with exactOptionalPropertyTypes */}
     <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(
@@ -34,10 +47,17 @@ const AccordionTrigger = React.forwardRef<
 ));
 AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName;
 
+interface AccordionContentProps
+  extends Omit<React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>, 'children'> {
+  className?: string;
+  children?: React.ReactNode;
+}
+
 const AccordionContent = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Content>
+  AccordionContentProps
 >(({ className, children, ...props }, ref) => (
+  // @ts-expect-error - Radix UI props incompatible with exactOptionalPropertyTypes
   <AccordionPrimitive.Content
     ref={ref}
     className="overflow-hidden text-sm transition-all data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"

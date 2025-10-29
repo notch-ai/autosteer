@@ -15,6 +15,7 @@ export interface XtermTerminal {
   isActive: boolean;
   size: { cols: number; rows: number };
   hasExited: boolean;
+  disposables: Array<{ dispose: () => void }>;
 }
 
 /**
@@ -89,7 +90,16 @@ export class XtermService {
     window: BrowserWindow,
     params?: TerminalCreateParams
   ): Promise<TerminalData> {
+    log.info(
+      `Creating terminal. Current count: ${this.terminals.size}/${this.maxTerminals}. Active terminals:`,
+      Array.from(this.terminals.keys())
+    );
+
     if (this.terminals.size >= this.maxTerminals) {
+      log.error(
+        `Maximum terminal limit reached (${this.maxTerminals}). Active terminals:`,
+        this.getAllTerminals()
+      );
       throw new Error(`Maximum terminal limit reached (${this.maxTerminals})`);
     }
 
@@ -125,6 +135,7 @@ export class XtermService {
         isActive: true,
         size,
         hasExited: false,
+        disposables: [],
       };
 
       this.terminals.set(terminalId, terminal);
@@ -132,7 +143,9 @@ export class XtermService {
       // Setup PTY event handlers
       this.setupPtyHandlers(terminalId, pty, window);
 
-      log.info(`Created PTY terminal ${terminalId} with PID ${pty.pid}, shell: ${shell}`);
+      log.info(
+        `Created PTY terminal ${terminalId} with PID ${pty.pid}, shell: ${shell}. Active terminals: ${this.terminals.size}/${this.maxTerminals}`
+      );
 
       const now = new Date();
       return {
@@ -157,29 +170,54 @@ export class XtermService {
    * Setup PTY event handlers
    */
   private setupPtyHandlers(terminalId: string, pty: IPty, window: BrowserWindow): void {
+    const terminal = this.terminals.get(terminalId);
+    if (!terminal) {
+      log.error(`Terminal ${terminalId} not found when setting up handlers`);
+      return;
+    }
+
     // Handle PTY data output
-    pty.onData((data: string) => {
+    const dataDisposable = pty.onData((data: string) => {
       if (!window.isDestroyed()) {
         window.webContents.send(`terminal:data:${terminalId}`, data);
       }
     });
 
     // Handle PTY exit
-    pty.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
-      log.info(`PTY terminal ${terminalId} exited with code ${exitCode}, signal ${signal}`);
-      const terminal = this.terminals.get(terminalId);
-      if (terminal) {
-        terminal.isActive = false;
-        terminal.hasExited = true;
+    const exitDisposable = pty.onExit(
+      ({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+        log.info(`PTY terminal ${terminalId} exited with code ${exitCode}, signal ${signal}`);
+        const term = this.terminals.get(terminalId);
+        if (term) {
+          term.isActive = false;
+          term.hasExited = true;
+
+          // Cleanup disposables
+          term.disposables.forEach((d) => {
+            try {
+              d.dispose();
+            } catch (error) {
+              log.error(`Failed to dispose terminal ${terminalId} listener:`, error);
+            }
+          });
+        }
+
+        if (!window.isDestroyed()) {
+          window.webContents.send(`terminal:exit:${terminalId}`, {
+            code: exitCode,
+            signal,
+          });
+        }
+
+        this.terminals.delete(terminalId);
+        log.info(
+          `Terminal ${terminalId} removed from map. Active terminals: ${this.terminals.size}`
+        );
       }
-      if (!window.isDestroyed()) {
-        window.webContents.send(`terminal:exit:${terminalId}`, {
-          code: exitCode,
-          signal,
-        });
-      }
-      this.terminals.delete(terminalId);
-    });
+    );
+
+    // Store disposables for cleanup
+    terminal.disposables.push(dataDisposable, exitDisposable);
   }
 
   /**
@@ -232,33 +270,59 @@ export class XtermService {
     }
 
     try {
-      // Step 1: Graceful shutdown (SIGTERM)
-      terminal.pty.kill('SIGTERM');
+      log.info(
+        `Killing PTY terminal ${terminalId} (PID: ${terminal.pid}). Active terminals: ${this.terminals.size}/${this.maxTerminals}`
+      );
+
+      // Step 1: Mark as inactive
       terminal.isActive = false;
 
-      // Step 2: Force kill after 1s timeout
+      // Step 2: Graceful shutdown (SIGTERM)
+      terminal.pty.kill('SIGTERM');
+
+      // Step 3: Force kill after 1s timeout if not exited
       const killTimeout = setTimeout(() => {
         if (!terminal.hasExited) {
+          log.warn(`Terminal ${terminalId} did not exit gracefully, forcing SIGKILL`);
           terminal.pty.kill('SIGKILL');
+
+          // Fallback cleanup if onExit doesn't fire within 2s
+          setTimeout(() => {
+            if (this.terminals.has(terminalId)) {
+              log.error(`Terminal ${terminalId} still in map after SIGKILL, forcing cleanup`);
+              const term = this.terminals.get(terminalId);
+              if (term) {
+                term.disposables.forEach((d) => {
+                  try {
+                    d.dispose();
+                  } catch (error) {
+                    log.error(`Failed to dispose terminal ${terminalId} listener:`, error);
+                  }
+                });
+              }
+              this.terminals.delete(terminalId);
+              log.info(
+                `Terminal ${terminalId} force removed. Active terminals: ${this.terminals.size}`
+              );
+            }
+          }, 2000);
+        } else {
+          clearTimeout(killTimeout);
         }
       }, 1000);
 
-      // Step 3: Cleanup on exit
-      terminal.pty.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
-        clearTimeout(killTimeout);
-        terminal.hasExited = true;
-        this.terminals.delete(terminalId);
-        if (!terminal.window.isDestroyed()) {
-          terminal.window.webContents.send(`terminal:exit:${terminalId}`, {
-            code: exitCode,
-            signal,
-          });
-        }
-      });
-
-      log.info(`Killed PTY terminal ${terminalId}`);
+      log.info(`Terminal ${terminalId} kill signal sent`);
     } catch (error) {
       log.error(`Failed to kill PTY terminal ${terminalId}:`, error);
+      // Attempt cleanup even on error
+      terminal.disposables.forEach((d) => {
+        try {
+          d.dispose();
+        } catch (disposeError) {
+          log.error(`Failed to dispose terminal ${terminalId} listener:`, disposeError);
+        }
+      });
+      this.terminals.delete(terminalId);
       throw error;
     }
   }

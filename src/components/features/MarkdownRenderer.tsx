@@ -6,10 +6,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import React from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { Prism as SyntaxHighlighterBase } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
+
+// Type assertion to fix TypeScript incompatibility with react-syntax-highlighter
+const SyntaxHighlighter = SyntaxHighlighterBase as any;
 
 export interface MarkdownRendererProps {
   content: string;

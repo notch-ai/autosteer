@@ -200,6 +200,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   // Memoize extensions to prevent ref callback from being called on every render
   const extensions = useMemo(() => {
+    console.log('[RichTextEditor] Rebuilding extensions - vimEnabled:', vimEnabled);
     return [
       // Line wrapping - enable text wrapping
       EditorView.lineWrapping,
@@ -260,12 +261,23 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
               // Check for double-escape (ESC ESC within 500ms)
               if (timeSinceLastEscape < DOUBLE_ESCAPE_THRESHOLD) {
-                // Double-escape detected - cancel ongoing operation
-                logger.debug('[DEBUG RichTextEditor] Double ESC detected - canceling operation');
-                if (isStreaming && onStopStreamingRef.current) {
+                // Double-escape detected - always try to cancel operation
+                logger.debug('[DEBUG RichTextEditor] Double ESC detected - attempting to cancel');
+                logger.debug('[DEBUG RichTextEditor] isStreaming:', isStreaming);
+                logger.debug(
+                  '[DEBUG RichTextEditor] hasStopCallback:',
+                  !!onStopStreamingRef.current
+                );
+
+                // Always call stopStreaming if available - let the service handle whether there's actually streaming
+                if (onStopStreamingRef.current) {
                   onStopStreamingRef.current();
                   lastEscapeTimeRef.current = 0; // Reset the timer
                   return true;
+                } else {
+                  logger.warn(
+                    '[DEBUG RichTextEditor] Double ESC detected but no stop callback available'
+                  );
                 }
               }
 
@@ -359,7 +371,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         },
       }),
     ];
-  }, [vimEnabled, handleSlashTrigger, handleFileMentionTrigger, isStreaming]);
+  }, [vimEnabled, handleSlashTrigger, handleFileMentionTrigger]);
 
   // CodeMirror setup with all extensions
   const { ref, view, setContent, focus } = useCodeMirror({

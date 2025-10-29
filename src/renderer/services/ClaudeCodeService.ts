@@ -548,16 +548,26 @@ export class ClaudeCodeService {
    * @param agentId - The ID of the agent/session to stop streaming for
    */
   stopStreaming(agentId?: string): void {
+    generalLogger.debug('[DEBUG stopStreaming] Called with agentId:', agentId);
+    generalLogger.debug(
+      '[DEBUG stopStreaming] Available controllers:',
+      Array.from(this.agentAbortControllers.keys())
+    );
+
     if (agentId) {
       // Stop streaming for specific agent
       const controller = this.agentAbortControllers.get(agentId);
       if (controller) {
+        generalLogger.debug('[DEBUG stopStreaming] Found controller for agent, aborting:', agentId);
         controller.abort();
         this.agentAbortControllers.delete(agentId);
+      } else {
+        generalLogger.warn('[DEBUG stopStreaming] No controller found for agent:', agentId);
       }
     } else {
       // Fallback: stop all streaming (backward compatibility)
       // This shouldn't be used but kept for safety
+      generalLogger.debug('[DEBUG stopStreaming] No agentId provided, aborting all controllers');
       this.agentAbortControllers.forEach((controller) => controller.abort());
       this.agentAbortControllers.clear();
     }

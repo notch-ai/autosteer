@@ -1,5 +1,6 @@
 import { logger } from '@/commons/utils/logger';
 import { SlashCommand } from '@/types/ipc.types';
+import { DEFAULT_MODEL } from '@/types/model.types';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
@@ -82,6 +83,7 @@ const getDefaultPreferences = (): UserPreferences => ({
   maxTokens: 4000,
   badgeNotifications: true,
   maxTurns: 10, // Default max turns for Claude Code sessions
+  defaultModel: DEFAULT_MODEL, // Default model for new conversations
 });
 
 /**
@@ -509,6 +511,9 @@ export const useSettingsInitialization = () =>
     isInitialized: state.isInitialized,
     error: state.initializationError,
   }));
+
+// Default model selector
+export const useDefaultModel = () => useSettingsStore((state) => state.preferences.defaultModel);
 
 /**
  * Type exports for use in components

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/notch-ai/autosteer/compare/v0.1.7...v0.1.8) (2025-10-29)
+
+
+### Bug Fixes
+
+* todo schema cleanup ([8709b1f](https://github.com/notch-ai/autosteer/commit/8709b1fdd560552ba166c6b86c9e420854bd26c1))
+
 ## [0.1.7](https://github.com/notch-ai/autosteer/compare/v0.1.6...v0.1.7) (2025-10-29)
 
 

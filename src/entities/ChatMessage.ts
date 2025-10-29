@@ -59,8 +59,7 @@ export interface ChatMessage {
     id: string;
     content: string;
     status: 'pending' | 'in_progress' | 'completed';
-    priority: 'low' | 'medium' | 'high';
-    activeForm?: string; // Present continuous form for in-progress display
+    activeForm: string; // Present continuous form for in-progress display
   }>; // Latest TODO state from JSONL
   permissionAction?: {
     type: 'accepted' | 'rejected';

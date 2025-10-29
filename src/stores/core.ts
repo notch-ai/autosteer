@@ -120,7 +120,7 @@ export const useCoreStore = create<CoreStore>()(
 
       hasActiveTasks: () => {
         const state = get();
-        return state.tasks.some((task) => task.status === 'in-progress');
+        return state.tasks.some((task) => task.status === 'in_progress');
       },
 
       // Agent Actions
@@ -1018,7 +1018,7 @@ export const useCoreStore = create<CoreStore>()(
                           id: todo.id || `todo-${message.id}-${index}`,
                           content: todo.content || '',
                           status: todo.status || 'pending',
-                          priority: todo.priority || 'medium',
+                          activeForm: todo.activeForm || todo.content || '',
                         }));
                       }
 
@@ -1301,8 +1301,7 @@ export const useCoreStore = create<CoreStore>()(
               id: string;
               content: string;
               status: 'pending' | 'in_progress' | 'completed';
-              priority: 'low' | 'medium' | 'high';
-              activeForm?: string;
+              activeForm: string;
             }>
           | undefined,
         isSessionActive: boolean

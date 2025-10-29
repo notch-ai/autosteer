@@ -12,7 +12,9 @@ export const TodoActivityTracker: React.FC = () => {
   const [taskAgentActivities, setTaskAgentActivities] = useState<TaskAgentActivity[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
   const [todoGroups, setTodoGroups] = useState<Map<string, number>>(new Map());
-  const agentGroupDataRef = React.useRef<Map<string, { groups: Map<string, number>; nextGroup: number }>>(new Map());
+  const agentGroupDataRef = React.useRef<
+    Map<string, { groups: Map<string, number>; nextGroup: number }>
+  >(new Map());
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   const [agentsExpanded, setAgentsExpanded] = useState(true);
   const focusedTodoId = useCoreStore((state) => state.focusedTodoId);
@@ -167,13 +169,17 @@ export const TodoActivityTracker: React.FC = () => {
                 groupedActivities.get(groupNum)!.push(activity);
               });
 
-              const sortedGroups = Array.from(groupedActivities.entries()).sort((a, b) => a[0] - b[0]);
+              const sortedGroups = Array.from(groupedActivities.entries()).sort(
+                (a, b) => a[0] - b[0]
+              );
 
               return (
                 <>
                   {sortedGroups.map(([groupNum, groupActivities]) => {
                     const isGroupExpanded = expandedGroups.has(groupNum);
-                    const groupCompleted = groupActivities.filter((a) => a.status === 'completed').length;
+                    const groupCompleted = groupActivities.filter(
+                      (a) => a.status === 'completed'
+                    ).length;
                     const groupTotal = groupActivities.length;
 
                     return (

@@ -359,9 +359,8 @@ export const createMockResource = (overrides: Partial<Resource> = {}): Resource 
 export const createMockTask = (overrides: Partial<Task> = {}): Task => ({
   id: `mock-task-${Date.now()}`,
   content: 'Mock task',
-  completed: false,
-  timestamp: new Date(),
   status: 'pending',
+  activeForm: 'Mock task',
   ...overrides,
 });
 

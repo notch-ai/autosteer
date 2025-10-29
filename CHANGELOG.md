@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/notch-ai/autosteer/compare/v0.1.4...v0.1.5) (2025-10-29)
+
+
+### Features
+
+* add todo grouping and improve semantic matching ([42c9fec](https://github.com/notch-ai/autosteer/commit/42c9feca4b412687d6e966ca4bdc651da2031408))
+
 ## [0.1.4](https://github.com/notch-ai/autosteer/compare/v0.1.3...v0.1.4) (2025-10-24)
 
 

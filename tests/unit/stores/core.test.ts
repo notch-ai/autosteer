@@ -437,15 +437,13 @@ describe('CoreStore Claude Code Integration', () => {
           {
             id: 'task-1',
             content: 'Test task 1',
-            completed: false,
-            timestamp: new Date(),
+            activeForm: 'Testing task 1',
             status: 'pending',
           },
           {
             id: 'task-2',
             content: 'Test task 2',
-            completed: false,
-            timestamp: new Date(),
+            activeForm: 'Testing task 2',
             status: 'pending',
           },
         ],
@@ -460,22 +458,19 @@ describe('CoreStore Claude Code Integration', () => {
           {
             id: 'task-1',
             content: 'Test task 1',
-            completed: false,
-            timestamp: new Date(),
+            activeForm: 'Testing task 1',
             status: 'pending',
           },
           {
             id: 'task-2',
             content: 'Test task 2',
-            completed: false,
-            timestamp: new Date(),
+            activeForm: 'Testing task 2',
             status: 'in_progress',
           },
           {
             id: 'task-3',
             content: 'Test task 3',
-            completed: true,
-            timestamp: new Date(),
+            activeForm: 'Testing task 3',
             status: 'completed',
           },
         ],
@@ -490,15 +485,13 @@ describe('CoreStore Claude Code Integration', () => {
           {
             id: 'task-1',
             content: 'Test task 1',
-            completed: true,
-            timestamp: new Date(),
+            activeForm: 'Testing task 1',
             status: 'completed',
           },
           {
             id: 'task-2',
             content: 'Test task 2',
-            completed: true,
-            timestamp: new Date(),
+            activeForm: 'Testing task 2',
             status: 'completed',
           },
         ],
@@ -507,15 +500,14 @@ describe('CoreStore Claude Code Integration', () => {
       expect(store.hasActiveTasks()).toBe(false);
     });
 
-    it('should return false when tasks have failed status', () => {
+    it('should return false when tasks are completed', () => {
       useCoreStore.setState({
         tasks: [
           {
             id: 'task-1',
             content: 'Test task 1',
-            completed: false,
-            timestamp: new Date(),
-            status: 'failed',
+            activeForm: 'Testing task 1',
+            status: 'completed',
           },
         ],
       });

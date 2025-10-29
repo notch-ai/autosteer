@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/notch-ai/autosteer/compare/v0.1.6...v0.1.7) (2025-10-29)
+
+
+### Bug Fixes
+
+* remove priority field from todo types ([34ccac8](https://github.com/notch-ai/autosteer/commit/34ccac8ad375d71f2ac7200c53cc6ecb17ceb9a5))
+
 ## [0.1.6](https://github.com/notch-ai/autosteer/compare/v0.1.5...v0.1.6) (2025-10-29)
 
 

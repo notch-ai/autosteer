@@ -2,9 +2,10 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { VimState } from '@/stores/vimStore';
+import { useSettingsStore } from '@/stores/settings';
 import { SearchResult } from './types';
 import { TabState, SessionTab, ChangesTabState } from '@/types/ui.types';
-import { DEFAULT_MODEL, ModelOption } from '@/types/model.types';
+import { ModelOption, DEFAULT_MODEL } from '@/types/model.types';
 
 // UIStore Interface (TRD Section 2.3.2)
 export interface UIStore {
@@ -111,8 +112,8 @@ export const useUIStore = create<UIStore>()(
       vimMode: defaultVimState,
       vimEnabled: false,
 
-      // Model State
-      selectedModel: DEFAULT_MODEL,
+      // Model State - Initialize with default from settings or fallback
+      selectedModel: useSettingsStore.getState().preferences.defaultModel || DEFAULT_MODEL,
 
       // UI Actions
       toggleSidebar: () => {
@@ -303,3 +304,11 @@ export const useUIStore = create<UIStore>()(
     }
   )
 );
+
+// Helper to sync selected model with settings on initialization
+export const syncModelWithSettings = () => {
+  const defaultModel = useSettingsStore.getState().preferences.defaultModel;
+  if (defaultModel) {
+    useUIStore.getState().setSelectedModel(defaultModel);
+  }
+};

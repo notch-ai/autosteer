@@ -56,8 +56,11 @@ export function createFileMentionExtension(options: FileMentionExtensionOptions)
           const query = fileMentionMatch[2];
           const atPos = from - query.length - 1;
 
-          // Defer all view operations until after update cycle completes
-          setTimeout(() => {
+          // Defer dispatch to avoid "update in progress" error
+          // Use Promise.resolve() for microtask scheduling (faster than setTimeout)
+          Promise.resolve().then(() => {
+            console.log('[file-mention-extension] Deferred trigger - query:', query);
+
             view.dispatch({
               effects: setFileMentionTrigger.of({ query, pos: atPos }),
             });
@@ -71,18 +74,21 @@ export function createFileMentionExtension(options: FileMentionExtensionOptions)
                 });
               }
             }
-          }, 0);
+          });
         } else {
           const current = state.field(fileMentionState, false);
           if (current) {
             console.log('[file-mention-extension] Pattern no longer matches, calling onHide');
-            // Defer dispatch until after update cycle completes
-            setTimeout(() => {
+            // Defer dispatch to avoid "update in progress" error
+            // Use Promise.resolve() for microtask scheduling (faster than setTimeout)
+            Promise.resolve().then(() => {
+              console.log('[file-mention-extension] Deferred hide');
+
               view.dispatch({
                 effects: setFileMentionTrigger.of(null),
               });
-            }, 0);
-            onHide?.();
+              onHide?.();
+            });
           }
         }
       }

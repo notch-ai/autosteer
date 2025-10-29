@@ -11,6 +11,7 @@ import { LLMConfig, LLMService } from '@/renderer/services/LLMService';
 import { logger as rendererLogger } from '@/renderer/services/LoggerService';
 import { useSettingsStore } from '@/stores/settings';
 import { useUIStore } from '@/stores';
+import { MODEL_OPTIONS, ModelOption, DEFAULT_MODEL } from '@/types/model.types';
 import React, { useEffect, useState } from 'react';
 import { Input } from './Input';
 import { Modal } from './Modal';
@@ -40,8 +41,9 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
   const toggleVimMode = useUIStore((state) => state.toggleVimMode);
   const updateVimState = useUIStore((state) => state.updateVimState);
 
-  // Local state for maxTurns (loaded from settings store)
+  // Local state for maxTurns and defaultModel (loaded from settings store)
   const [maxTurns, setMaxTurns] = useState<number>(10);
+  const [defaultModel, setDefaultModel] = useState<ModelOption>(DEFAULT_MODEL);
 
   // Track initial values to detect changes
   const [initialConfig, setInitialConfig] = useState<LLMConfig | null>(null);
@@ -49,6 +51,7 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
   const [initialDevMode, setInitialDevMode] = useState<boolean | null>(null);
   const [initialProjectDirectory, setInitialProjectDirectory] = useState<string | null>(null);
   const [initialMaxTurns, setInitialMaxTurns] = useState<number | null>(null);
+  const [initialDefaultModel, setInitialDefaultModel] = useState<ModelOption | null>(null);
 
   // Check if any settings have changed
   const hasChanges = () => {
@@ -57,7 +60,8 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
       initialVimMode === null ||
       initialDevMode === null ||
       initialProjectDirectory === null ||
-      initialMaxTurns === null
+      initialMaxTurns === null ||
+      initialDefaultModel === null
     )
       return false;
 
@@ -72,6 +76,9 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
 
     // Check if max turns changed
     if (maxTurns !== initialMaxTurns) return true;
+
+    // Check if default model changed
+    if (defaultModel !== initialDefaultModel) return true;
 
     // Check if LLM config changed
     return JSON.stringify(config) !== JSON.stringify(initialConfig);
@@ -164,6 +171,16 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
       logger.info('[LLMSettings] Loaded maxTurns:', currentMaxTurns);
     };
     loadMaxTurns();
+
+    // Load defaultModel from settings store
+    const loadDefaultModel = () => {
+      const currentDefaultModel =
+        useSettingsStore.getState().preferences.defaultModel || DEFAULT_MODEL;
+      setDefaultModel(currentDefaultModel);
+      setInitialDefaultModel(currentDefaultModel);
+      logger.info('[LLMSettings] Loaded defaultModel:', currentDefaultModel);
+    };
+    loadDefaultModel();
   }, []); // Only run once on mount
 
   // Handle project directory input change
@@ -287,6 +304,35 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
         logger.info('[LLMSettings] maxTurns unchanged, skipping save:', maxTurns);
       }
 
+      // Save defaultModel if changed
+      if (defaultModel !== initialDefaultModel) {
+        try {
+          logger.info(
+            '[LLMSettings] Saving defaultModel - before:',
+            initialDefaultModel,
+            'after:',
+            defaultModel
+          );
+          await useSettingsStore.getState().updatePreferences({ defaultModel });
+          logger.info('[LLMSettings] Successfully saved defaultModel:', defaultModel);
+          setInitialDefaultModel(defaultModel);
+
+          // Also update the UI store's selected model to reflect the new default
+          // This ensures the model selector in the chat interface uses the new default for new sessions
+          const { setSelectedModel } = useUIStore.getState();
+          setSelectedModel(defaultModel);
+          logger.info(
+            '[LLMSettings] Updated UI store selectedModel to match new default:',
+            defaultModel
+          );
+        } catch (error) {
+          logger.error('[LLMSettings] Failed to save default model:', error);
+          throw error;
+        }
+      } else {
+        logger.info('[LLMSettings] defaultModel unchanged, skipping save:', defaultModel);
+      }
+
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save configuration');
@@ -392,6 +438,31 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
             <p className="text-xs text-text-muted mt-0.5 m-0">
               Maximum number of conversation turns before the session automatically terminates.
               Lower values help prevent excessive API usage.
+            </p>
+          </div>
+          <div className="space-y-1 mt-4">
+            <p className="text-sm text-text m-0">Default Model</p>
+            <Select
+              value={defaultModel}
+              onValueChange={(value) => {
+                setDefaultModel(value as ModelOption);
+                logger.info('[LLMSettings] Default model changed to:', value);
+              }}
+            >
+              <SelectTrigger id="default-model-select" className="w-full">
+                <SelectValue placeholder="Select default model" />
+              </SelectTrigger>
+              <SelectContent>
+                {MODEL_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label} - {option.description}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-text-muted mt-0.5 m-0">
+              The default AI model to use for new conversations. Sonnet 4.5 is recommended for the
+              best balance of performance and speed.
             </p>
           </div>
         </div>

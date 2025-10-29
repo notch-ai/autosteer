@@ -24,6 +24,33 @@ enableMapSet();
 // DevTools configuration
 const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
 
+// Streaming state batching configuration
+const STREAMING_BATCH_WINDOW_MS = 50; // 50ms batching window for streaming updates
+let streamingBatchTimeout: NodeJS.Timeout | null = null;
+let pendingStreamingUpdates: Array<() => void> = [];
+
+/**
+ * Batch streaming state updates to reduce re-render frequency during streaming
+ * Collects updates in a 50ms window and applies them together
+ */
+function batchStreamingUpdate(updateFn: () => void) {
+  pendingStreamingUpdates.push(updateFn);
+
+  if (streamingBatchTimeout) {
+    return; // Already scheduled
+  }
+
+  streamingBatchTimeout = setTimeout(() => {
+    console.log(`[core.ts] Applying ${pendingStreamingUpdates.length} batched streaming updates`);
+    const updates = [...pendingStreamingUpdates];
+    pendingStreamingUpdates = [];
+    streamingBatchTimeout = null;
+
+    // Apply all batched updates in a single state update
+    updates.forEach((fn) => fn());
+  }, STREAMING_BATCH_WINDOW_MS);
+}
+
 export const useCoreStore = create<CoreStore>()(
   withDevtools(
     immer<CoreStore>((set, get) => ({
@@ -437,206 +464,209 @@ export const useCoreStore = create<CoreStore>()(
                     })
                   );
                 }
-                set((state) => {
-                  const streamingMsg = state.streamingMessages.get(streamingChatId);
-
-                  // Allow user messages even if streamingMsg is gone (e.g., "[Request interrupted]")
-                  const shouldProcess =
-                    chunk.type === 'partial' &&
-                    chunk.content &&
-                    (streamingMsg || chunk.messageType === 'user');
-
-                  // Debug: Log chunk processing decision
-                  // Serialize log data to avoid IPC cloning errors with electron-log
-                  const logData = {
-                    hasStreamingMsg: !!streamingMsg,
-                    chunkType: chunk.type,
-                    messageType: chunk.messageType,
-                    shouldProcess,
-                    isNewMessage: chunk.isNewMessage,
-                    contentPreview: chunk.content?.substring(0, 100),
-                    hasInterruptedText: chunk.content?.includes('Request interrupted'),
-                  };
-                  logger.debug('[DEBUG onChunk] Processing chunk:', JSON.stringify(logData));
-
-                  if (shouldProcess) {
-                    const messages = state.messages.get(streamingChatId) || [];
-
-                    if (chunk.isNewMessage && chunk.content) {
-                      // Determine message role from chunk messageType
-                      const messageRole = chunk.messageType === 'user' ? 'user' : 'assistant';
-
-                      // Debug: Log message creation
-                      logger.debug(
-                        '[DEBUG sendMessage] Creating/updating message with content:',
-                        JSON.stringify({
-                          contentPreview: chunk.content.substring(0, 100),
-                          hasInterruptedText: chunk.content.includes('Request interrupted'),
-                          messageType: chunk.messageType,
-                          messageRole,
-                          isUpdatingPlaceholder:
-                            messages.length > 0 &&
-                            messages[messages.length - 1]?.role === 'assistant' &&
-                            messages[messages.length - 1]?.content === '',
-                        })
-                      );
-
-                      // Update the existing placeholder message instead of creating a new one
-                      const lastMessage = messages[messages.length - 1];
-                      if (
-                        lastMessage &&
-                        lastMessage.role === 'assistant' &&
-                        lastMessage.content === '' &&
-                        messageRole === 'assistant'
-                      ) {
-                        // Update the empty placeholder (only for assistant messages)
-                        lastMessage.content = chunk.content;
-                        state.messages.set(streamingChatId, [...messages]);
-                      } else {
-                        // Create new message with appropriate role
-                        const newMessage: ChatMessage = {
-                          id: nanoid(),
-                          role: messageRole,
-                          content: chunk.content,
-                          timestamp: new Date(),
-                          startTime: new Date(),
-                        };
-                        const updatedMessages = [...messages, newMessage];
-                        state.messages.set(streamingChatId, updatedMessages);
-                      }
-                      // Only update chunks if streamingMsg exists
-                      if (streamingMsg) {
-                        streamingMsg.chunks = [chunk.content];
-                      }
-                    }
-                  }
-
-                  // Update worktree stats for time tracking and tokens
-                  if (agent?.projectId) {
-                    const projectId = agent.projectId;
-                    if (!state.worktreeStats[projectId]) {
-                      state.worktreeStats[projectId] = {
-                        projectId,
-                        totalInputTokens: 0,
-                        totalOutputTokens: 0,
-                        totalCacheCreationTokens: 0,
-                        totalCacheReadTokens: 0,
-                        totalCost: 0,
-                        messageCount: 0,
-                        lastUpdated: new Date(),
-                      };
-                    }
-
-                    const stats = state.worktreeStats[projectId];
-
-                    // Track streaming duration in real-time
+                // Batch streaming updates to reduce re-render frequency
+                batchStreamingUpdate(() =>
+                  set((state) => {
                     const streamingMsg = state.streamingMessages.get(streamingChatId);
-                    if (streamingMsg) {
+
+                    // Allow user messages even if streamingMsg is gone (e.g., "[Request interrupted]")
+                    const shouldProcess =
+                      chunk.type === 'partial' &&
+                      chunk.content &&
+                      (streamingMsg || chunk.messageType === 'user');
+
+                    // Debug: Log chunk processing decision
+                    // Serialize log data to avoid IPC cloning errors with electron-log
+                    const logData = {
+                      hasStreamingMsg: !!streamingMsg,
+                      chunkType: chunk.type,
+                      messageType: chunk.messageType,
+                      shouldProcess,
+                      isNewMessage: chunk.isNewMessage,
+                      contentPreview: chunk.content?.substring(0, 100),
+                      hasInterruptedText: chunk.content?.includes('Request interrupted'),
+                    };
+                    logger.debug('[DEBUG onChunk] Processing chunk:', JSON.stringify(logData));
+
+                    if (shouldProcess) {
                       const messages = state.messages.get(streamingChatId) || [];
-                      const streamingMsg = messages.find(
-                        (m) => m.id === capturedStreamingMessageId
-                      );
-                      if (streamingMsg?.startTime) {
-                        // Mark start time if this is the first chunk
-                        if (!stats.currentStreamStartTime) {
-                          stats.currentStreamStartTime = streamingMsg.startTime.getTime();
+
+                      if (chunk.isNewMessage && chunk.content) {
+                        // Determine message role from chunk messageType
+                        const messageRole = chunk.messageType === 'user' ? 'user' : 'assistant';
+
+                        // Debug: Log message creation
+                        logger.debug(
+                          '[DEBUG sendMessage] Creating/updating message with content:',
+                          JSON.stringify({
+                            contentPreview: chunk.content.substring(0, 100),
+                            hasInterruptedText: chunk.content.includes('Request interrupted'),
+                            messageType: chunk.messageType,
+                            messageRole,
+                            isUpdatingPlaceholder:
+                              messages.length > 0 &&
+                              messages[messages.length - 1]?.role === 'assistant' &&
+                              messages[messages.length - 1]?.content === '',
+                          })
+                        );
+
+                        // Update the existing placeholder message instead of creating a new one
+                        const lastMessage = messages[messages.length - 1];
+                        if (
+                          lastMessage &&
+                          lastMessage.role === 'assistant' &&
+                          lastMessage.content === '' &&
+                          messageRole === 'assistant'
+                        ) {
+                          // Update the empty placeholder (only for assistant messages)
+                          lastMessage.content = chunk.content;
+                          state.messages.set(streamingChatId, [...messages]);
+                        } else {
+                          // Create new message with appropriate role
+                          const newMessage: ChatMessage = {
+                            id: nanoid(),
+                            role: messageRole,
+                            content: chunk.content,
+                            timestamp: new Date(),
+                            startTime: new Date(),
+                          };
+                          const updatedMessages = [...messages, newMessage];
+                          state.messages.set(streamingChatId, updatedMessages);
                         }
-                        // Calculate current duration in milliseconds
-                        const currentDuration = Date.now() - streamingMsg.startTime.getTime();
-                        stats.lastRequestDuration = currentDuration;
-                        stats.lastUpdated = new Date();
+                        // Only update chunks if streamingMsg exists
+                        if (streamingMsg) {
+                          streamingMsg.chunks = [chunk.content];
+                        }
                       }
                     }
 
-                    // Update token usage if provided
-                    if (chunk.tokenUsage) {
-                      const inputTokens = chunk.tokenUsage.inputTokens || 0;
-                      const outputTokens = chunk.tokenUsage.outputTokens || 0;
-                      const cacheCreationTokens = chunk.tokenUsage.cacheCreationInputTokens || 0;
-                      const cacheReadTokens = chunk.tokenUsage.cacheReadInputTokens || 0;
+                    // Update worktree stats for time tracking and tokens
+                    if (agent?.projectId) {
+                      const projectId = agent.projectId;
+                      if (!state.worktreeStats[projectId]) {
+                        state.worktreeStats[projectId] = {
+                          projectId,
+                          totalInputTokens: 0,
+                          totalOutputTokens: 0,
+                          totalCacheCreationTokens: 0,
+                          totalCacheReadTokens: 0,
+                          totalCost: 0,
+                          messageCount: 0,
+                          lastUpdated: new Date(),
+                        };
+                      }
 
-                      // Only update if we have new tokens (avoid duplicate updates)
-                      if (inputTokens > 0 || outputTokens > 0) {
-                        stats.totalInputTokens += inputTokens;
-                        stats.totalOutputTokens += outputTokens;
-                        stats.totalCacheCreationTokens += cacheCreationTokens;
-                        stats.totalCacheReadTokens += cacheReadTokens;
+                      const stats = state.worktreeStats[projectId];
 
-                        // Note: Cost is now updated from the result message which has the actual cost
-                        // We don't calculate it manually anymore
-
-                        stats.messageCount += 1;
-                        stats.lastUpdated = new Date();
-
-                        // Store last message tokens
-                        const lastMessageTokens = inputTokens + outputTokens;
-                        if (lastMessageTokens > 0) {
-                          stats.lastMessageTokens = lastMessageTokens;
-                        }
-
-                        // Store token usage directly in the message using captured ID
+                      // Track streaming duration in real-time
+                      const streamingMsg = state.streamingMessages.get(streamingChatId);
+                      if (streamingMsg) {
                         const messages = state.messages.get(streamingChatId) || [];
-                        const messageIndex = messages.findIndex(
+                        const streamingMsg = messages.find(
                           (m) => m.id === capturedStreamingMessageId
                         );
-                        if (messageIndex !== -1) {
-                          if (!messages[messageIndex].tokenUsage) {
-                            messages[messageIndex].tokenUsage = {
-                              inputTokens: 0,
-                              outputTokens: 0,
-                              cacheCreationInputTokens: 0,
-                              cacheReadInputTokens: 0,
-                            };
+                        if (streamingMsg?.startTime) {
+                          // Mark start time if this is the first chunk
+                          if (!stats.currentStreamStartTime) {
+                            stats.currentStreamStartTime = streamingMsg.startTime.getTime();
                           }
-                          // Accumulate output tokens for the current response only (resets on new message)
-                          if (outputTokens > 0) {
-                            messages[messageIndex].currentResponseOutputTokens =
-                              (messages[messageIndex].currentResponseOutputTokens || 0) +
-                              outputTokens;
-                          }
-                          // Accumulate tokens directly in the message for final totals
-                          const usage = messages[messageIndex].tokenUsage;
-                          if (usage) {
-                            usage.inputTokens = (usage.inputTokens || 0) + inputTokens;
-                            usage.outputTokens = (usage.outputTokens || 0) + outputTokens;
-                            usage.cacheCreationInputTokens =
-                              (usage.cacheCreationInputTokens || 0) + cacheCreationTokens;
-                            usage.cacheReadInputTokens =
-                              (usage.cacheReadInputTokens || 0) + cacheReadTokens;
-                            // Cost is now captured from result message, not calculated here
-                          }
-
-                          // Create new array reference for change detection
-                          state.messages.set(streamingChatId, [...messages]);
+                          // Calculate current duration in milliseconds
+                          const currentDuration = Date.now() - streamingMsg.startTime.getTime();
+                          stats.lastRequestDuration = currentDuration;
+                          stats.lastUpdated = new Date();
                         }
+                      }
 
-                        // Also store in streaming message for active view
-                        const streamingMsg = state.streamingMessages.get(streamingChatId);
-                        if (streamingMsg) {
-                          if (!streamingMsg.tokenUsage) {
-                            streamingMsg.tokenUsage = {
-                              inputTokens: 0,
-                              outputTokens: 0,
-                              cacheCreationInputTokens: 0,
-                              cacheReadInputTokens: 0,
-                            };
+                      // Update token usage if provided
+                      if (chunk.tokenUsage) {
+                        const inputTokens = chunk.tokenUsage.inputTokens || 0;
+                        const outputTokens = chunk.tokenUsage.outputTokens || 0;
+                        const cacheCreationTokens = chunk.tokenUsage.cacheCreationInputTokens || 0;
+                        const cacheReadTokens = chunk.tokenUsage.cacheReadInputTokens || 0;
+
+                        // Only update if we have new tokens (avoid duplicate updates)
+                        if (inputTokens > 0 || outputTokens > 0) {
+                          stats.totalInputTokens += inputTokens;
+                          stats.totalOutputTokens += outputTokens;
+                          stats.totalCacheCreationTokens += cacheCreationTokens;
+                          stats.totalCacheReadTokens += cacheReadTokens;
+
+                          // Note: Cost is now updated from the result message which has the actual cost
+                          // We don't calculate it manually anymore
+
+                          stats.messageCount += 1;
+                          stats.lastUpdated = new Date();
+
+                          // Store last message tokens
+                          const lastMessageTokens = inputTokens + outputTokens;
+                          if (lastMessageTokens > 0) {
+                            stats.lastMessageTokens = lastMessageTokens;
                           }
-                          // Accumulate tokens (they may come in multiple chunks)
-                          const usage = streamingMsg.tokenUsage;
-                          if (usage) {
-                            usage.inputTokens += inputTokens;
-                            usage.outputTokens += outputTokens;
-                            usage.cacheCreationInputTokens =
-                              (usage.cacheCreationInputTokens || 0) + cacheCreationTokens;
-                            usage.cacheReadInputTokens =
-                              (usage.cacheReadInputTokens || 0) + cacheReadTokens;
-                            // Cost is now captured from result message, not calculated here
+
+                          // Store token usage directly in the message using captured ID
+                          const messages = state.messages.get(streamingChatId) || [];
+                          const messageIndex = messages.findIndex(
+                            (m) => m.id === capturedStreamingMessageId
+                          );
+                          if (messageIndex !== -1) {
+                            if (!messages[messageIndex].tokenUsage) {
+                              messages[messageIndex].tokenUsage = {
+                                inputTokens: 0,
+                                outputTokens: 0,
+                                cacheCreationInputTokens: 0,
+                                cacheReadInputTokens: 0,
+                              };
+                            }
+                            // Accumulate output tokens for the current response only (resets on new message)
+                            if (outputTokens > 0) {
+                              messages[messageIndex].currentResponseOutputTokens =
+                                (messages[messageIndex].currentResponseOutputTokens || 0) +
+                                outputTokens;
+                            }
+                            // Accumulate tokens directly in the message for final totals
+                            const usage = messages[messageIndex].tokenUsage;
+                            if (usage) {
+                              usage.inputTokens = (usage.inputTokens || 0) + inputTokens;
+                              usage.outputTokens = (usage.outputTokens || 0) + outputTokens;
+                              usage.cacheCreationInputTokens =
+                                (usage.cacheCreationInputTokens || 0) + cacheCreationTokens;
+                              usage.cacheReadInputTokens =
+                                (usage.cacheReadInputTokens || 0) + cacheReadTokens;
+                              // Cost is now captured from result message, not calculated here
+                            }
+
+                            // Create new array reference for change detection
+                            state.messages.set(streamingChatId, [...messages]);
+                          }
+
+                          // Also store in streaming message for active view
+                          const streamingMsg = state.streamingMessages.get(streamingChatId);
+                          if (streamingMsg) {
+                            if (!streamingMsg.tokenUsage) {
+                              streamingMsg.tokenUsage = {
+                                inputTokens: 0,
+                                outputTokens: 0,
+                                cacheCreationInputTokens: 0,
+                                cacheReadInputTokens: 0,
+                              };
+                            }
+                            // Accumulate tokens (they may come in multiple chunks)
+                            const usage = streamingMsg.tokenUsage;
+                            if (usage) {
+                              usage.inputTokens += inputTokens;
+                              usage.outputTokens += outputTokens;
+                              usage.cacheCreationInputTokens =
+                                (usage.cacheCreationInputTokens || 0) + cacheCreationTokens;
+                              usage.cacheReadInputTokens =
+                                (usage.cacheReadInputTokens || 0) + cacheReadTokens;
+                              // Cost is now captured from result message, not calculated here
+                            }
                           }
                         }
                       }
                     }
-                  }
-                });
+                  })
+                );
               },
               onSystem: async (message) => {
                 // Capture Claude session ID from init message
@@ -988,7 +1018,7 @@ export const useCoreStore = create<CoreStore>()(
                           id: todo.id || `todo-${message.id}-${index}`,
                           content: todo.content || '',
                           status: todo.status || 'pending',
-                          activeForm: todo.activeForm || todo.content,
+                          priority: todo.priority || 'medium',
                         }));
                       }
 
@@ -1583,6 +1613,22 @@ export const useCoreStore = create<CoreStore>()(
 
       selectProject: async (id: string, skipAgentSelection?: boolean) => {
         const previousProjectId = get().selectedProjectId;
+
+        // Log terminal count when selecting a project
+        try {
+          const response = await window.electron.terminal.list();
+          // Handle both direct array and TerminalResponse format
+          let terminalCount = 0;
+          if (Array.isArray(response)) {
+            terminalCount = response.length;
+          } else if (response && typeof response === 'object' && 'data' in response) {
+            const responseWithData = response as { data?: unknown };
+            terminalCount = Array.isArray(responseWithData.data) ? responseWithData.data.length : 0;
+          }
+          logger.info(`[CoreStore] Selecting project ${id}. Active terminals: ${terminalCount}/10`);
+        } catch (error) {
+          logger.error('[CoreStore] Failed to fetch terminal count:', error);
+        }
 
         set((state) => {
           if (previousProjectId && previousProjectId !== id) {

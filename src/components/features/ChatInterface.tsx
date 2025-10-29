@@ -1,4 +1,3 @@
-import { COMPACT_PROMPT } from '@/commons/constants/compactPrompt';
 import { useTheme } from '@/commons/contexts/ThemeContext';
 import { cn } from '@/commons/utils';
 import { logger } from '@/commons/utils/logger';
@@ -25,7 +24,7 @@ import { ThreeDots } from 'react-loader-spinner';
 
 import { ChatMessage } from '@/entities';
 import { ModelOption } from '@/types/model.types';
-import { DEFAULT_PERMISSION_MODE, PermissionMode } from '@/types/permission.types';
+import { PermissionMode } from '@/types/permission.types';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,14 +40,13 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
-import { todoActivityMonitor } from '@/renderer/services/TodoActivityMonitor';
-import { useCoreStore, useUIStore } from '@/stores';
+import { useCoreStore } from '@/stores';
 
+import { ChatInput } from './ChatInput';
 import { ClaudeErrorDisplay } from './ClaudeErrorDisplay';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { PermissionActionDisplay } from './PermissionActionDisplay';
 import { RequestTiming } from './RequestTiming';
-import { RichTextEditor } from './RichTextEditor';
 import { StreamingEventDisplay } from './StreamingEventDisplay';
 import { TerminalTab } from './TerminalTab';
 import { TodoDisplay } from './TodoDisplay';
@@ -551,19 +549,14 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     },
     ref
   ) => {
-    const [inputValue, setInputValue] = useState('');
     const [showClearConfirm, setShowClearConfirm] = useState(false);
-    const [permissionMode, setPermissionMode] = useState<PermissionMode>(DEFAULT_PERMISSION_MODE);
     const [showPermissionDialog, setShowPermissionDialog] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-
-    // Get model from UI store
-    const model = useUIStore((state) => state.selectedModel);
-    const setModel = useUIStore((state) => state.setSelectedModel);
 
     // Core store subscriptions
     const resources = useCoreStore((state) => state.resources);
     const activeChat = useCoreStore((state) => state.activeChat);
+    const clearChat = useCoreStore((state) => state.clearChat);
     const isStreaming = useCoreStore((state) =>
       state.activeChat ? state.streamingStates.get(state.activeChat) || false : false
     );
@@ -580,13 +573,10 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const selectedAgentId = useCoreStore((state) => state.selectedAgentId);
     const selectedProjectId = useCoreStore((state) => state.selectedProjectId);
     const projects = useCoreStore((state) => state.projects);
-    const clearChat = useCoreStore((state) => state.clearChat);
     const sendMessage = useCoreStore((state) => state.sendMessage);
 
     // Derived values
     const streamingMessageId = streamingMessage?.id || null;
-    const stopStreaming = useCoreStore((state) => state.stopStreaming);
-    const isCompactingConversation = false; // TODO: Implement compacting state in CoreStore
 
     // Get current project for auto-focus behavior
     const currentProject = selectedProjectId ? projects.get(selectedProjectId) : undefined;
@@ -659,103 +649,6 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       }),
       []
     );
-
-    const handleSendMessage = () => {
-      if (inputValue.trim() && !isLoading) {
-        // Extract plain text from HTML content
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = inputValue;
-        const plainText = tempDiv.textContent || tempDiv.innerText || '';
-
-        if (plainText.trim()) {
-          // Check if it's a built-in command
-          const trimmedText = plainText.trim();
-          if (trimmedText === '/clear') {
-            logger.info('[Built-in Command] Intercepting /clear command');
-            handleClearChat();
-            setInputValue('');
-            return;
-          } else if (trimmedText === '/compact') {
-            logger.info('[Built-in Command] Intercepting /compact command');
-            handleCompactChat();
-            setInputValue('');
-            return;
-          }
-
-          // Not a built-in command, send normally
-          try {
-            onSendMessage(inputValue, { permissionMode, model });
-            setInputValue('');
-          } catch (error) {
-            logger.error('[DEBUG] Error calling onSendMessage:', error);
-          }
-        }
-      }
-    };
-
-    const handleSlashCommand = (commandContent: string) => {
-      // Send the slash command content as a message
-      if (commandContent.trim()) {
-        onSendMessage(commandContent, { permissionMode, model });
-        setInputValue('');
-      }
-    };
-
-    const handleClearChat = useCallback(async () => {
-      logger.info('[/clear command] Starting session clear process');
-
-      // Clear the session for the current entry
-      const selectedAgentId = useCoreStore.getState().selectedAgentId;
-      logger.info('[/clear command] Selected agent ID:', selectedAgentId);
-
-      if (selectedAgentId) {
-        try {
-          // Call IPC to clear session for this entry
-          await window.electron.ipcRenderer.invoke(
-            'claude-code:clear-session-for-entry',
-            selectedAgentId
-          );
-          logger.info('[/clear command] Session cleared successfully for agent:', selectedAgentId);
-        } catch (error) {
-          logger.error('[/clear command] Failed to clear session via IPC:', error);
-        }
-
-        // Clear local messages
-        const state = useCoreStore.getState();
-        const projectId = state.selectedProjectId;
-        if (projectId) {
-          todoActivityMonitor.clearWorktree(projectId);
-        }
-
-        // Use the CoreStore's clearChat action
-        clearChat(selectedAgentId);
-
-        logger.info('[/clear command] Chat cleared and session reset');
-      } else {
-        logger.info('[/clear command] No agent selected, nothing to clear');
-      }
-    }, [clearChat]);
-
-    const handleCompactChat = useCallback(async () => {
-      logger.info('[/compact command] Starting compact process');
-
-      const selectedAgentId = useCoreStore.getState().selectedAgentId;
-      logger.info('[/compact command] Selected agent ID:', selectedAgentId);
-
-      if (selectedAgentId) {
-        const state = useCoreStore.getState();
-        const agent = state.agents.get(selectedAgentId);
-        if (agent) {
-          // TODO: Implement compacting conversation functionality in CoreStore
-          // For now, just send the compact prompt
-          onSendMessage(COMPACT_PROMPT, { permissionMode, model });
-
-          logger.info(
-            '[/compact command] Sent compact prompt, awaiting result before clearing session'
-          );
-        }
-      }
-    }, [onSendMessage, permissionMode, model]);
 
     const confirmClearChat = () => {
       const selectedAgentId = useCoreStore.getState().selectedAgentId;
@@ -1182,41 +1075,15 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
         {/* Input Area - Hidden when terminal tab is active */}
         {selectedAgentId !== 'terminal-tab' && (
-          <div className="px-2 pb-2 pt-1 flex-shrink-0">
-            <div
-              className={cn(
-                'transition-all duration-200',
-                (isLoading && !isStreaming) || isCompactingConversation || !selectedAgentId
-                  ? 'opacity-60'
-                  : ''
-              )}
-            >
-              <RichTextEditor
-                value={inputValue}
-                onChange={setInputValue}
-                onSend={handleSendMessage}
-                placeholder={
-                  !selectedAgentId
-                    ? 'Select an agent to start chatting...'
-                    : 'Type to start building...'
-                }
-                disabled={
-                  (isLoading && !isStreaming) || isCompactingConversation || !selectedAgentId
-                }
-                attachedResourceIds={attachedResourceIds}
-                onRemoveResource={onRemoveResource}
-                {...(onAttachResources && { onAttachResources })}
-                onSlashCommand={handleSlashCommand}
-                isStreaming={isStreaming}
-                onStopStreaming={stopStreaming}
-                permissionMode={permissionMode}
-                onPermissionModeChange={setPermissionMode}
-                model={model}
-                onModelChange={setModel}
-                resources={resources}
-              />
-            </div>
-          </div>
+          <ChatInput
+            onSendMessage={onSendMessage}
+            isLoading={isLoading}
+            attachedResourceIds={attachedResourceIds}
+            onRemoveResource={onRemoveResource}
+            {...(onAttachResources && { onAttachResources })}
+            isStreaming={isStreaming}
+            selectedAgentId={selectedAgentId}
+          />
         )}
       </div>
     );

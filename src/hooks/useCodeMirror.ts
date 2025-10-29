@@ -62,6 +62,8 @@ export function useCodeMirror(options: UseCodeMirrorOptions = {}): UseCodeMirror
         return;
       }
 
+      console.log('[useCodeMirror] Creating new editor instance');
+
       const config: EditorConfig = {
         doc: initialDoc,
         extensions: [
@@ -83,7 +85,7 @@ export function useCodeMirror(options: UseCodeMirrorOptions = {}): UseCodeMirror
       editorInstanceRef.current = instance;
       setView(instance.view);
     },
-    [extensions, initialDoc, readOnly, placeholder, destroy]
+    [initialDoc, readOnly, placeholder, destroy]
   );
 
   // Reconfigure extensions when they change

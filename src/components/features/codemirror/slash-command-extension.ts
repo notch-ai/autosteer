@@ -68,8 +68,11 @@ export function createSlashCommandExtension(options: SlashCommandExtensionOption
           const query = slashMatch[1]; // Group 1 is the query after /
           const slashPos = from - query.length - 1;
 
-          // Defer all view operations until after update cycle completes
-          setTimeout(() => {
+          // Defer dispatch to avoid "update in progress" error
+          // Use Promise.resolve() for microtask scheduling (faster than setTimeout)
+          Promise.resolve().then(() => {
+            console.log('[slash-command-extension] Deferred trigger - query:', query);
+
             view.dispatch({
               effects: setSlashCommandTrigger.of({ query, pos: slashPos }),
             });
@@ -83,17 +86,20 @@ export function createSlashCommandExtension(options: SlashCommandExtensionOption
                 });
               }
             }
-          }, 0);
+          });
         } else {
           const current = state.field(slashCommandState, false);
           if (current) {
-            // Defer dispatch until after update cycle completes
-            setTimeout(() => {
+            // Defer dispatch to avoid "update in progress" error
+            // Use Promise.resolve() for microtask scheduling (faster than setTimeout)
+            Promise.resolve().then(() => {
+              console.log('[slash-command-extension] Deferred hide');
+
               view.dispatch({
                 effects: setSlashCommandTrigger.of(null),
               });
-            }, 0);
-            onHide?.();
+              onHide?.();
+            });
           }
         }
       }

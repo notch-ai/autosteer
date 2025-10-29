@@ -37,9 +37,10 @@ export class ClaudeCodeSDKService {
   /**
    * Initialize a new Claude Code session
    * @param workingDirectory - Working directory for the session
+   * @param model - Optional model to use for the session
    * @returns Promise<string> - Claude session ID
    */
-  static async initializeSession(workingDirectory?: string): Promise<string> {
+  static async initializeSession(workingDirectory?: string, model?: string): Promise<string> {
     const service = ClaudeCodeSDKService.getInstance();
     const queryId = uuidv4();
     const sessionId = uuidv4();
@@ -53,6 +54,7 @@ export class ClaudeCodeSDKService {
         options: {
           maxTurns: 1,
           cwd: workingDirectory || process.cwd(),
+          ...(model && { model }), // Pass the model if provided
         },
       })) {
         if (message.type === 'system' && message.subtype === 'init' && message.session_id) {
@@ -224,8 +226,12 @@ export class ClaudeCodeSDKService {
         sdkOptions.allowedTools = options.allowedTools;
       }
 
+      // ALWAYS set the model from options if provided (app's selected model takes precedence)
       if (options.model) {
         sdkOptions.model = options.model;
+        log.info('[SDK Service] Using model from app settings:', options.model);
+      } else {
+        log.info('[SDK Service] No model specified, will use Claude Code default settings');
       }
 
       // Set working directory if provided
@@ -259,6 +265,17 @@ export class ClaudeCodeSDKService {
 
         sdkOptions.cwd = cwd;
       }
+
+      // Log the query details before sending
+      log.info('[SDK Service] Sending query with configuration:', {
+        model: sdkOptions.model || 'default',
+        maxTurns: sdkOptions.maxTurns,
+        permissionMode: sdkOptions.permissionMode,
+        cwd: sdkOptions.cwd,
+        hasSystemPrompt: !!sdkOptions.systemPrompt,
+        hasAttachments: !!(attachments && attachments.length > 0),
+        resumeSessionId: !!resumeSessionId,
+      });
 
       // Start SDK query with correct format: {prompt, options}
       const result = query({

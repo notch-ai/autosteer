@@ -8,12 +8,10 @@
  * Updated to support multi-agent architecture - each agent has its own isolated monitor.
  */
 
-export interface Todo {
-  id: string;
-  content: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  priority: 'low' | 'medium' | 'high';
-}
+import { Todo } from '@/types/todo';
+
+// Re-export for backwards compatibility
+export type { Todo };
 
 export interface TodoWriteMessage {
   type: 'tool_use';
@@ -713,7 +711,10 @@ export class TodoActivityMonitor {
     let bestMatch: { todoId: string; score: number } | undefined;
 
     for (const [todoId, todo] of todos) {
-      const score = this.calculateMatchScore(agentDesc, todo.content);
+      // Try matching against both content and activeForm, take the better score
+      const contentScore = this.calculateMatchScore(agentDesc, todo.content);
+      const activeFormScore = this.calculateMatchScore(agentDesc, todo.activeForm);
+      const score = Math.max(contentScore, activeFormScore);
 
       // Only consider matches above threshold (0.5)
       if (score > 0.5) {
@@ -805,7 +806,7 @@ export class TodoActivityMonitor {
     const words = text
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
-      .filter((word) => word.length > 2);
+      .filter((word) => word.length > 0);
 
     // Remove common stop words
     const stopWords = new Set([

@@ -1,5 +1,5 @@
 import { logger } from '@/commons/utils/logger';
-import { Task } from '@/components/features/TaskList';
+import { Task } from '@/types/todo';
 import { Agent, AgentStatus, AgentType, ChatMessage, Resource } from '@/entities';
 import {
   claudeCodeService,
@@ -761,7 +761,6 @@ export const useCoreStore = create<CoreStore>()(
                             id: todo.id || `todo-${capturedStreamingMessageId}-${index}`,
                             content: todo.content || '',
                             status: todo.status || 'pending',
-                            priority: todo.priority || 'medium',
                             activeForm: todo.activeForm || todo.content,
                           })
                         );
@@ -989,7 +988,7 @@ export const useCoreStore = create<CoreStore>()(
                           id: todo.id || `todo-${message.id}-${index}`,
                           content: todo.content || '',
                           status: todo.status || 'pending',
-                          priority: todo.priority || 'medium',
+                          activeForm: todo.activeForm || todo.content,
                         }));
                       }
 
@@ -1803,10 +1802,10 @@ export const useCoreStore = create<CoreStore>()(
             const previousStatus = state.tasks[taskIndex].status;
             state.tasks[taskIndex] = { ...state.tasks[taskIndex], ...updates };
 
-            // Trigger badge notification on task completion or failure
+            // Trigger badge notification on task completion
             // The badge will be shown if the window is not focused
             if (updates.status && previousStatus !== updates.status) {
-              if (updates.status === 'completed' || updates.status === 'failed') {
+              if (updates.status === 'completed') {
                 // Use type assertion to access badge API
                 const electronWithBadge = window.electron as any;
                 if (electronWithBadge.badge) {

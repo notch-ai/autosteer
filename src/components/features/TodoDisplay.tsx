@@ -1,14 +1,7 @@
 import { cn } from '@/commons/utils';
 import { Button } from '@/components/ui/button';
+import { Task } from '@/types/todo';
 import React from 'react';
-
-interface Task {
-  id: string;
-  content: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  priority: 'low' | 'medium' | 'high';
-  activeForm?: string; // Present continuous form for in-progress display
-}
 
 export interface TodoDisplayProps {
   todos: Task[];
@@ -30,11 +23,11 @@ export const TodoDisplay: React.FC<TodoDisplayProps> = ({ todos, isActive = fals
 
   const getButtonText = () => {
     if (completedCount === 0) {
-      return `${totalCount} todo${totalCount !== 1 ? 's' : ''}`;
+      return `${totalCount} task${totalCount !== 1 ? 's' : ''}`;
     } else if (remainingCount === 0) {
-      return `${completedCount} todo${completedCount !== 1 ? 's' : ''} done`;
+      return `${completedCount} task${completedCount !== 1 ? 's' : ''} done`;
     } else {
-      return `${completedCount} of ${totalCount} todo${totalCount !== 1 ? 's' : ''} done`;
+      return `${completedCount} of ${totalCount} task${totalCount !== 1 ? 's' : ''} done`;
     }
   };
 

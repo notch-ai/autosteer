@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/notch-ai/autosteer/compare/v0.1.5...v0.1.6) (2025-10-29)
+
+
+### Performance Improvements
+
+* optimize desktop-app typing performance ([13876d6](https://github.com/notch-ai/autosteer/commit/13876d672d3fba4d2fad0157941f901976392e93))
+
 ## [0.1.5](https://github.com/notch-ai/autosteer/compare/v0.1.4...v0.1.5) (2025-10-29)
 
 

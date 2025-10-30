@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/notch-ai/autosteer/compare/v0.1.8...v0.1.9) (2025-10-30)
+
+
+### Features
+
+* add trace tab, search service, and enhanced file handling ([e07936e](https://github.com/notch-ai/autosteer/commit/e07936e9b2d372dc809e667a28e963cb9f1dff44))
+
 ## [0.1.8](https://github.com/notch-ai/autosteer/compare/v0.1.7...v0.1.8) (2025-10-29)
 
 

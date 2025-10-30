@@ -5,8 +5,8 @@
 import { ClaudeCodeSDKService } from '@/services/ClaudeCodeSDKService';
 import type { ClaudeCodeQueryOptions } from '@/types/claudeCode.types';
 import { ipcMain } from 'electron';
-import { v4 as uuidv4 } from 'uuid';
 import log from 'electron-log/main';
+import { v4 as uuidv4 } from 'uuid';
 
 export function registerClaudeCodeHandlers(): void {
   log.info('[ClaudeCode Handlers] Starting handler registration');
@@ -34,12 +34,31 @@ export function registerClaudeCodeHandlers(): void {
         try {
           log.debug('[IPC Handler] ========== CALLING SDK SERVICE ==========');
           log.debug('[IPC Handler] About to call claudeService.queryClaudeCode');
+
+          // Send outgoing trace before starting query
+          event.sender.send(`claude-code:trace:${queryId}`, {
+            direction: 'to',
+            message: {
+              prompt: options.prompt,
+              sessionId: options.sessionId,
+              hasAttachments: !!(options.attachments && options.attachments.length > 0),
+              conversationOptions: options.options,
+            },
+          });
+
           let messageCount = 0;
           for await (const message of claudeService.queryClaudeCode(queryId, options)) {
             messageCount++;
             log.debug('[IPC Handler] ========== Message #' + messageCount + ' ==========');
             log.debug('[IPC Handler] Message type:', message.type);
             log.debug('[IPC Handler] Message:', JSON.stringify(message, null, 2));
+
+            // Send incoming trace for all SDK messages
+            event.sender.send(`claude-code:trace:${queryId}`, {
+              direction: 'from',
+              message: message,
+            });
+
             // Send each message to renderer
             log.debug(
               '[IPC Handler] Sending to renderer on channel:',

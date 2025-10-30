@@ -93,11 +93,8 @@ export class TerminalHandlers {
     ipcMain.handle(
       'terminal:list',
       async (_event: IpcMainInvokeEvent): Promise<TerminalResponse> => {
-        log.debug('[TerminalHandlers] terminal:list invoked');
-
         try {
           const terminals = await this.listTerminals();
-          log.debug('[TerminalHandlers] Listed terminals', { count: terminals.length });
 
           return {
             success: true,
@@ -169,12 +166,8 @@ export class TerminalHandlers {
   private async listTerminals(): Promise<
     Array<{ id: string; shell: string; cwd: string; isActive: boolean; pid: number }>
   > {
-    log.debug('[TerminalHandlers] Listing terminals');
-
     try {
       const terminals = this.xtermService.getAllTerminals();
-      log.debug('[TerminalHandlers] Terminals listed', { count: terminals.length });
-
       return terminals;
     } catch (error) {
       log.error('[TerminalHandlers] Failed to list terminals:', error);

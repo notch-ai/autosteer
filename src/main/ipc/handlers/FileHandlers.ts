@@ -53,6 +53,69 @@ export class FileHandlers {
   }
 
   /**
+   * Read and parse .gitignore file patterns
+   */
+  private async readGitignorePatterns(workspacePath: string): Promise<string[]> {
+    const gitignorePath = path.join(workspacePath, '.gitignore');
+    const baseIgnorePatterns = [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.next/**',
+      '**/out/**',
+      '**/.vite/**',
+    ];
+
+    try {
+      const gitignoreContent = await fs.readFile(gitignorePath, 'utf-8');
+      const gitignorePatterns = gitignoreContent
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'))
+        .map((pattern) => {
+          // Handle negation patterns - fast-glob uses ! prefix for negation
+          if (pattern.startsWith('!')) {
+            // Keep the ! prefix, it's handled by fast-glob
+            const negatedPattern = pattern.slice(1);
+            if (negatedPattern.endsWith('/')) {
+              return `!**/${negatedPattern}**`;
+            }
+            if (negatedPattern.startsWith('/')) {
+              return `!${negatedPattern.slice(1)}`;
+            }
+            if (!negatedPattern.includes('/')) {
+              return `!**/${negatedPattern}`;
+            }
+            return `!${negatedPattern}`;
+          }
+
+          // Regular patterns
+          if (pattern.endsWith('/')) {
+            return `**/${pattern}**`;
+          }
+          if (pattern.startsWith('/')) {
+            return pattern.slice(1);
+          }
+          if (!pattern.includes('/')) {
+            return `**/${pattern}`;
+          }
+          return pattern;
+        });
+
+      log.debug('Loaded .gitignore patterns:', {
+        count: gitignorePatterns.length,
+        patterns: gitignorePatterns.slice(0, 10),
+      });
+
+      return [...baseIgnorePatterns, ...gitignorePatterns];
+    } catch (error) {
+      log.debug('No .gitignore found or error reading it, using base patterns only');
+      return baseIgnorePatterns;
+    }
+  }
+
+  /**
    * Search for files and directories in the workspace matching a query
    */
   async searchWorkspace(
@@ -64,19 +127,27 @@ export class FileHandlers {
       const maxResults = request.maxResults || 100;
       const query = request.query.toLowerCase();
 
-      const patterns = [`**/*${query}*`];
+      log.debug('[FileHandlers] searchWorkspace called:', {
+        workspacePath: normalizedPath,
+        query: request.query,
+        maxResults,
+      });
 
-      const ignorePatterns = [
-        '**/node_modules/**',
-        '**/.git/**',
-        '**/dist/**',
-        '**/build/**',
-        '**/.next/**',
-        '**/out/**',
-        '**/.vite/**',
-        '**/.vscode/**',
-        '**/.idea/**',
-      ];
+      const patterns = query ? [`**/*${query}*`] : ['**/*'];
+
+      const allPatterns = await this.readGitignorePatterns(normalizedPath);
+
+      // Separate negation patterns (whitelist) from ignore patterns
+      const ignorePatterns = allPatterns.filter((p) => !p.startsWith('!'));
+      const negationPatterns = allPatterns.filter((p) => p.startsWith('!')).map((p) => p.slice(1)); // Remove the ! prefix to get the whitelist patterns
+
+      log.debug('[FileHandlers] Using patterns:', {
+        searchPatterns: patterns,
+        ignorePatternCount: ignorePatterns.length,
+        negationPatternCount: negationPatterns.length,
+        firstFewIgnorePatterns: ignorePatterns.slice(0, 5),
+        firstFewNegationPatterns: negationPatterns.slice(0, 5),
+      });
 
       const results = await fg(patterns, {
         cwd: normalizedPath,
@@ -90,7 +161,50 @@ export class FileHandlers {
         caseSensitiveMatch: false,
       });
 
-      const limitedResults = results.slice(0, maxResults);
+      log.debug('[FileHandlers] Glob results:', {
+        totalFound: results.length,
+        maxResults,
+        willBeLimited: results.length > maxResults,
+        firstFewResults: results.slice(0, 5),
+      });
+
+      // Also search for whitelisted files (negation patterns) that might have been filtered
+      let whitelistedResults: string[] = [];
+      if (negationPatterns.length > 0) {
+        // Search for whitelisted files using the negation patterns directly
+        const rawWhitelistedResults = await fg(negationPatterns, {
+          cwd: normalizedPath,
+          ignore: [], // Don't apply ignore patterns to whitelisted files
+          onlyFiles: true,
+          markDirectories: false,
+          absolute: false,
+          suppressErrors: true,
+          stats: false,
+          dot: true, // Whitelisted files should always include hidden files
+          caseSensitiveMatch: false,
+        });
+
+        // Filter by query if one exists
+        whitelistedResults = query
+          ? rawWhitelistedResults.filter((file) => file.toLowerCase().includes(query))
+          : rawWhitelistedResults;
+
+        log.debug('[FileHandlers] Whitelist results:', {
+          whitelistedCount: whitelistedResults.length,
+          whitelistedFiles: whitelistedResults.slice(0, 10),
+        });
+      }
+
+      // Merge and deduplicate results
+      const allResults = [...new Set([...results, ...whitelistedResults])];
+
+      log.debug('[FileHandlers] Combined results:', {
+        totalFound: allResults.length,
+        fromMainSearch: results.length,
+        fromWhitelist: whitelistedResults.length,
+      });
+
+      const limitedResults = allResults.slice(0, maxResults);
       const entries: FileSystemEntry[] = [];
 
       for (const resultPath of limitedResults) {
@@ -116,10 +230,16 @@ export class FileHandlers {
         return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
       });
 
+      log.debug('[FileHandlers] Returning entries:', {
+        entriesCount: entries.length,
+        totalFound: results.length,
+        firstFewEntries: entries.slice(0, 5).map((e) => e.name),
+      });
+
       return {
         entries,
         query: request.query,
-        totalFound: results.length,
+        totalFound: allResults.length,
       };
     } catch (error) {
       log.error('Failed to search workspace:', error);

@@ -45,6 +45,7 @@ export interface ClaudeStreamingCallbacks {
   onResult?: (message: ResultMessage) => void;
   onError?: (error: Error) => void;
   onComplete?: (finalContent: string) => void;
+  onTrace?: (direction: 'to' | 'from', message: any) => void;
 }
 
 export class ClaudeCodeService {
@@ -222,6 +223,13 @@ export class ClaudeCodeService {
             }
           };
 
+          const traceListener: IpcListener = (_event, ...args) => {
+            const data = args[0] as { direction: 'to' | 'from'; message: any };
+            if (callbacks.onTrace) {
+              callbacks.onTrace(data.direction, data.message);
+            }
+          };
+
           // Cleanup function
           const cleanup = () => {
             generalLogger.debug('[DEBUG ClaudeCodeService] Cleanup called', {
@@ -231,6 +239,7 @@ export class ClaudeCodeService {
             ipcRenderer?.removeListener?.(`claude-code:message:${queryId}`, messageListener);
             ipcRenderer?.removeListener?.(`claude-code:complete:${queryId}`, completeListener);
             ipcRenderer?.removeListener?.(`claude-code:error:${queryId}`, errorListener);
+            ipcRenderer?.removeListener?.(`claude-code:trace:${queryId}`, traceListener);
             this.activeQueries.delete(queryId);
             // Clean up agent-specific abort controller if it matches
             if (options?.sessionId) {
@@ -245,6 +254,7 @@ export class ClaudeCodeService {
           ipcRenderer?.on?.(`claude-code:message:${queryId}`, messageListener);
           ipcRenderer?.on?.(`claude-code:complete:${queryId}`, completeListener);
           ipcRenderer?.on?.(`claude-code:error:${queryId}`, errorListener);
+          ipcRenderer?.on?.(`claude-code:trace:${queryId}`, traceListener);
 
           // Store query info for abort capability
           this.activeQueries.set(queryId, { callbacks, cleanup, abortController });

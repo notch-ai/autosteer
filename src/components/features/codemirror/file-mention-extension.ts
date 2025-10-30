@@ -1,4 +1,4 @@
-import { Extension, StateField, StateEffect } from '@codemirror/state';
+import { Extension, StateEffect, StateField } from '@codemirror/state';
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 
 export interface FileMentionExtensionOptions {
@@ -59,8 +59,6 @@ export function createFileMentionExtension(options: FileMentionExtensionOptions)
           // Defer dispatch to avoid "update in progress" error
           // Use Promise.resolve() for microtask scheduling (faster than setTimeout)
           Promise.resolve().then(() => {
-            console.log('[file-mention-extension] Deferred trigger - query:', query);
-
             view.dispatch({
               effects: setFileMentionTrigger.of({ query, pos: atPos }),
             });
@@ -78,12 +76,9 @@ export function createFileMentionExtension(options: FileMentionExtensionOptions)
         } else {
           const current = state.field(fileMentionState, false);
           if (current) {
-            console.log('[file-mention-extension] Pattern no longer matches, calling onHide');
             // Defer dispatch to avoid "update in progress" error
             // Use Promise.resolve() for microtask scheduling (faster than setTimeout)
             Promise.resolve().then(() => {
-              console.log('[file-mention-extension] Deferred hide');
-
               view.dispatch({
                 effects: setFileMentionTrigger.of(null),
               });

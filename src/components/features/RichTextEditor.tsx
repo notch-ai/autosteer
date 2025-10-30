@@ -1,5 +1,6 @@
 import { cn } from '@/commons/utils';
 import { logger } from '@/commons/utils/logger';
+import { convertSlashCommandFormat } from '@/commons/utils/slashCommandUtils';
 import { ModelSelector } from '@/components/ModelSelector';
 import { Button } from '@/components/ui/button';
 import { useCodeMirror } from '@/hooks/useCodeMirror';
@@ -72,10 +73,21 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   // UI state
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [mentionQuery] = useState('');
-  const [showSlashCommands, setShowSlashCommands] = useState(false);
-  const [slashQuery, setSlashQuery] = useState('');
+  const [showSlashCommands, setShowSlashCommandsState] = useState(false);
+  const [slashQuery, setSlashQueryState] = useState('');
   const [showFileMentions, setShowFileMentions] = useState(false);
   const [fileMentionQuery, setFileMentionQuery] = useState('');
+
+  // Wrap state setters with logging (no dependencies to avoid re-renders)
+  const setShowSlashCommands = useCallback((value: boolean) => {
+    console.log('[RichTextEditor] setShowSlashCommands', { value });
+    setShowSlashCommandsState(value);
+  }, []);
+
+  const setSlashQuery = useCallback((value: string) => {
+    console.log('[RichTextEditor] setSlashQuery', { value });
+    setSlashQueryState(value);
+  }, []);
   const [pickerPosition, setPickerPosition] = useState<{
     top?: number;
     bottom?: number;
@@ -148,7 +160,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         });
       }
     },
-    []
+    [setSlashQuery, setShowSlashCommands]
   );
 
   // Handle file mention trigger
@@ -178,7 +190,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         });
       }
     },
-    []
+    [setShowSlashCommands]
   );
 
   // Handle toolbar formatting - defined before useCodeMirror to avoid circular dependency
@@ -307,7 +319,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       // Slash command extension
       createSlashCommandExtension({
         onTrigger: handleSlashTrigger,
-        onHide: () => setShowSlashCommands(false),
+        onHide: () => {
+          setShowSlashCommands(false);
+          setSlashQuery('');
+        },
       }),
       // File mention extension
       createFileMentionExtension({
@@ -484,7 +499,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const closeSlashCommands = useCallback(() => {
     setShowSlashCommands(false);
     setSlashQuery('');
-  }, []);
+  }, [setShowSlashCommands, setSlashQuery]);
 
   // Close file mentions
   const closeFileMentions = useCallback(() => {
@@ -538,9 +553,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 ? command.command
                 : '/' + command.command;
 
-              // Execute slash command - send formatted command to Claude Code
+              // Convert command format (e.g., /engineering:write-docs -> "run command /engineering/write-docs")
+              const convertedCommand = convertSlashCommandFormat(formattedCommand);
+
+              // Execute slash command - send converted command to Claude Code
               if (onSlashCommand) {
-                onSlashCommand(formattedCommand);
+                onSlashCommand(convertedCommand);
               }
 
               closeSlashCommands();
@@ -548,12 +566,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             onTabSelect={(command) => {
               if (!view) return;
 
+              // Format the command with leading slash and trailing space
               const fullCommand = command.command.startsWith('/')
                 ? command.command
                 : '/' + command.command;
-              insertSlashCommand(view, fullCommand + ' ');
 
-              closeSlashCommands();
+              // Insert command with space - extension will auto-hide when space is detected
+              insertSlashCommand(view, fullCommand + ' ');
               view.focus();
             }}
             onClose={closeSlashCommands}

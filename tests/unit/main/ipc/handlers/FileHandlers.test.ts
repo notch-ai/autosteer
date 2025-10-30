@@ -3,6 +3,7 @@ import { ipcMain, IpcMainInvokeEvent, dialog, shell, BrowserWindow } from 'elect
 import { IPC_CHANNELS, IpcChannelNames } from '@/types/ipc.types';
 import * as fs from 'fs/promises';
 import log from 'electron-log';
+import fg from 'fast-glob';
 
 // Mock electron
 jest.mock('electron', () => ({
@@ -26,12 +27,19 @@ jest.mock('electron', () => ({
 jest.mock('fs/promises', () => ({
   readFile: jest.fn(),
   writeFile: jest.fn(),
+  readdir: jest.fn(),
+  stat: jest.fn(),
+  access: jest.fn(),
 }));
+
+// Mock fast-glob
+jest.mock('fast-glob', () => jest.fn());
 
 // Mock electron-log
 jest.mock('electron-log', () => ({
   info: jest.fn(),
   error: jest.fn(),
+  debug: jest.fn(),
 }));
 
 describe('FileHandlers', () => {
@@ -375,6 +383,125 @@ describe('FileHandlers', () => {
 
       await expect(handler(event, options)).rejects.toThrow('No window found');
       expect(log.error).toHaveBeenCalledWith('Failed to show message box:', expect.any(Error));
+    });
+  });
+
+  describe('searchWorkspace with .gitignore support', () => {
+    it('should read and apply .gitignore patterns', async () => {
+      const mockGitignore = `
+# Comments should be ignored
+node_modules/
+*.log
+dist
+/build
+.env
+`;
+
+      (fs.readFile as jest.Mock).mockResolvedValue(mockGitignore);
+      (fg as unknown as jest.Mock).mockResolvedValue(['src/index.ts', 'src/utils.ts']);
+      (fs.stat as jest.Mock).mockResolvedValue({ isDirectory: () => false, isFile: () => true });
+
+      const mockEvent = {} as IpcMainInvokeEvent;
+      const result = await fileHandlers.searchWorkspace(mockEvent, {
+        query: 'index',
+        workspacePath: '/test/workspace',
+        maxResults: 100,
+      });
+
+      expect(fs.readFile).toHaveBeenCalledWith('/test/workspace/.gitignore', 'utf-8');
+      expect(fg).toHaveBeenCalledWith(
+        ['**/*index*'],
+        expect.objectContaining({
+          cwd: '/test/workspace',
+          ignore: expect.arrayContaining([
+            '**/node_modules/**',
+            '**/.git/**',
+            '**/node_modules/**',
+            '**/*.log',
+            '**/dist',
+            'build',
+            '**/.env',
+          ]),
+        })
+      );
+      expect(result.entries).toHaveLength(2);
+    });
+
+    it('should use base patterns when .gitignore does not exist', async () => {
+      (fs.readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
+      (fg as unknown as jest.Mock).mockResolvedValue(['src/index.ts']);
+      (fs.stat as jest.Mock).mockResolvedValue({ isDirectory: () => false, isFile: () => true });
+
+      const mockEvent = {} as IpcMainInvokeEvent;
+      await fileHandlers.searchWorkspace(mockEvent, {
+        query: 'index',
+        workspacePath: '/test/workspace',
+        maxResults: 100,
+      });
+
+      expect(fg).toHaveBeenCalledWith(
+        ['**/*index*'],
+        expect.objectContaining({
+          ignore: [
+            '**/node_modules/**',
+            '**/.git/**',
+            '**/dist/**',
+            '**/build/**',
+            '**/.next/**',
+            '**/out/**',
+            '**/.vite/**',
+          ],
+        })
+      );
+    });
+
+    it('should handle empty query and return all files', async () => {
+      (fs.readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
+      (fg as unknown as jest.Mock).mockResolvedValue(['src/index.ts', 'src/utils.ts', 'README.md']);
+      (fs.stat as jest.Mock).mockResolvedValue({ isDirectory: () => false, isFile: () => true });
+
+      const mockEvent = {} as IpcMainInvokeEvent;
+      await fileHandlers.searchWorkspace(mockEvent, {
+        query: '',
+        workspacePath: '/test/workspace',
+        maxResults: 100,
+      });
+
+      expect(fg).toHaveBeenCalledWith(
+        ['**/*'],
+        expect.objectContaining({ cwd: '/test/workspace' })
+      );
+    });
+
+    it('should parse .gitignore patterns correctly', async () => {
+      const mockGitignore = `
+# Test different pattern formats
+temp/
+*.tmp
+/absolute-path
+relative-path
+`;
+
+      (fs.readFile as jest.Mock).mockResolvedValue(mockGitignore);
+      (fg as unknown as jest.Mock).mockResolvedValue([]);
+
+      const mockEvent = {} as IpcMainInvokeEvent;
+      await fileHandlers.searchWorkspace(mockEvent, {
+        query: 'test',
+        workspacePath: '/test/workspace',
+      });
+
+      expect(fg).toHaveBeenCalledWith(
+        ['**/*test*'],
+        expect.objectContaining({
+          ignore: expect.arrayContaining([
+            '**/temp/**',
+            '**/*.tmp',
+            'absolute-path',
+            '**/relative-path',
+          ]),
+        })
+      );
     });
   });
 });

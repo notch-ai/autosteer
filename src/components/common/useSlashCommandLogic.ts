@@ -1,6 +1,7 @@
 import { logger } from '@/commons/utils/logger';
+import { SearchService } from '@/commons/utils/SearchService';
 import { useCoreStore } from '@/stores';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 interface SlashCommand {
   command: string;
@@ -167,6 +168,9 @@ export const useSlashCommandLogic = (query: string) => {
   const loadSlashCommands = useCoreStore((state) => state.loadSlashCommands);
   const selectedProjectId = useCoreStore((state) => state.selectedProjectId);
 
+  // Create SearchService instance
+  const searchServiceRef = useRef<SearchService<SlashCommand> | null>(null);
+
   // Load commands when the hook is first used OR when selected project changes
   useEffect(() => {
     loadSlashCommands().catch((error) => {
@@ -187,28 +191,46 @@ export const useSlashCommandLogic = (query: string) => {
     }));
   }, [slashCommands]);
 
-  // Filter commands based on query
-  const filteredCommands = useMemo(() => {
-    // Always show both custom and built-in commands
+  // Initialize SearchService when commands change
+  useEffect(() => {
     const allCommands = [...customCommands, ...builtInCommands];
 
-    // Sort commands alphabetically by command name
-    const sortedCommands = allCommands.sort((a, b) =>
-      a.command.toLowerCase().localeCompare(b.command.toLowerCase())
+    // Create SearchService instance if it doesn't exist
+    if (!searchServiceRef.current) {
+      searchServiceRef.current = new SearchService<SlashCommand>({
+        name: 'SlashCommand',
+        limit: 20,
+      });
+    }
+
+    // Initialize index with all commands
+    searchServiceRef.current.initializeIndex(
+      allCommands,
+      (cmd) => `${cmd.command} ${cmd.label} ${cmd.description}`
     );
+  }, [customCommands]);
+
+  // Filter commands based on query using SearchService
+  const filteredCommands = useMemo(() => {
+    const allCommands = [...customCommands, ...builtInCommands];
 
     if (!query) {
-      // Show all commands when no query
-      return sortedCommands;
-    } else {
-      // Filter commands based on query
-      return sortedCommands.filter(
-        (cmd) =>
-          cmd.command.toLowerCase().includes(query.toLowerCase()) ||
-          cmd.label.toLowerCase().includes(query.toLowerCase()) ||
-          cmd.description.toLowerCase().includes(query.toLowerCase())
+      // Show all commands when no query, sorted alphabetically
+      return allCommands.sort((a, b) =>
+        a.command.toLowerCase().localeCompare(b.command.toLowerCase())
       );
     }
+
+    if (!searchServiceRef.current) {
+      return allCommands;
+    }
+
+    // Use SearchService for unified search
+    return searchServiceRef.current.search(query, (cmd) => [
+      cmd.command,
+      cmd.label,
+      cmd.description,
+    ]);
   }, [query, customCommands]);
 
   return {

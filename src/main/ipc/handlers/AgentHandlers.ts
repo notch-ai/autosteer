@@ -183,7 +183,7 @@ export class AgentHandlers {
 
         log.info(`Deleted agent ${id}`);
       } catch (error) {
-        log.error('Failed to delete agent:', error);
+        log.error('Failed to delete session:', error);
         throw error;
       }
     });

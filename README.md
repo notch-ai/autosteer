@@ -26,6 +26,8 @@ https://github.com/user-attachments/assets/65219ff1-f600-412a-8a5f-fe7a1880704f
 - Fast Context Switching - Instantly switch between worktrees
 - Token Usage Tracking - Monitor token usage and costs per message and per worktree
 - Status Panel - View session information, manage MCP servers, and handle MCP authentication
+- Protocol Trace Viewer - Inspect detailed protocol messages for debugging and understanding agent behavior
+- Custom Slash Commands - Extend Claude Code functionality with custom command patterns (file:src/commons/utils/slashCommandUtils.ts)
 
 ## 📦 Installation
 
@@ -131,19 +133,26 @@ pnpm make
 ```text
 autosteer/
 ├── src/
-│   ├── main/           # Electron main process
-│   ├── components/     # React UI components
-│   ├── features/       # Feature modules
-│   ├── services/       # Application services
-│   ├── stores/         # State management
-│   ├── hooks/          # React hooks
-│   ├── commons/        # Shared utilities
-│   ├── entities/       # Data models
-│   └── types/          # TypeScript types
-├── assets/             # App icons and images
-├── tests/              # Test files
-├── scripts/            # Build and release scripts
-└── .github/workflows/  # CI/CD configuration
+│   ├── main/                    # Electron main process
+│   ├── components/
+│   │   ├── features/            # Feature modules (TraceTab, DetailPanel, etc.)
+│   │   ├── ui/                  # UI components (Table, Dialog, etc.)
+│   │   └── settings/            # Settings panels
+│   ├── services/                # Application services
+│   ├── stores/                  # State management (Zustand)
+│   ├── hooks/                   # React hooks (useCodeMirror, useRichTextEditor)
+│   ├── commons/
+│   │   ├── utils/               # Utility functions (slashCommandUtils, SearchService)
+│   │   ├── contexts/            # React contexts (ElectronContext, ThemeContext)
+│   │   ├── constants/           # Constants and config
+│   │   └── config/              # Theme and styling configuration
+│   ├── entities/                # Data models (SessionBlock)
+│   └── types/                   # TypeScript types (terminal.types)
+├── assets/                      # App icons and images
+├── tests/
+│   └── unit/                    # Unit tests organized by feature path
+├── scripts/                     # Build and release scripts
+└── .github/workflows/           # CI/CD configuration
 ```
 
 ## 🤝 Contributing
@@ -191,6 +200,18 @@ pnpm test:watch
 # Run tests with coverage report
 pnpm test:coverage
 ```
+
+### Test Coverage
+
+Key test files covering critical functionality:
+
+- **Utilities**: `tests/unit/commons/utils/slashCommandUtils.test.ts` - Custom slash command formatting
+- **Components**: `tests/unit/components/codemirror/slash-command-extension.test.ts` - Editor extensions
+- **IPC Handlers**: `tests/unit/main/ipc/handlers/FileHandlers.test.ts` - File operation handlers
+- **Services**: `tests/unit/services/ClaudeCodeService.test.ts` - Core Claude Code integration
+- **Store**: `tests/unit/stores/core.test.ts` - State management
+- **Types**: `tests/unit/types/terminal.types.test.ts` - Terminal type safety
+- **Entities**: `tests/unit/entities/SessionBlock.test.ts` - Data model validation
 
 ## 🔒 Security
 

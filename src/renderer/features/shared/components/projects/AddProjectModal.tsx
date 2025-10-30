@@ -1,12 +1,13 @@
 import { Input } from '@/components/features/Input';
 import { Modal } from '@/components/features/Modal';
+import { SearchService } from '@/commons/utils/SearchService';
 import { Card } from '@/components/ui/card';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { toastError, toastSuccess } from '@/components/ui/sonner';
 import { usePickerKeyboardNav } from '@/hooks/usePickerKeyboardNav';
 import { useCoreStore } from '@/stores';
 import { CreateProjectInput } from '@/types/project.types';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 interface AddProjectModalProps {
   onClose: () => void;
@@ -52,6 +53,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose }): JS
   const inputRef = useRef<HTMLInputElement>(null);
   const branchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchServiceRef = useRef<SearchService<string> | null>(null);
 
   // Load repository URLs on mount
   useEffect((): void => {
@@ -74,10 +76,35 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose }): JS
     void loadRepoUrls();
   }, []);
 
-  // Filter repository URLs based on input
-  const filteredRepos = formData.githubRepo
-    ? repoUrls.filter((url) => url.toLowerCase().includes(formData.githubRepo!.toLowerCase()))
-    : repoUrls; // Show all repos when input is empty
+  // Initialize SearchService when repoUrls change
+  useEffect(() => {
+    if (repoUrls.length === 0) return;
+
+    // Create SearchService instance if it doesn't exist
+    if (!searchServiceRef.current) {
+      searchServiceRef.current = new SearchService<string>({
+        name: 'GitRepo',
+        limit: 50,
+      });
+    }
+
+    // Initialize index with all repo URLs
+    searchServiceRef.current.initializeIndex(repoUrls, (url) => url);
+  }, [repoUrls]);
+
+  // Filter repository URLs based on input using SearchService
+  const filteredRepos = useMemo(() => {
+    if (!formData.githubRepo) {
+      return repoUrls; // Show all repos when input is empty
+    }
+
+    if (!searchServiceRef.current) {
+      return repoUrls;
+    }
+
+    // Use SearchService for unified search
+    return searchServiceRef.current.search(formData.githubRepo, (url) => [url]);
+  }, [formData.githubRepo, repoUrls]);
 
   // Handle autocomplete selection
   const handleAutocompleteSelect = (repoUrl: string): void => {
@@ -181,7 +208,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose }): JS
       // Reload projects to reflect the new worktree
       await loadProjects();
 
-      toastSuccess('Worktree created successfully!');
+      toastSuccess('Project created successfully!');
       onClose();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create project';
@@ -207,15 +234,15 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose }): JS
   return (
     <Modal
       onClose={onClose}
-      title="Create Worktree"
+      title="Create Project"
       showCloseButton={true}
       preventCloseOnEscape={isCreating}
       primaryAction={{
-        label: 'Create Worktree',
+        label: 'Create Project',
         onClick: () => handleSubmit(),
         disabled: !isFormValid,
         loading: isCreating,
-        loadingText: 'Creating Worktree',
+        loadingText: 'Creating Project',
       }}
     >
       <form onSubmit={handleSubmit} onKeyDown={handleKeyDown}>

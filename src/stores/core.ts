@@ -1,5 +1,4 @@
 import { logger } from '@/commons/utils/logger';
-import { Task } from '@/types/todo';
 import { Agent, AgentStatus, AgentType, ChatMessage, Resource } from '@/entities';
 import {
   claudeCodeService,
@@ -10,13 +9,14 @@ import { MessageConverter } from '@/services/MessageConverter';
 import { PermissionMode } from '@/types/permission.types';
 import { Project } from '@/types/project.types';
 import type { ConversationOptions } from '@/types/streaming.types';
+import { Task } from '@/types/todo';
 import { enableMapSet } from 'immer';
 import { nanoid } from 'nanoid';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import { AgentConfig, Attachment, CoreStore, ProjectConfig, StreamChunk } from './types';
 import { useSettingsStore } from './settings';
+import { AgentConfig, Attachment, CoreStore, ProjectConfig, StreamChunk } from './types';
 
 // Enable MapSet plugin for Immer to work with Map objects
 enableMapSet();
@@ -98,6 +98,9 @@ export const useCoreStore = create<CoreStore>()(
       mcpServers: new Map(),
       // State - Background Sync
       backgroundSyncInterval: null as NodeJS.Timeout | null,
+
+      // State - Trace
+      traceEntries: new Map(),
 
       // Computed values
       getCurrentMessages: () => {
@@ -233,7 +236,7 @@ export const useCoreStore = create<CoreStore>()(
           });
         } catch (error) {
           set((state) => {
-            state.agentsError = error instanceof Error ? error.message : 'Failed to delete agent';
+            state.agentsError = error instanceof Error ? error.message : 'Failed to delete session';
           });
           throw error;
         }
@@ -268,6 +271,131 @@ export const useCoreStore = create<CoreStore>()(
             await get().loadChatHistory(id);
           }
         }
+      },
+
+      // Helper: Add trace entry
+      addTraceEntry: (chatId: string, direction: 'to' | 'from', message: any) => {
+        set((state) => {
+          const entries = state.traceEntries.get(chatId) || [];
+          entries.push({
+            id: nanoid(),
+            timestamp: new Date(),
+            direction,
+            message,
+          });
+          state.traceEntries.set(chatId, entries);
+        });
+      },
+
+      // Helper: Hydrate trace entries from chat messages (for JSONL rehydration)
+      hydrateTraceEntriesFromMessages: (chatId: string, messages: ChatMessage[]) => {
+        const traceEntries: Array<{
+          id: string;
+          timestamp: Date;
+          direction: 'to' | 'from';
+          message: any;
+        }> = [];
+
+        for (const msg of messages) {
+          // User messages → reconstruct as 'to' trace (outgoing prompt)
+          if (msg.role === 'user') {
+            traceEntries.push({
+              id: `trace-${msg.id}`,
+              timestamp: msg.timestamp,
+              direction: 'to',
+              message: {
+                prompt: msg.content,
+                sessionId: chatId,
+                timestamp: msg.timestamp.toISOString(),
+              },
+            });
+          }
+
+          // Assistant messages → reconstruct as 'from' trace (incoming SDK messages)
+          if (msg.role === 'assistant') {
+            // Reconstruct message event
+            traceEntries.push({
+              id: `trace-${msg.id}-message`,
+              timestamp: msg.timestamp,
+              direction: 'from',
+              message: {
+                type: 'message',
+                role: 'assistant',
+                content: msg.content,
+                session_id: chatId,
+              },
+            });
+
+            // Reconstruct tool_use events from toolCalls
+            if (msg.toolCalls && msg.toolCalls.length > 0) {
+              for (const toolCall of msg.toolCalls) {
+                if (toolCall.type === 'tool_use') {
+                  traceEntries.push({
+                    id: `trace-${msg.id}-tool-${toolCall.id}`,
+                    timestamp: msg.timestamp,
+                    direction: 'from',
+                    message: {
+                      type: 'tool',
+                      subtype: 'call',
+                      tool_calls: [toolCall],
+                      session_id: chatId,
+                    },
+                  });
+                } else if (toolCall.type === 'tool_result') {
+                  traceEntries.push({
+                    id: `trace-${msg.id}-result-${toolCall.tool_use_id}`,
+                    timestamp: msg.timestamp,
+                    direction: 'from',
+                    message: {
+                      type: 'tool',
+                      subtype: 'result',
+                      tool_results: [toolCall],
+                      parent_tool_use_id: toolCall.tool_use_id,
+                      session_id: chatId,
+                    },
+                  });
+                }
+              }
+            }
+
+            // Reconstruct result message with usage/cost data
+            if (msg.tokenUsage || msg.totalCostUSD || msg.stopReason || msg.error) {
+              traceEntries.push({
+                id: `trace-${msg.id}-result`,
+                timestamp: msg.timestamp,
+                direction: 'from',
+                message: {
+                  type: 'result',
+                  subtype: msg.error ? 'error_during_execution' : 'success',
+                  session_id: chatId,
+                  usage: msg.tokenUsage
+                    ? {
+                        input_tokens: msg.tokenUsage.inputTokens,
+                        output_tokens: msg.tokenUsage.outputTokens,
+                        cache_creation_input_tokens: msg.tokenUsage.cacheCreationInputTokens,
+                        cache_read_input_tokens: msg.tokenUsage.cacheReadInputTokens,
+                      }
+                    : undefined,
+                  total_cost_usd: msg.totalCostUSD,
+                  stop_reason: msg.stopReason,
+                  stop_sequence: msg.stopSequence,
+                  request_id: msg.requestId,
+                  is_error: !!msg.error,
+                  error: msg.error,
+                  duration_ms: msg.duration,
+                },
+              });
+            }
+          }
+        }
+
+        set((state) => {
+          state.traceEntries.set(chatId, traceEntries);
+        });
+
+        logger.info(
+          `[CoreStore] Hydrated ${traceEntries.length} trace entries from ${messages.length} chat messages`
+        );
       },
 
       // Chat Actions
@@ -449,6 +577,9 @@ export const useCoreStore = create<CoreStore>()(
               ...(resumeSessionId && { resume: resumeSessionId }), // Pass Claude session ID to resume
             },
             {
+              onTrace: (direction, message) => {
+                get().addTraceEntry(streamingChatId, direction, message);
+              },
               onChunk: (chunk) => {
                 logger.debug('[DEBUG sendMessage] Received chunk:', JSON.stringify(chunk));
                 // Debug: Track interrupted messages
@@ -1326,11 +1457,19 @@ export const useCoreStore = create<CoreStore>()(
 
       loadChatHistory: async (chatId: string) => {
         try {
+          logger.info(`[CoreStore] loadChatHistory called for chatId: ${chatId}`);
           if (window.electron?.agents?.loadChatHistory) {
             const result = await window.electron.agents.loadChatHistory(chatId);
+            logger.info(`[CoreStore] loadChatHistory IPC result:`, {
+              isArray: Array.isArray(result),
+              messageCount: Array.isArray(result) ? result.length : result?.messages?.length || 0,
+              hasSessionId: !Array.isArray(result) && !!result?.sessionId,
+            });
             // Handle both return formats from the API
             const messages = Array.isArray(result) ? result : result.messages || [];
             const sessionId = !Array.isArray(result) ? result.sessionId : null;
+
+            logger.info(`[CoreStore] Parsed ${messages.length} messages from JSONL`);
 
             // Note: Messages are already in ChatMessage format from the file
             // If in the future we need to process raw SDK messages, we can use MessageProcessor
@@ -1408,6 +1547,11 @@ export const useCoreStore = create<CoreStore>()(
                 (m: ChatMessage) => !existingIds.has(m.id)
               );
 
+              logger.info(`[CoreStore] Merging messages:`, {
+                existingCount: existingMessages.length,
+                newMessagesCount: newMessages.length,
+              });
+
               // Merge and sort by timestamp to maintain chronological order
               const mergedMessages = [...existingMessages, ...newMessages].sort(
                 (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
@@ -1415,11 +1559,19 @@ export const useCoreStore = create<CoreStore>()(
 
               state.messages.set(chatId, mergedMessages);
 
+              logger.info(`[CoreStore] Messages set in state:`, {
+                chatId,
+                totalMessages: mergedMessages.length,
+              });
+
               // Store the latest session ID from JSONL filename if available
               if (sessionId && chatId) {
                 state.sessionIds.set(chatId, sessionId);
               }
             });
+
+            // Hydrate trace entries from loaded messages
+            get().hydrateTraceEntriesFromMessages(chatId, normalizedMessages);
 
             // Load todos into TodoActivityMonitor for the right panel display
             // IMPORTANT: Use normalizedMessages (with todos reset to pending if session is inactive)

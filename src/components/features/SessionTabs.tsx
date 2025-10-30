@@ -27,6 +27,7 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
   const { tabs, activeTab, switchToTab, createNewTab, closeTab, deleteAgent, isTabsEnabled } =
     useSessionTabs();
   const updateAgent = useCoreStore((state) => state.updateAgent);
+  const streamingStates = useCoreStore((state) => state.streamingStates);
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
@@ -93,14 +94,14 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
         // If this was the last agent tab, create a new session
         if (isLastAgentTab) {
           await createNewTab();
-          toastSuccess('Agent deleted and new session created');
+          toastSuccess('Session deleted and new session created');
         } else {
-          toastSuccess('Agent deleted successfully');
+          toastSuccess('Session deleted successfully');
         }
 
         setDeleteConfirm({ isOpen: false, tabId: null, agentName: null });
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to delete agent';
+        const errorMessage = error instanceof Error ? error.message : 'Failed to delete session';
         toastError(errorMessage);
       }
     }
@@ -308,7 +309,12 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
                     {tab.tabType === 'changes' ? (
                       <GitBranch className="h-3 w-3 opacity-60" />
                     ) : (
-                      <Bot className="h-3 w-3 opacity-60" />
+                      <Bot
+                        className={cn(
+                          'h-3 w-3 opacity-60',
+                          streamingStates.get(tab.id) && 'session-active-blink'
+                        )}
+                      />
                     )}
                     <Input
                       ref={inputRef}
@@ -337,7 +343,12 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
                     ) : tab.tabType === 'changes' ? (
                       <GitBranch className="h-3 w-3 opacity-60" />
                     ) : (
-                      <Bot className="h-3 w-3 opacity-60" />
+                      <Bot
+                        className={cn(
+                          'h-3 w-3 opacity-60',
+                          streamingStates.get(tab.id) && 'session-active-blink'
+                        )}
+                      />
                     )}
                     <span className="truncate">{truncateName(tab.agentName, 15)}</span>
                   </span>
@@ -386,8 +397,8 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
 
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
-        title="Delete Agent"
-        message={`Are you sure you want to delete "${deleteConfirm.agentName || 'this agent'}"? This will remove the agent and its conversation history.`}
+        title="Delete Session"
+        message={`Are you sure you want to delete "${deleteConfirm.agentName || 'this session'}"? This will remove the agent and its conversation history.`}
         confirmText="Delete"
         cancelText="Cancel"
         onConfirm={confirmDelete}

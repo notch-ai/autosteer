@@ -1,0 +1,51 @@
+{
+  "valid": [
+    "research",
+    "main",
+    "develop",
+    "feature/new-test",
+    "bugfix/issue-123",
+    "release/v1.0.0",
+    "john/notch-1448-fixes",
+    "hotfix/critical-bug",
+    "chore/update-deps"
+  ],
+  "invalid": [
+    {
+      "name": "",
+      "expectedError": "cannot be empty"
+    },
+    {
+      "name": "feature//double-slash",
+      "expectedError": "consecutive slashes"
+    },
+    {
+      "name": "--invalid",
+      "expectedError": "start with"
+    },
+    {
+      "name": ".hidden",
+      "expectedError": "start with a dot"
+    },
+    {
+      "name": "/leading-slash",
+      "expectedError": "start"
+    },
+    {
+      "name": "trailing-slash/",
+      "expectedError": "end"
+    },
+    {
+      "name": "branch.lock",
+      "expectedError": ".lock"
+    },
+    {
+      "name": "has spaces",
+      "expectedError": "spaces"
+    },
+    {
+      "name": "invalid@character",
+      "expectedError": "invalid characters"
+    }
+  ]
+}

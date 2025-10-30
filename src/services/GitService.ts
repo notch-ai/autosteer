@@ -293,6 +293,25 @@ export class GitService {
 
   /**
    * Creates a worktree setup: clones main repo if needed, then creates a worktree
+   *
+   * Handles two scenarios intelligently:
+   * 1. Existing remote branch: Creates worktree tracking the remote branch
+   * 2. New branch: Creates worktree with new branch from default branch, then pushes to remote
+   *
+   * @param options - Worktree creation options
+   * @param options.repoUrl - Git repository URL (HTTPS or SSH)
+   * @param options.mainRepoPath - Path where main repository is/will be cloned
+   * @param options.worktreePath - Path where worktree will be created
+   * @param options.branchName - Branch name for the worktree
+   * @returns Operation result with success status and message
+   *
+   * Process flow:
+   * 1. Ensures main repository exists (clones if needed)
+   * 2. Fetches latest changes from origin
+   * 3. Detects default branch (main/master/develop)
+   * 4. Checks if target branch exists on remote
+   * 5. Creates worktree with appropriate git command
+   * 6. Pushes to remote if new branch was created
    */
   async createWorktree(options: {
     repoUrl: string;
@@ -342,15 +361,30 @@ export class GitService {
       // 3. The 'git fetch origin' above (line 259) already updated all remote tracking branches
 
       // Step 3: Check if the branch exists remotely
+      // This determines whether we track an existing remote branch or create a new one
+      log.info(`[GitService] Checking if branch "${branchName}" exists on remote...`);
       const remoteBranchExists = await this.remoteBranchExists(mainRepoPath, branchName);
 
       // Step 4: Create the worktree
+      // Two scenarios handled:
+      // A) Remote branch exists: Create worktree that tracks the existing remote branch
+      //    Command: git worktree add <path> <branch>
+      //    Result: Worktree checks out existing branch, no new commits
+      //
+      // B) New branch: Create worktree with new branch based on latest default branch
+      //    Command: git worktree add -b <branch> <path> origin/<default>
+      //    Result: New branch created from origin/main (or master/develop)
+      //    Note: New branch will be pushed to remote in Step 5
       let worktreeCommand;
       if (remoteBranchExists) {
-        // Branch exists remotely, create worktree tracking it
+        log.info(
+          `[GitService] Branch "${branchName}" exists on remote, creating worktree to track it`
+        );
         worktreeCommand = `git worktree add "${worktreePath}" "${branchName}"`;
       } else {
-        // Branch doesn't exist, create new branch from updated default branch with worktree
+        log.info(
+          `[GitService] Branch "${branchName}" does not exist, creating new branch from ${defaultBranch}`
+        );
         worktreeCommand = `git worktree add -b "${branchName}" "${worktreePath}" "origin/${defaultBranch}"`;
       }
 
@@ -492,14 +526,27 @@ export class GitService {
 
   /**
    * Checks if a branch exists on the remote
+   *
+   * @param repoPath - Path to the git repository
+   * @param branchName - Name of the branch to check (supports slashes)
+   * @returns True if branch exists on origin, false otherwise
+   *
+   * Implementation: Uses `git ls-remote --heads origin` to query remote
+   * without fetching all data. This is fast and doesn't modify local state.
    */
   async remoteBranchExists(repoPath: string, branchName: string): Promise<boolean> {
     try {
+      log.info(`[GitService] Checking if remote branch exists: ${branchName}`);
       const { stdout } = await execAsync(`git ls-remote --heads origin "${branchName}"`, {
         cwd: repoPath,
       });
-      return stdout.trim().length > 0;
-    } catch {
+      const exists = stdout.trim().length > 0;
+      const status = exists ? 'exists' : 'does not exist';
+      log.info(`[GitService] Remote branch "${branchName}" ${status}`);
+      return exists;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log.error(`[GitService] Error checking remote branch "${branchName}":`, errorMessage);
       return false;
     }
   }

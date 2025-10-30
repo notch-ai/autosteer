@@ -270,24 +270,15 @@ export function useRichTextEditor(editorRef: RefObject<HTMLDivElement>): UseRich
       }
 
       if (fullTextTrimmed.startsWith('/')) {
-        // Check if this looks like a complete command (has a space after it)
-        const hasSpace = fullText.includes(' ') || fullTextTrimmed.endsWith(' ');
+        // Get the query after the slash (including spaces for multi-word search)
+        const query = fullTextTrimmed.substring(1);
+        setSlashQuery(query);
+        setShowSlashCommands(true);
+        setShowMentionPicker(false);
+        setShowEmojiPicker(false);
 
-        if (hasSpace) {
-          // This is a complete command, don't show the menu
-          setShowSlashCommands(false);
-          setSlashQuery('');
-        } else {
-          // Get the query after the slash
-          const query = fullTextTrimmed.substring(1);
-          setSlashQuery(query);
-          setShowSlashCommands(true);
-          setShowMentionPicker(false);
-          setShowEmojiPicker(false);
-
-          const pos = getCursorPosition();
-          if (pos) setPickerPosition(pos);
-        }
+        const pos = getCursorPosition();
+        if (pos) setPickerPosition(pos);
       } else {
         // Hide slash commands if input doesn't start with /
         setShowSlashCommands(false);

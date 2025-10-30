@@ -433,6 +433,8 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
                 <SelectItem value="10">10 turns</SelectItem>
                 <SelectItem value="20">20 turns</SelectItem>
                 <SelectItem value="50">50 turns</SelectItem>
+                <SelectItem value="100">100 turns</SelectItem>
+                <SelectItem value="200">200 turns</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-text-muted mt-0.5 m-0">

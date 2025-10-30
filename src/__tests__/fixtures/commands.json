@@ -1,0 +1,29 @@
+{
+  "customCommands": [
+    {
+      "trigger": "tickets:write-ticket",
+      "description": "Create a new Linear ticket",
+      "category": "tickets"
+    },
+    {
+      "trigger": "engineering:write-trd-v2",
+      "description": "Write TRD document v2",
+      "category": "engineering"
+    },
+    {
+      "trigger": "product:write-prd-v2",
+      "description": "Write PRD document v2",
+      "category": "product"
+    },
+    {
+      "trigger": "engineering:build",
+      "description": "Orchestrate development lifecycle from PRD to code",
+      "category": "engineering"
+    },
+    {
+      "trigger": "commit",
+      "description": "Commit changes with validation",
+      "category": "project"
+    }
+  ]
+}

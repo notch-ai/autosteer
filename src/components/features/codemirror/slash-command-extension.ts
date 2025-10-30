@@ -61,8 +61,10 @@ export function createSlashCommandExtension(options: SlashCommandExtensionOption
         const textBefore = line.text.slice(0, from - line.from);
 
         // Check if we're typing / at the start of the line only (like Claude Code CLI)
-        // Allow word characters and spaces after /
-        const slashMatch = textBefore.match(/^\/([\w\s]*)$/);
+        // Match: /command or multi-word queries like /write ticket
+        // Allows word chars, hyphens, colons, and spaces for search queries
+        // The $ ensures we're at the end (cursor position)
+        const slashMatch = textBefore.match(/^\/([a-zA-Z0-9_:\- ]+)$/);
 
         if (slashMatch) {
           const query = slashMatch[1]; // Group 1 is the query after /
@@ -71,8 +73,6 @@ export function createSlashCommandExtension(options: SlashCommandExtensionOption
           // Defer dispatch to avoid "update in progress" error
           // Use Promise.resolve() for microtask scheduling (faster than setTimeout)
           Promise.resolve().then(() => {
-            console.log('[slash-command-extension] Deferred trigger - query:', query);
-
             view.dispatch({
               effects: setSlashCommandTrigger.of({ query, pos: slashPos }),
             });
@@ -89,12 +89,11 @@ export function createSlashCommandExtension(options: SlashCommandExtensionOption
           });
         } else {
           const current = state.field(slashCommandState, false);
+
           if (current) {
             // Defer dispatch to avoid "update in progress" error
             // Use Promise.resolve() for microtask scheduling (faster than setTimeout)
             Promise.resolve().then(() => {
-              console.log('[slash-command-extension] Deferred hide');
-
               view.dispatch({
                 effects: setSlashCommandTrigger.of(null),
               });

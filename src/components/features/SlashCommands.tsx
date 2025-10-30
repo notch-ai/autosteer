@@ -1,6 +1,12 @@
 import { cn } from '@/commons/utils';
 import { Card } from '@/components/ui/card';
-import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import React, { useEffect, useRef, useState } from 'react';
 import { useSlashCommandLogic } from '../common/useSlashCommandLogic';
 
@@ -45,6 +51,13 @@ export const SlashCommands: React.FC<SlashCommandsProps> = ({
   onTabSelect,
   className,
 }) => {
+  console.log('[SlashCommands] Component render', {
+    query,
+    queryLength: query.length,
+    hasTrailingSpace: query.endsWith(' '),
+    providedCommands: !!providedCommands,
+  });
+
   const [selectedIndex, setSelectedIndex] = useState(0);
   const pickerRef = useRef<HTMLDivElement>(null);
   const [, setMenuHeight] = useState<number>(0);
@@ -53,12 +66,19 @@ export const SlashCommands: React.FC<SlashCommandsProps> = ({
   const { filteredCommands: hookCommands } = useSlashCommandLogic(query);
   const filteredCommands = providedCommands || hookCommands;
 
+  console.log('[SlashCommands] After useSlashCommandLogic', {
+    filteredCommandsCount: filteredCommands.length,
+    willReturnNull: !filteredCommands || filteredCommands.length === 0,
+  });
+
   // Reset selection when commands change
   useEffect(() => {
     setSelectedIndex(0);
     // If activeCommand is provided, find its index
     if (activeCommand && filteredCommands) {
-      const index = filteredCommands.findIndex((cmd) => cmd.command === activeCommand.command);
+      const index = filteredCommands.findIndex(
+        (cmd: SlashCommand) => cmd.command === activeCommand.command
+      );
       if (index >= 0) {
         setSelectedIndex(index);
       }
@@ -135,6 +155,8 @@ export const SlashCommands: React.FC<SlashCommandsProps> = ({
             } else {
               onSelect(filteredCommands[selectedIndex]);
             }
+            // Close the menu after tab selection (same as Enter behavior)
+            onClose();
           }
           break;
       }
@@ -193,17 +215,14 @@ export const SlashCommands: React.FC<SlashCommandsProps> = ({
   };
 
   if (!filteredCommands || filteredCommands.length === 0) {
-    return (
-      <Card
-        ref={pickerRef}
-        className={cn('p-2 bg-background border-border', className)}
-        style={calculatePosition()}
-        data-testid="slash-commands"
-      >
-        <p className="text-sm text-muted-foreground text-center py-4">No commands found</p>
-      </Card>
-    );
+    console.log('[SlashCommands] No commands found - returning null');
+    // Don't render anything if no commands found to avoid flash during Tab completion
+    return null;
   }
+
+  console.log('[SlashCommands] Rendering menu with commands', {
+    count: filteredCommands.length,
+  });
 
   return (
     <Card
@@ -214,8 +233,10 @@ export const SlashCommands: React.FC<SlashCommandsProps> = ({
     >
       <Command className="border-0 bg-transparent" shouldFilter={false} loop={false} value="">
         <CommandList className="bg-transparent max-h-[350px] overflow-y-auto">
+          {/* Empty component that renders nothing to prevent default "No commands found" message */}
+          <CommandEmpty />
           <CommandGroup className="bg-transparent">
-            {filteredCommands.map((command, index) => (
+            {filteredCommands.map((command: SlashCommand, index: number) => (
               <CommandItem
                 key={command.command}
                 value={command.command}

@@ -131,11 +131,37 @@ body {
   animation: blink 1.5s ease-in-out infinite;
 }
 
+/* Session active blinking icon animation */
+@keyframes sessionBlink {
+  0%,
+  50%,
+  100% {
+    opacity: 1;
+    color: #10b981;
+  }
+  25%,
+  75% {
+    opacity: 0.3;
+    color: #10b981;
+  }
+}
+
+.session-active-blink {
+  color: #10b981 !important;
+  animation: sessionBlink 1.5s ease-in-out infinite;
+}
+
 /* Respect prefers-reduced-motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
   .task-indicator--active {
     animation: none;
     opacity: 1;
+  }
+
+  .session-active-blink {
+    animation: none;
+    opacity: 1;
+    color: #10b981 !important;
   }
 }
 

@@ -55,6 +55,15 @@ export const MainContent: React.FC = () => {
     ? [...baseChatMessages, mockPermissionChatMessage]
     : baseChatMessages;
 
+  // Debug: Log message count when it changes
+  React.useEffect(() => {
+    if (activeChat) {
+      logger.info(
+        `[MainContent] Rendering with ${chatMessages.length} messages for chat ${activeChat}`
+      );
+    }
+  }, [chatMessages.length, activeChat]);
+
   // Get current attachments (resource IDs)
   const currentAttachments = activeChat ? attachments.get(activeChat) || [] : [];
   const attachedResourceIds = currentAttachments.map((att) => att.resourceId);

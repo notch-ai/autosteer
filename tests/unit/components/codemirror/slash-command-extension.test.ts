@@ -124,6 +124,31 @@ describe('slash-command-extension', () => {
       view.destroy();
     });
 
+    it('should not trigger when command has trailing space (Tab completion)', () => {
+      const onTrigger = jest.fn();
+      const onHide = jest.fn();
+      const extension = createSlashCommandExtension({ onTrigger, onHide });
+
+      const state = EditorState.create({
+        doc: '/engineering:write-docs ',
+        extensions: [extension],
+        selection: { anchor: 23 }, // Position after the space
+      });
+
+      const view = new EditorView({
+        state,
+        parent: container,
+      });
+
+      // Should not trigger because of trailing space
+      expect(onTrigger).not.toHaveBeenCalledWith('engineering:write-docs ', expect.any(Object));
+
+      // Should call onHide since slash pattern doesn't match
+      expect(onHide).toHaveBeenCalled();
+
+      view.destroy();
+    });
+
     it('should handle multiple slash commands in sequence', () => {
       const onTrigger = jest.fn();
       const extension = createSlashCommandExtension({ onTrigger });

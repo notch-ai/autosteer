@@ -208,6 +208,14 @@ export interface AgentContextUsage {
   lastUpdated: Date;
 }
 
+// Trace entry for SDK message logging
+export interface TraceEntry {
+  id: string;
+  timestamp: Date;
+  direction: 'to' | 'from';
+  message: any; // Raw SDK message
+}
+
 // ============================================================================
 // NEW STORE INTERFACES (TRD Section 2.3.2)
 // ============================================================================
@@ -264,6 +272,9 @@ export interface CoreStore {
   // Background Sync State
   backgroundSyncInterval: NodeJS.Timeout | null;
 
+  // Trace State
+  traceEntries: Map<string, TraceEntry[]>; // Per-chat trace messages
+
   // ==================== COMPUTED VALUES ====================
 
   getCurrentMessages: () => ChatMessage[];
@@ -290,6 +301,8 @@ export interface CoreStore {
   streamResponse: (response: AsyncIterable<StreamChunk>) => void;
   clearChat: (chatId: string) => void;
   stopStreaming: () => void;
+  addTraceEntry: (chatId: string, direction: 'to' | 'from', message: any) => void;
+  hydrateTraceEntriesFromMessages: (chatId: string, messages: ChatMessage[]) => void;
   normalizeTodoStatuses: (
     todos:
       | Array<{

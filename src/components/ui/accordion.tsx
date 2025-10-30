@@ -15,7 +15,6 @@ const AccordionItem = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Item>,
   AccordionItemProps
 >(({ className, ...props }, ref) => (
-  // @ts-expect-error - Radix UI props incompatible with exactOptionalPropertyTypes
   <AccordionPrimitive.Item ref={ref} className={cn('border-b', className)} {...props} />
 ));
 AccordionItem.displayName = 'AccordionItem';
@@ -31,7 +30,6 @@ const AccordionTrigger = React.forwardRef<
   AccordionTriggerProps
 >(({ className, children, ...props }, ref) => (
   <AccordionPrimitive.Header className="flex">
-    {/* @ts-expect-error - Radix UI props incompatible with exactOptionalPropertyTypes */}
     <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(
@@ -57,7 +55,6 @@ const AccordionContent = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Content>,
   AccordionContentProps
 >(({ className, children, ...props }, ref) => (
-  // @ts-expect-error - Radix UI props incompatible with exactOptionalPropertyTypes
   <AccordionPrimitive.Content
     ref={ref}
     className="overflow-hidden text-sm transition-all data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"

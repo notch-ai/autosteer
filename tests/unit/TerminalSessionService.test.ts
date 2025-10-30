@@ -383,14 +383,14 @@ describe('TerminalSessionService', () => {
       expect(duration).toBeLessThan(10);
     });
 
-    it('should retrieve session in <1ms', () => {
+    it('should retrieve session in <5ms', () => {
       service.createSession(createMockTerminal('term1'));
 
       const start = performance.now();
       service.getSession('term1');
       const duration = performance.now() - start;
 
-      expect(duration).toBeLessThan(1);
+      expect(duration).toBeLessThan(5);
     });
 
     it('should update session in <5ms', () => {

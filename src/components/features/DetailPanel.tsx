@@ -4,6 +4,7 @@ import { ChevronLeft, Info } from 'lucide-react';
 import React from 'react';
 import { StatusDisplay } from './StatusDisplay';
 import { TodoActivityTracker } from './TodoActivityTracker';
+import { TraceTab } from './TraceTab';
 
 interface DetailPanelProps {
   collapsed: boolean;
@@ -50,11 +51,14 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ collapsed, onToggleCol
             <TabsTrigger value="status" className="h-6 text-sm px-2.5 py-1">
               Status
             </TabsTrigger>
+            <TabsTrigger value="trace" className="h-6 text-sm px-2.5 py-1">
+              Trace
+            </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="todos" className="flex-1 overflow-auto mt-0">
-          <div className="py-2 px-6 h-full">
+          <div className="py-2 px-3 h-full">
             <TodoActivityTracker />
           </div>
         </TabsContent>
@@ -68,12 +72,18 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ collapsed, onToggleCol
           onMouseMove={(e) => e.stopPropagation()}
         >
           <div
-            className="py-2 px-6 status-panel-wrapper"
+            className="py-2 px-3 status-panel-wrapper"
             onMouseDown={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
             onMouseMove={(e) => e.stopPropagation()}
           >
             <StatusDisplay />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="trace" className="flex-1 overflow-auto mt-0">
+          <div className="py-2 px-3 h-full">
+            <TraceTab />
           </div>
         </TabsContent>
       </Tabs>

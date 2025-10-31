@@ -51,16 +51,33 @@ export interface ClaudeStreamingCallbacks {
 export class ClaudeCodeService {
   private activeQueries: Map<
     string,
-    { callbacks: ClaudeStreamingCallbacks; cleanup: () => void; abortController?: AbortController }
+    {
+      callbacks: ClaudeStreamingCallbacks;
+      cleanup: () => void;
+      abortController?: AbortController;
+      sessionId?: string; // Track which session this query belongs to
+    }
   > = new Map();
   // Map agent/session IDs to their abort controllers (not worktree IDs)
   private agentAbortControllers: Map<string, AbortController> = new Map();
+  private interruptedSessions: Map<string, number> = new Map();
 
   constructor() {
     // No need to set API key here, it will be passed with each query
 
     // Set up automatic badge clearing on window focus
     setupAutoBadgeClear();
+
+    // Clean up old interrupted sessions every minute
+    setInterval(() => {
+      const now = Date.now();
+      for (const [sessionId, timestamp] of this.interruptedSessions.entries()) {
+        if (now - timestamp > 60000) {
+          // Remove after 1 minute
+          this.interruptedSessions.delete(sessionId);
+        }
+      }
+    }, 60000);
   }
 
   /**
@@ -76,6 +93,33 @@ export class ClaudeCodeService {
       throw new Error(
         'IPC renderer not available. Make sure this is running in Electron renderer process.'
       );
+    }
+
+    // Force cleanup of any existing query for this session before starting a new one
+    if (options.sessionId) {
+      const existingQuery = Array.from(this.activeQueries.entries()).find(
+        ([_, queryInfo]) => queryInfo.sessionId === options.sessionId
+      );
+
+      if (existingQuery) {
+        const [queryId, queryInfo] = existingQuery;
+        generalLogger.debug('[ClaudeCodeService] Forcing cleanup of existing query for session:', {
+          sessionId: options.sessionId,
+          oldQueryId: queryId,
+        });
+
+        ipcRenderer?.invoke?.('claude-code:query-abort', queryId)?.catch?.(() => {
+          // Ignore errors from abort
+        });
+
+        queryInfo.cleanup();
+
+        if (queryInfo.abortController && !queryInfo.abortController.signal.aborted) {
+          queryInfo.abortController.abort();
+        }
+
+        this.activeQueries.delete(queryId);
+      }
     }
 
     // Set up logging context if we have project and session info
@@ -187,7 +231,8 @@ export class ClaudeCodeService {
                 currentContent = content;
               },
               todoMonitor,
-              parentMessageId
+              parentMessageId,
+              options.sessionId
             );
           };
 
@@ -257,7 +302,12 @@ export class ClaudeCodeService {
           ipcRenderer?.on?.(`claude-code:trace:${queryId}`, traceListener);
 
           // Store query info for abort capability
-          this.activeQueries.set(queryId, { callbacks, cleanup, abortController });
+          this.activeQueries.set(queryId, {
+            callbacks,
+            cleanup,
+            abortController,
+            ...(options?.sessionId && { sessionId: options.sessionId }),
+          });
           // Store abort controller by agent/session ID if provided
           if (options?.sessionId) {
             // Abort any existing controller for this specific agent
@@ -301,7 +351,8 @@ export class ClaudeCodeService {
     startTime: number,
     updateContent: (content: string) => void,
     todoMonitor?: any,
-    parentMessageId?: string
+    parentMessageId?: string,
+    sessionId?: string
   ): void {
     switch (message.type) {
       case 'system':
@@ -332,6 +383,15 @@ export class ClaudeCodeService {
       case 'assistant':
         // Handle assistant messages using MessageProcessor
         generalLogger.debug('[ClaudeCodeService] Assistant message received');
+
+        // Clear interruption flag when we receive real content
+        if (sessionId && this.interruptedSessions.has(sessionId)) {
+          generalLogger.debug(
+            '[ClaudeCodeService] Clearing interruption flag for session:',
+            sessionId
+          );
+          this.interruptedSessions.delete(sessionId);
+        }
 
         const assistantProcessed = MessageProcessor.processSdkMessage(message);
 
@@ -405,6 +465,21 @@ export class ClaudeCodeService {
         break;
 
       case 'result':
+        // Filter out error messages from recently interrupted sessions
+        if (sessionId && message.subtype === 'error_during_execution') {
+          const interruptedAt = this.interruptedSessions.get(sessionId);
+          if (interruptedAt && Date.now() - interruptedAt < 15000) {
+            generalLogger.debug(
+              '[ClaudeCodeService] Filtering error message from interrupted session:',
+              {
+                sessionId,
+                timeSinceInterrupt: Date.now() - interruptedAt,
+              }
+            );
+            return;
+          }
+        }
+
         // Final result message
         if (callbacks.onResult) {
           const duration = Date.now() - startTime;
@@ -477,6 +552,24 @@ export class ClaudeCodeService {
       case 'user':
         // Handle user messages (e.g., "[Request interrupted by user]")
         generalLogger.debug('[ClaudeCodeService] User message received');
+
+        // Filter out "[Request interrupted by user]" messages from recently interrupted sessions
+        if (sessionId && message.message?.content) {
+          const interruptedAt = this.interruptedSessions.get(sessionId);
+          if (interruptedAt && Date.now() - interruptedAt < 15000) {
+            // Check if this is an interruption message
+            const content = Array.isArray(message.message.content)
+              ? message.message.content[0]?.text
+              : message.message.content;
+            if (content === '[Request interrupted by user]') {
+              generalLogger.debug('[ClaudeCodeService] Filtering interrupted user message:', {
+                sessionId,
+                timeSinceInterrupt: Date.now() - interruptedAt,
+              });
+              return;
+            }
+          }
+        }
 
         // Extract and handle tool_result items from user message content
         if (message.message?.content && Array.isArray(message.message.content)) {
@@ -579,6 +672,9 @@ export class ClaudeCodeService {
     );
 
     if (agentId) {
+      // Mark session as interrupted
+      this.interruptedSessions.set(agentId, Date.now());
+
       // Stop streaming for specific agent
       const controller = this.agentAbortControllers.get(agentId);
       if (controller) {

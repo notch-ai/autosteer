@@ -50,6 +50,7 @@ import { RequestTiming } from './RequestTiming';
 import { StreamingEventDisplay } from './StreamingEventDisplay';
 import { TerminalTab } from './TerminalTab';
 import { TodoDisplay } from './TodoDisplay';
+import { ToolPairDisplay } from './ToolPairDisplay';
 import { ToolUsageDisplay } from './ToolUsageDisplay';
 
 interface ChatInterfaceProps {
@@ -220,16 +221,25 @@ const MessageItem = memo<MessageItemProps>(
                       <span>interrupted</span>
                     </div>
                   ) : (
-                    content && (
-                      <div
-                        className={cn(
-                          'overflow-hidden',
-                          message.role === 'user' ? 'text-text-muted' : 'text-text'
+                    <>
+                      {content && (
+                        <div
+                          className={cn(
+                            'overflow-hidden',
+                            message.role === 'user' ? 'text-text-muted' : 'text-text'
+                          )}
+                        >
+                          <MarkdownRenderer content={content} />
+                        </div>
+                      )}
+                      {message.role === 'assistant' &&
+                        message.toolCalls &&
+                        message.toolCalls.length > 0 && (
+                          <div className="mt-2">
+                            <ToolPairDisplay toolCalls={message.toolCalls} inline />
+                          </div>
                         )}
-                      >
-                        <MarkdownRenderer content={content} />
-                      </div>
-                    )
+                    </>
                   )}
                 </>
               )}
@@ -341,16 +351,9 @@ const MessageItem = memo<MessageItemProps>(
               {activeMetadataTab === 'tools' && (
                 <div className="ml-0 mt-3 space-y-2">
                   {(() => {
-                    const renderToolCallItem = (name: string, description?: string) => (
-                      <div className="flex items-start gap-2">
-                        <Wrench className="h-4 w-4 text-blue" />
-
-                        <div className="flex-1 text-sm">
-                          {name}
-                          {description && <span className="ml-2">{description}</span>}
-                        </div>
-                      </div>
-                    );
+                    if (message.toolUsages && message.toolUsages.length > 0) {
+                      return <ToolUsageDisplay toolUsages={message.toolUsages} />;
+                    }
 
                     const getToolDescription = (toolName: string, input: any): string => {
                       if (!input) return '';
@@ -382,13 +385,16 @@ const MessageItem = memo<MessageItemProps>(
                       return message.simplifiedToolCalls
                         .filter((tc) => tc.name !== 'TodoWrite')
                         .map((toolCall, index) => (
-                          <div key={index}>
-                            {renderToolCallItem(
-                              toolCall.name,
-                              toolCall.description
-                                ? stripWorktreePath(toolCall.description)
-                                : undefined
-                            )}
+                          <div key={index} className="flex items-start gap-2">
+                            <Wrench className="h-4 w-4 text-blue" />
+                            <div className="flex-1 text-sm">
+                              {toolCall.name}
+                              {toolCall.description && (
+                                <span className="ml-2 text-muted-foreground">
+                                  {stripWorktreePath(toolCall.description)}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         ));
                     } else if (message.toolCalls && message.toolCalls.length > 0) {
@@ -400,13 +406,17 @@ const MessageItem = memo<MessageItemProps>(
                             toolCall.input
                           );
                           return (
-                            <div key={index}>
-                              {renderToolCallItem(toolCall.name || 'Unknown', description)}
+                            <div key={index} className="flex items-start gap-2">
+                              <Wrench className="h-4 w-4 text-blue" />
+                              <div className="flex-1 text-sm">
+                                {toolCall.name || 'Unknown'}
+                                {description && (
+                                  <span className="ml-2 text-muted-foreground">{description}</span>
+                                )}
+                              </div>
                             </div>
                           );
                         });
-                    } else if (message.toolUsages && message.toolUsages.length > 0) {
-                      return <ToolUsageDisplay toolUsages={message.toolUsages} />;
                     }
                     return null;
                   })()}

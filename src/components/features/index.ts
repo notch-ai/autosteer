@@ -68,6 +68,7 @@ export { StatusDisplay } from './StatusDisplay';
 export { StreamingEventDisplay, type StreamingEventDisplayProps } from './StreamingEventDisplay';
 export { TextFormattingMenu } from './TextFormattingMenu';
 export { TodoDisplay, type TodoDisplayProps } from './TodoDisplay';
+export { ToolPairDisplay } from './ToolPairDisplay';
 export { ToolUsageDisplay, type ToolUsageDisplayProps } from './ToolUsageDisplay';
 
 // Newly moved components from root

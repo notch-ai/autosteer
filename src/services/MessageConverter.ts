@@ -76,7 +76,7 @@ export class MessageConverter {
    */
   private static convertAssistantMessage(msg: SDKAssistantMessage): ConvertedMessage {
     const textContent = this.extractTextContent(msg.message.content);
-    const toolCalls = this.extractAndFormatToolCalls(msg.message.content);
+    const simplifiedToolCalls = this.extractAndFormatToolCalls(msg.message.content);
 
     const chatMessage: ChatMessage = {
       id: msg.uuid,
@@ -87,8 +87,8 @@ export class MessageConverter {
       ...(msg.message.usage && {
         tokenUsage: this.convertTokenUsage(msg.message.usage),
       }),
-      ...(toolCalls.length > 0 && {
-        simplifiedToolCalls: toolCalls,
+      ...(simplifiedToolCalls.length > 0 && {
+        simplifiedToolCalls,
       }),
     };
 

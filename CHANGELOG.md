@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/notch-ai/autosteer/compare/v0.1.9...v0.1.10) (2025-10-31)
+
+
+### Features
+
+* add inline tool result display in chat interface ([a954ece](https://github.com/notch-ai/autosteer/commit/a954ece0263555c1eff37b395428a87fe3db888d))
+
 ## [0.1.9](https://github.com/notch-ai/autosteer/compare/v0.1.8...v0.1.9) (2025-10-30)
 
 

@@ -120,7 +120,7 @@ export function registerGitHandlers(): void {
         fileStatusMap.set(filePath, {
           staged: stagedStatus !== ' ' ? stagedStatus : null,
           unstaged: unstagedStatus !== ' ' ? unstagedStatus : null,
-          oldPath,
+          ...(oldPath && { oldPath }),
         });
       }
 

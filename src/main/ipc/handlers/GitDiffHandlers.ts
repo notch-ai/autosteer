@@ -30,10 +30,10 @@ export function registerGitDiffHandlers(): void {
       const service = new GitDiffService(params.repoPath);
       const options: DiffOptions = {
         repoPath: params.repoPath,
-        from: params.from,
-        to: params.to,
-        filePath: params.filePath,
-        contextLines: params.contextLines,
+        ...(params.from && { from: params.from }),
+        ...(params.to && { to: params.to }),
+        ...(params.filePath && { filePath: params.filePath }),
+        ...(params.contextLines !== undefined && { contextLines: params.contextLines }),
       };
 
       return await service.getDiff(options);

@@ -151,7 +151,7 @@ export class GitDiffService {
       return this.getDiff({
         repoPath: this.repoPath,
         from: 'HEAD',
-        filePath,
+        ...(filePath && { filePath }),
       });
     } catch (error) {
       logger.error('Failed to get uncommitted diff:', error);
@@ -288,26 +288,27 @@ export class GitDiffService {
           if (change.type === 'add') {
             // For additions, only new line number exists
             oldLineNumber = undefined;
-            newLineNumber = change.ln2 ?? currentNewLine;
+            newLineNumber = (change as any).ln2 ?? currentNewLine;
             currentNewLine++;
           } else if (change.type === 'del') {
             // For deletions, only old line number exists
-            oldLineNumber = change.ln ?? currentOldLine;
+            oldLineNumber = (change as any).ln ?? currentOldLine;
             newLineNumber = undefined;
             currentOldLine++;
           } else {
             // For normal lines, both line numbers exist
-            oldLineNumber = change.ln ?? currentOldLine;
-            newLineNumber = change.ln2 ?? currentNewLine;
+            oldLineNumber = (change as any).ln ?? currentOldLine;
+            newLineNumber = (change as any).ln2 ?? currentNewLine;
             currentOldLine++;
             currentNewLine++;
           }
 
+          const lineNumber = oldLineNumber ?? newLineNumber ?? 0;
           changes.push({
             type: change.type as 'add' | 'del' | 'normal',
-            lineNumber: oldLineNumber ?? newLineNumber,
-            oldLineNumber,
-            newLineNumber,
+            lineNumber,
+            ...(oldLineNumber !== undefined && { oldLineNumber }),
+            ...(newLineNumber !== undefined && { newLineNumber }),
             content: changeContent,
             isConflict: isConflictMarker || isConflictContent,
           });
@@ -438,7 +439,7 @@ export class GitDiffService {
         timestamp: new Date().toISOString(),
       });
       void this.watcher.close();
-      this.watcher = undefined;
+      delete this.watcher;
       logger.info('[GitDiffService] Stopped watching git changes');
     } else {
       logger.warn('[GitDiffService] No watcher to stop');

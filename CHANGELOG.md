@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.11](https://github.com/notch-ai/autosteer/compare/v0.1.10...v0.1.11) (2025-10-31)
+
+
+### Bug Fixes
+
+* filter error messages from interrupted sessions ([6493daf](https://github.com/notch-ai/autosteer/commit/6493daf4202464987cc2072e8547ee489cfc50ea))
+* resolve TypeScript exactOptionalPropertyTypes errors in git diff services ([28a0bb5](https://github.com/notch-ai/autosteer/commit/28a0bb51d57be6dc650383397a5104a8dd0fc9c3))
+
 ## [0.1.10](https://github.com/notch-ai/autosteer/compare/v0.1.9...v0.1.10) (2025-10-31)
 
 

@@ -478,6 +478,20 @@ export class ClaudeCodeService {
         // Handle user messages (e.g., "[Request interrupted by user]")
         generalLogger.debug('[ClaudeCodeService] User message received');
 
+        // Extract and handle tool_result items from user message content
+        if (message.message?.content && Array.isArray(message.message.content)) {
+          for (const contentItem of message.message.content) {
+            if (contentItem.type === 'tool_result' && callbacks.onToolResult) {
+              callbacks.onToolResult({
+                type: 'tool_result',
+                tool_use_id: contentItem.tool_use_id || '',
+                content: contentItem.content || '',
+                is_error: contentItem.is_error || false,
+              });
+            }
+          }
+        }
+
         const userProcessed = MessageProcessor.processSdkMessage(message);
         generalLogger.debug('[ClaudeCodeService] User message processed:', {
           hasMessage: !!userProcessed.chatMessage,

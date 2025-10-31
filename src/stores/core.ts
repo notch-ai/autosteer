@@ -41,7 +41,6 @@ function batchStreamingUpdate(updateFn: () => void) {
   }
 
   streamingBatchTimeout = setTimeout(() => {
-    console.log(`[core.ts] Applying ${pendingStreamingUpdates.length} batched streaming updates`);
     const updates = [...pendingStreamingUpdates];
     pendingStreamingUpdates = [];
     streamingBatchTimeout = null;
@@ -599,12 +598,10 @@ export const useCoreStore = create<CoreStore>()(
                 batchStreamingUpdate(() =>
                   set((state) => {
                     const streamingMsg = state.streamingMessages.get(streamingChatId);
-
-                    // Allow user messages even if streamingMsg is gone (e.g., "[Request interrupted]")
                     const shouldProcess =
                       chunk.type === 'partial' &&
                       chunk.content &&
-                      (streamingMsg || chunk.messageType === 'user');
+                      (streamingMsg || chunk.isNewMessage);
 
                     // Debug: Log chunk processing decision
                     // Serialize log data to avoid IPC cloning errors with electron-log
@@ -933,7 +930,6 @@ export const useCoreStore = create<CoreStore>()(
                 });
               },
               onToolResult: (message) => {
-                // Handle tool results
                 set((state) => {
                   const streamingMsg = state.streamingMessages.get(streamingChatId);
                   if (streamingMsg) {

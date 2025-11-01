@@ -68,7 +68,12 @@ function pairToolsByUseId(toolCalls: ToolCall[]): PairedTool[] {
       description: MessageConverter.formatToolDescription(toolUse.name || '', toolUse.input),
       result: toolResult
         ? {
-            content: toolResult.content || '',
+            content:
+              typeof toolResult.content === 'string'
+                ? toolResult.content
+                : typeof toolResult.content === 'object'
+                  ? JSON.stringify(toolResult.content, null, 2)
+                  : String(toolResult.content || ''),
             is_error: (toolResult as any).is_error,
           }
         : undefined,

@@ -241,6 +241,7 @@ export interface CoreStore {
   streamingStates: Map<string, boolean>; // Per-chat streaming states
   sessionIds: Map<string, string>; // In-memory Claude session IDs per agent (not persisted)
   chatError: string | null;
+  pendingToolUses: Map<string, { id: string; name: string; input: any; timestamp: Date }>;
 
   // Projects State
   projects: Map<string, Project>;

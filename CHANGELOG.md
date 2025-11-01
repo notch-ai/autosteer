@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/notch-ai/autosteer/compare/v0.1.11...v0.1.12) (2025-11-01)
+
+
+### Features
+
+* implement session naming system ([ad1443d](https://github.com/notch-ai/autosteer/commit/ad1443d2bbd64d6f11641349f754c82bb6287246))
+
 ## [0.1.11](https://github.com/notch-ai/autosteer/compare/v0.1.10...v0.1.11) (2025-10-31)
 
 

@@ -214,7 +214,7 @@ export class ClaudeCodeSDKService {
         sdkOptions.permissionMode = options.permissionMode as any;
       }
 
-      if (options.maxTurns) {
+      if (options.maxTurns !== null && options.maxTurns !== undefined) {
         sdkOptions.maxTurns = options.maxTurns;
       }
 

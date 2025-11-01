@@ -3,10 +3,10 @@
  * Handles stop reasons and HTTP errors gracefully
  */
 
-import { AlertCircle, AlertTriangle, Info, XCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { AlertCircle, AlertTriangle, CircleAlert, Info, XCircle } from 'lucide-react';
 
 interface ClaudeErrorDisplayProps {
   error?: {
@@ -77,7 +77,7 @@ function getErrorInfo(errorType: NonNullable<ClaudeErrorDisplayProps['error']>['
       return {
         title: 'API Error',
         description:
-          'An unexpected error occurred on Claude servers. Please try again or contact support.',
+          'An unexpected error occurred on the Claude servers. This may be due to tool use concurrency issues or other temporary problems. Please try again.',
         icon: XCircle,
         variant: 'destructive',
         showRetry: true,
@@ -208,31 +208,45 @@ export function ClaudeErrorDisplay({
 }: ClaudeErrorDisplayProps) {
   if (error) {
     const errorInfo = getErrorInfo(error.type);
-    const Icon = errorInfo.icon;
+
+    const isConcurrencyError =
+      error.message.includes('400') && error.message.includes('concurrency');
+    const isRewindSuggested = error.message.includes('/rewind');
 
     return (
-      <Alert variant={errorInfo.variant} className={className}>
-        <Icon className="h-4 w-4" />
-        <AlertTitle className="flex items-center gap-2">
-          {errorInfo.title}
-          {requestId && (
-            <Badge variant="outline" className="text-[10px] font-mono">
-              {requestId}
-            </Badge>
+      <div className={`flex gap-2 ${className || ''}`}>
+        <CircleAlert className="h-4 w-4 text-red flex-shrink-0 mt-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium leading-none tracking-tight text-text mb-1">
+            {error.message || errorInfo.description}
+          </div>
+          {isConcurrencyError && (
+            <div className="mt-2 space-y-2 text-sm text-text">
+              <p className="font-medium">What happened?</p>
+              <p>
+                Claude tried to use multiple tools at once, which isn't currently supported. This
+                usually happens when processing complex requests with many parallel operations.
+              </p>
+              {isRewindSuggested && (
+                <>
+                  <p className="font-medium">How to fix it:</p>
+                  <div className="space-y-1">
+                    <p>• Use the command: /rewind to recover your conversation</p>
+                    <p>• Then retry your request</p>
+                    <p>• Consider breaking complex requests into smaller steps</p>
+                  </div>
+                </>
+              )}
+            </div>
           )}
-        </AlertTitle>
-        <AlertDescription>
-          <p className="mb-2">{error.message || errorInfo.description}</p>
+
           {errorInfo.showRetry && onRetry && (
             <Button size="sm" variant="outline" onClick={onRetry} className="mt-2">
               Retry
             </Button>
           )}
-          {requestId && (
-            <p className="text-sm text-muted-foreground mt-2">Request ID: {requestId}</p>
-          )}
-        </AlertDescription>
-      </Alert>
+        </div>
+      </div>
     );
   }
 

@@ -168,14 +168,14 @@ const MessageItem = memo<MessageItemProps>(
     return (
       <div
         className={cn(
-          'mb-1 group min-w-0',
+          'mb-1 group min-w-0 max-w-full',
           message.role === 'user'
             ? 'text-text-muted bg-background rounded px-1 py-1'
             : 'text-text bg-muted rounded px-1 py-1 pb-2'
         )}
       >
         {/* Message Content */}
-        <div className="pl-2 text-sm min-w-0 overflow-hidden">
+        <div className="pl-2 text-sm min-w-0 max-w-full overflow-hidden break-words">
           {renderAttachedResources(message.attachedResources || [])}
 
           {isStreamingMessage ? (

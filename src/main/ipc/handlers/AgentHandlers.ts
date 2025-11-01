@@ -4,6 +4,7 @@ import { MessageConverter } from '@/services/MessageConverter';
 import { SessionManifestService } from '@/services/SessionManifestService';
 import { AgentConfig } from '@/types/config.types';
 import { IPC_CHANNELS } from '@/types/ipc.types';
+import { MAX_TABS } from '@/constants/tabs';
 import { IpcMainInvokeEvent, ipcMain } from 'electron';
 import log from 'electron-log';
 import { createReadStream } from 'fs';
@@ -91,27 +92,20 @@ export class AgentHandlers {
       IPC_CHANNELS.AGENTS_CREATE,
       async (_event: IpcMainInvokeEvent, data: Omit<Agent, 'id' | 'createdAt' | 'updatedAt'>) => {
         try {
-          // Check agent limit for the worktree (max 5 agents per worktree)
-          const MAX_AGENTS_PER_WORKTREE = 5;
-
           const agentData = { ...data };
 
           if (agentData.projectId) {
             const existingAgents = await this.fileDataStore.getAgentsByProjectId(
               agentData.projectId
             );
-            if (existingAgents.length >= MAX_AGENTS_PER_WORKTREE) {
+            if (existingAgents.length >= MAX_TABS) {
               throw new Error(
-                `Maximum agent limit reached. Each worktree can have up to ${MAX_AGENTS_PER_WORKTREE} agents.`
+                `Maximum tab limit reached. Each worktree can have up to ${MAX_TABS} tabs.`
               );
             }
 
-            // Generate agent name based on existing agents
-            const agentNumber = existingAgents.length + 1;
-            const agentName = `Session ${agentNumber}`;
-
-            // Override the title with standardized naming
-            agentData.title = agentName;
+            // Don't override the title if one is already provided
+            // The frontend now handles session name generation
           }
 
           // Generate a temporary UUID for the agent

@@ -10,6 +10,7 @@ import { toastError, toastSuccess } from '../ui/sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Icon } from './Icon';
+import { MAX_TABS } from '../../constants/tabs';
 
 interface SessionTabsProps {
   className?: string;
@@ -22,7 +23,7 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
   className,
   onTabSwitch,
   onNewSession,
-  maxTabs = 5,
+  maxTabs = MAX_TABS,
 }) => {
   const { tabs, activeTab, switchToTab, createNewTab, closeTab, deleteAgent, isTabsEnabled } =
     useSessionTabs();

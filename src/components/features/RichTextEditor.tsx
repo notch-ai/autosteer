@@ -222,24 +222,32 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           {
             key: 'Enter',
             run: (view) => {
-              // Don't handle Enter if slash commands or file mentions picker is open
-              // The picker will handle the Enter key instead - return true to consume the key
-              if (showSlashCommandsRef.current || showFileMentionsRef.current) {
+              // Check if we have content to send
+              const hasContent = view.state.doc.toString().trim() !== '';
+
+              // If picker is open AND we have no content, let picker handle it
+              if ((showSlashCommandsRef.current || showFileMentionsRef.current) && !hasContent) {
+                return true; // Let picker handle Enter
+              }
+
+              // If we have content, always try to send (picker has its own Enter handler that runs first)
+              // The picker's document-level handler will preventDefault if it needs to handle Enter
+              // But if user pressed Tab to autocomplete, the picker is likely closed by now
+              if (hasContent) {
+                try {
+                  onSendRef.current();
+
+                  // Clear the editor content after sending
+                  view.dispatch({
+                    changes: { from: 0, to: view.state.doc.length, insert: '' },
+                  });
+                } catch (error) {
+                  logger.error('[RichTextEditor] Error calling onSend:', error);
+                }
                 return true;
               }
 
-              // Only send on plain Enter (not Shift+Enter)
-              try {
-                onSendRef.current();
-
-                // Clear the editor content after sending
-                view.dispatch({
-                  changes: { from: 0, to: view.state.doc.length, insert: '' },
-                });
-              } catch (error) {
-                logger.error('[RichTextEditor] Error calling onSend:', error);
-              }
-              return true;
+              return false;
             },
           },
           {
@@ -455,6 +463,17 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       }
     }
   }, [value, view, setContent]);
+
+  // Apply scrollbar styles directly to the scroller element after mount
+  useEffect(() => {
+    if (!view) return;
+
+    const scroller = view.scrollDOM;
+    if (scroller) {
+      // Add a class to target with CSS
+      scroller.classList.add('cm-custom-scrollbar');
+    }
+  }, [view]);
 
   // Handle resource attachment inline badges
   const insertInlineFileBadge = useCallback(

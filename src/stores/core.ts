@@ -1,4 +1,5 @@
 import { logger } from '@/commons/utils/logger';
+import { generateSessionName } from '@/commons/utils/sessionNameGenerator';
 import { Agent, AgentStatus, AgentType, ChatMessage, Resource } from '@/entities';
 import {
   claudeCodeService,
@@ -528,12 +529,12 @@ export const useCoreStore = create<CoreStore>()(
           const selectedProject = state.getSelectedProject();
           const agent = state.getSelectedAgent();
 
-          // Get maxTurns from settings store (default: 10)
-          const maxTurns = useSettingsStore.getState().preferences.maxTurns || 10;
+          // Get maxTurns from settings store (null = unlimited)
+          const maxTurns = useSettingsStore.getState().preferences.maxTurns ?? null;
 
-          // Always initialize conversationOptions with maxTurns
+          // Initialize conversationOptions, only set max_turns if not null (unlimited)
           const conversationOptions: ConversationOptions = {
-            max_turns: maxTurns,
+            ...(maxTurns !== null && { max_turns: maxTurns }),
             ...(options?.permissionMode && { permission_mode: options.permissionMode }),
             ...(options?.model && { model: options.model }),
             // Add project-specific options if available
@@ -1701,8 +1702,17 @@ export const useCoreStore = create<CoreStore>()(
 
             // Create a default agent for this worktree with correct projectId
             const projectId = result.folderName;
+
+            // Generate a unique session name
+            const existingNames = new Set(
+              Array.from(get().agents.values())
+                .filter((agent) => agent.projectId === projectId)
+                .map((agent) => agent.title)
+            );
+            const sessionName = generateSessionName(existingNames);
+
             const agentData = {
-              title: `${config.name} Session`,
+              title: sessionName,
               content: '',
               preview: '',
               type: AgentType.TEXT,
@@ -1828,8 +1838,16 @@ export const useCoreStore = create<CoreStore>()(
         } else {
           // No agent exists - this shouldn't happen if worktree was created properly
           // But handle gracefully by creating one
+          const existingNames = new Set(
+            Array.from(get().agents.values())
+              .filter((agent) => agent.projectId === projectId)
+              .map((agent) => agent.title)
+          );
+          const sessionName = generateSessionName(existingNames);
+          console.log('[Core] Generated session name for project fallback:', sessionName);
+
           const newAgent = await get().createAgent({
-            title: `${project.name} Session`,
+            title: sessionName,
             content: '',
             type: AgentType.TEXT,
             status: AgentStatus.DRAFT,

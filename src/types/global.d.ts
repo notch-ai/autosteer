@@ -137,6 +137,8 @@ interface Window {
       getRepoUrls: () => Promise<string[]>;
       getVimMode: () => Promise<boolean>;
       setVimMode: (enabled: boolean) => Promise<IpcResponse>;
+      setActiveTab: (projectId: string, tabId: string) => Promise<IpcResponse>;
+      getActiveTab: (projectId: string) => Promise<string | null>;
     };
 
     // Slash commands

@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/stores/settings';
 import { SearchResult } from './types';
 import { TabState, SessionTab, ChangesTabState } from '@/types/ui.types';
 import { ModelOption, DEFAULT_MODEL } from '@/types/model.types';
+import { MAX_TABS } from '@/constants/tabs';
 
 // UIStore Interface (TRD Section 2.3.2)
 export interface UIStore {
@@ -233,7 +234,7 @@ export const useUIStore = create<UIStore>()(
             state.tabState = {
               tabs: [],
               activeTabId: '',
-              maxTabs: 5,
+              maxTabs: MAX_TABS,
             };
           }
           // Tab creation will be handled by the agent creation flow
@@ -258,7 +259,7 @@ export const useUIStore = create<UIStore>()(
             state.tabState = {
               tabs: [],
               activeTabId: '',
-              maxTabs: 5,
+              maxTabs: MAX_TABS,
             };
           }
           state.tabState.tabs = tabs;

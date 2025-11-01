@@ -382,6 +382,22 @@ export const createMockChatMessage = (overrides: Partial<ChatMessage> = {}): Cha
   ...overrides,
 });
 
+export const createMockChatMessageWithError = (
+  overrides: Partial<ChatMessage> = {}
+): ChatMessage => ({
+  id: `mock-error-message-${Date.now()}`,
+  role: 'assistant',
+  content: 'I encountered an error while processing your request.',
+  timestamp: new Date(),
+  error: {
+    type: 'api_error',
+    message:
+      'API Error: 400 due to tool use concurrency issues. Run /rewind to recover the conversation.',
+  },
+  requestId: 'req_mock_123456789',
+  ...overrides,
+});
+
 export const createMockToolUsage = (overrides: Partial<ToolUsage> = {}): ToolUsage => ({
   id: `mock-tool-${Date.now()}`,
   name: 'mock-tool',

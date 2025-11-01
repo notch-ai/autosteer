@@ -527,6 +527,55 @@ export class IpcRegistrar {
       }
     });
 
+    ipcMain.handle(
+      'worktree:setActiveTab',
+      async (_event: IpcMainInvokeEvent, projectId: string, tabId: string) => {
+        try {
+          const config = await this.fileDataStore.readConfig();
+
+          // Find the worktree by folder_name (projectId is the folder_name)
+          const worktree = config.worktrees?.find((wt) => wt.folder_name === projectId);
+
+          if (worktree) {
+            // Store activeTabId directly in the worktree object
+            worktree.activeTabId = tabId;
+            await this.fileDataStore.writeConfig(config);
+            return { success: true };
+          } else {
+            return { success: false, error: `Worktree not found: ${projectId}` };
+          }
+        } catch (error) {
+          const errorMessage = ErrorHandler.log({
+            operation: 'set active tab',
+            error,
+            context: { projectId, tabId },
+          });
+          return { success: false, error: errorMessage };
+        }
+      }
+    );
+
+    ipcMain.handle(
+      'worktree:getActiveTab',
+      async (_event: IpcMainInvokeEvent, projectId: string) => {
+        try {
+          const config = await this.fileDataStore.readConfig();
+
+          // Find the worktree by folder_name (projectId is the folder_name)
+          const worktree = config.worktrees?.find((wt) => wt.folder_name === projectId);
+
+          return worktree?.activeTabId ?? null;
+        } catch (error) {
+          ErrorHandler.log({
+            operation: 'get active tab',
+            error,
+            context: { projectId },
+          });
+          return null;
+        }
+      }
+    );
+
     // Test mode handlers - provide fallback when test mode is not active
     ipcMain.handle('test-mode:getState', () => {
       return {

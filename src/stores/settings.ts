@@ -83,7 +83,7 @@ const getDefaultPreferences = (): UserPreferences => ({
   maxTokens: 4000,
   badgeNotifications: true,
   defaultModel: DEFAULT_MODEL, // Default model for new conversations
-  maxTurns: 20, // Default max turns for Claude Code sessions
+  maxTurns: null, // Default: unlimited (null = no limit)
 });
 
 /**

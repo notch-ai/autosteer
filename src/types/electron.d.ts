@@ -95,6 +95,11 @@ export interface ElectronAPI {
     getRepoUrls: () => Promise<string[]>;
     getVimMode: () => Promise<boolean>;
     setVimMode: (enabled: boolean) => Promise<{ success: boolean; error?: string }>;
+    setActiveTab: (
+      projectId: string,
+      tabId: string
+    ) => Promise<{ success: boolean; error?: string }>;
+    getActiveTab: (projectId: string) => Promise<string | null>;
   };
   slashCommands: {
     load: (projectPath?: string) => Promise<SlashCommand[]>;

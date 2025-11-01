@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/notch-ai/autosteer/compare/v0.1.13...v0.1.14) (2025-11-01)
+
+
+### Bug Fixes
+
+* display tool results in real-time as they complete ([4b10e08](https://github.com/notch-ai/autosteer/commit/4b10e08bae936d8fab18a50b51aa636b50622475))
+
 ## [0.1.13](https://github.com/notch-ai/autosteer/compare/v0.1.12...v0.1.13) (2025-11-01)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/notch-ai/autosteer/compare/v0.1.12...v0.1.13) (2025-11-01)
+
+
+### Bug Fixes
+
+* tool display ([5a06a2a](https://github.com/notch-ai/autosteer/commit/5a06a2a124360f49c993e82e575e33b7671ce27c))
+
 ## [0.1.12](https://github.com/notch-ai/autosteer/compare/v0.1.11...v0.1.12) (2025-11-01)
 
 

@@ -2,6 +2,7 @@ import { ConfirmDialog } from '@/components/features/ConfirmDialog';
 import { Icon } from '@/components/features/Icon';
 import { Button } from '@/components/ui/button';
 import { toastError, toastSuccess } from '@/components/ui/sonner';
+import { generateSessionName } from '@/commons/utils/sessionNameGenerator';
 import { AgentStatus, AgentType } from '@/entities/Agent';
 import { useCoreStore, useUIStore } from '@/stores';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -140,10 +141,13 @@ export const ProjectList: React.FC = () => {
         return;
       }
 
-      // Create new agent with standardized name
-      const agentNumber = projectAgents.length + 1;
+      // Generate unique session name
+      const existingNames = new Set(projectAgents.map((agent) => agent.title));
+      const sessionName = generateSessionName(existingNames);
+      console.log('[ProjectList] Generated session name:', sessionName);
+
       const newAgent = await createAgent({
-        title: `Session ${agentNumber}`,
+        title: sessionName,
         content: '',
         type: AgentType.TEXT,
         projectId: project.folderName,
@@ -151,7 +155,7 @@ export const ProjectList: React.FC = () => {
         resourceIds: [],
       });
 
-      toastSuccess(`Session ${agentNumber} created`);
+      toastSuccess(`${sessionName} created`);
 
       // Reload agents to ensure UI is in sync
       await loadAgents();

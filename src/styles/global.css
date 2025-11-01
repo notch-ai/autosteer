@@ -456,6 +456,35 @@ select:focus-visible {
   scrollbar-width: thin !important;
 }
 
+/* CodeMirror scroller scrollbar styles - match editor-content theme */
+.cm-scroller::-webkit-scrollbar,
+.cm-custom-scrollbar::-webkit-scrollbar {
+  width: 8px !important;
+  background-color: transparent !important;
+}
+
+.cm-scroller::-webkit-scrollbar-track,
+.cm-custom-scrollbar::-webkit-scrollbar-track {
+  background-color: transparent !important;
+}
+
+.cm-scroller::-webkit-scrollbar-thumb,
+.cm-custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--color-border)) !important;
+  border-radius: 4px !important;
+}
+
+.cm-scroller::-webkit-scrollbar-thumb:hover,
+.cm-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--color-text-muted)) !important;
+}
+
+/* Firefox scrollbar support for cm-scroller */
+.cm-scroller,
+.cm-custom-scrollbar {
+  scrollbar-width: thin !important;
+}
+
 /* Command menu item selection styles - override cmdk defaults */
 [cmdk-item][aria-selected='true'],
 [cmdk-item]:hover {

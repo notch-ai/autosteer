@@ -83,7 +83,7 @@
   --night-background-secondary: 22 22 28;   /* #16161c */
   --night-surface-hover: 29 30 38;          /* #1d1e26 */
   --night-surface-active: 37 38 46;         /* #25262e */
-  --night-border: 42 43 54;                 /* #2a2b36 */
+  --night-border-rgb: 42 43 54;             /* #2a2b36 - RGB format for custom colors */
   --night-text-primary: 224 224 230;        /* #e0e0e6 */
   --night-text-secondary: 139 140 145;      /* #8b8c91 */
   --night-text-tertiary: 102 102 102;       /* #666666 */
@@ -101,7 +101,7 @@
   --day-background-secondary: 245 245 245;  /* #f5f5f5 */
   --day-surface-hover: 239 239 239;         /* #efefef */
   --day-surface-active: 232 232 232;        /* #e8e8e8 */
-  --day-border: 222 222 222;                /* #dedede */
+  --day-border-rgb: 222 222 222;            /* #dedede - RGB format for custom colors */
   --day-text-primary: 33 41 54;             /* #212936 */
   --day-text-secondary: 143 147 157;        /* #8f939d */
   --day-text-tertiary: 173 177 184;         /* #adb1b8 */
@@ -118,7 +118,7 @@
   --color-surface: var(--night-background-secondary);
   --color-surface-hover: var(--night-surface-hover);
   --color-surface-active: var(--night-surface-active);
-  --color-border: var(--night-border);
+  --color-border: var(--night-border-rgb);
   --color-primary: var(--night-accent-primary);
   --color-primary-light: var(--night-accent-light);
   --color-text: var(--night-text-primary);
@@ -272,8 +272,8 @@
   --night-accent-foreground: 210 40% 98%;
   --night-destructive: 0 62.8% 30.6%;
   --night-destructive-foreground: 210 40% 98%;
-  --night-border: 237 20% 20%;  /* #2a2b36 */
-  --night-input: 237 20% 20%;   /* #2a2b36 */
+  --night-border: 235 13% 19%;  /* #2a2b36 - matches RGB 42 43 54 */
+  --night-input: 235 13% 19%;   /* #2a2b36 - matches RGB 42 43 54 */
   --night-ring: 212.7 26.8% 83.9%;
 
   /* Day theme shadcn variables */
@@ -334,7 +334,7 @@
   --color-surface: var(--day-background-secondary);
   --color-surface-hover: var(--day-surface-hover);
   --color-surface-active: var(--day-surface-active);
-  --color-border: var(--day-border);
+  --color-border: var(--day-border-rgb);
   --color-primary: var(--day-accent-primary);
   --color-primary-light: var(--day-accent-light);
   --color-text: var(--day-text-primary);

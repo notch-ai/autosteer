@@ -162,7 +162,10 @@ export class ClaudeCodeService {
       sessionId,
       attachments, // Pass attachments to main process
       options: {
-        maxTurns: conversationOptions?.max_turns || 10,
+        // Only set maxTurns if it's explicitly a number (null/undefined = unlimited, don't set)
+        ...(typeof conversationOptions?.max_turns === 'number' && {
+          maxTurns: conversationOptions.max_turns,
+        }),
         ...(conversationOptions?.system_prompt && {
           systemPrompt: conversationOptions.system_prompt,
         }),

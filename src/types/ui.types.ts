@@ -5,6 +5,7 @@ export interface SessionTab {
   agentType: string;
   isActive: boolean;
   sessionId: string;
+  sessionName?: string; // Generated name like "Swift River"
   lastAccessed: Date;
   tabType?: 'agent' | 'terminal' | 'changes'; // Add tab type to distinguish between agent, terminal, and changes tabs
 }

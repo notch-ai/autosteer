@@ -42,13 +42,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
       if (!inline && language) {
         return (
-          <Card className="my-0.5 p-0 overflow-hidden">
+          <Card className="my-0.5 p-0 overflow-hidden max-w-full">
             <div className="bg-muted px-3 py-2 border-b border-border">
               <Badge variant="secondary" className="text-sm">
                 {language}
               </Badge>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-w-full">
               <SyntaxHighlighter
                 style={vscDarkPlus as any}
                 language={language}
@@ -60,6 +60,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                   padding: '1rem',
                   backgroundColor: 'transparent',
                   overflowX: 'auto',
+                  maxWidth: '100%',
                 }}
                 {...props}
               >
@@ -119,27 +120,35 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       ) {
         const codeContent = String((children.props as any)?.children || '').replace(/\n$/, '');
         return (
-          <Card className="my-0.5 p-0 overflow-hidden">
-            <SyntaxHighlighter
-              style={vscDarkPlus as any}
-              language="text"
-              PreTag="div"
-              customStyle={{
-                margin: 0,
-                borderRadius: 0,
-                fontSize: '0.875rem',
-                padding: '1rem',
-              }}
-              {...props}
-            >
-              {codeContent}
-            </SyntaxHighlighter>
+          <Card className="my-0.5 p-0 overflow-hidden max-w-full">
+            <div className="overflow-x-auto max-w-full">
+              <SyntaxHighlighter
+                style={vscDarkPlus as any}
+                language="text"
+                PreTag="div"
+                customStyle={{
+                  margin: 0,
+                  borderRadius: 0,
+                  fontSize: '0.875rem',
+                  padding: '1rem',
+                  overflowX: 'auto',
+                  maxWidth: '100%',
+                }}
+                {...props}
+              >
+                {codeContent}
+              </SyntaxHighlighter>
+            </div>
           </Card>
         );
       }
       return (
         <pre
-          className={cn('overflow-x-auto p-4 my-0.5', 'bg-muted rounded-md', 'text-sm font-mono')}
+          className={cn(
+            'overflow-x-auto p-4 my-0.5 max-w-full',
+            'bg-muted rounded-md',
+            'text-sm font-mono'
+          )}
           {...props}
         >
           {children}
@@ -215,7 +224,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
     // Tables with shadcn styling
     table: ({ children, ...props }: any) => (
-      <div className="my-0.5 overflow-x-auto">
+      <div className="my-0.5 overflow-x-auto max-w-full">
         <table className="w-full border-collapse" {...props}>
           {children}
         </table>
@@ -291,7 +300,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   return (
     <div
       data-testid="markdown-renderer"
-      className={cn('markdown-content', 'overflow-x-auto overflow-y-visible', className)}
+      className={cn(
+        'markdown-content',
+        'max-w-full overflow-x-hidden overflow-y-visible',
+        className
+      )}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}

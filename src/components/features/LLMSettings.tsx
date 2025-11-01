@@ -42,7 +42,7 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
   const updateVimState = useUIStore((state) => state.updateVimState);
 
   // Local state for maxTurns and defaultModel (loaded from settings store)
-  const [maxTurns, setMaxTurns] = useState<number>(10);
+  const [maxTurns, setMaxTurns] = useState<number | null>(null); // null = unlimited
   const [defaultModel, setDefaultModel] = useState<ModelOption>(DEFAULT_MODEL);
 
   // Track initial values to detect changes
@@ -50,7 +50,7 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
   const [initialVimMode, setInitialVimMode] = useState<boolean | null>(null);
   const [initialDevMode, setInitialDevMode] = useState<boolean | null>(null);
   const [initialProjectDirectory, setInitialProjectDirectory] = useState<string | null>(null);
-  const [initialMaxTurns, setInitialMaxTurns] = useState<number | null>(null);
+  const [initialMaxTurns, setInitialMaxTurns] = useState<number | null>(null); // null = unlimited
   const [initialDefaultModel, setInitialDefaultModel] = useState<ModelOption | null>(null);
 
   // Check if any settings have changed
@@ -60,7 +60,7 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
       initialVimMode === null ||
       initialDevMode === null ||
       initialProjectDirectory === null ||
-      initialMaxTurns === null ||
+      initialMaxTurns === undefined ||
       initialDefaultModel === null
     )
       return false;
@@ -165,10 +165,13 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
 
     // Load maxTurns from settings store
     const loadMaxTurns = () => {
-      const currentMaxTurns = useSettingsStore.getState().preferences.maxTurns || 10;
+      const currentMaxTurns = useSettingsStore.getState().preferences.maxTurns ?? null; // null = unlimited
       setMaxTurns(currentMaxTurns);
       setInitialMaxTurns(currentMaxTurns);
-      logger.info('[LLMSettings] Loaded maxTurns:', currentMaxTurns);
+      logger.info(
+        '[LLMSettings] Loaded maxTurns:',
+        currentMaxTurns === null ? 'unlimited' : currentMaxTurns
+      );
     };
     loadMaxTurns();
 
@@ -419,17 +422,21 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
           <div className="space-y-1">
             <p className="text-sm text-text m-0">Max Turns</p>
             <Select
-              value={maxTurns.toString()}
+              value={maxTurns === null ? 'unlimited' : maxTurns.toString()}
               onValueChange={(value) => {
-                const newMaxTurns = parseInt(value, 10);
+                const newMaxTurns = value === 'unlimited' ? null : parseInt(value, 10);
                 setMaxTurns(newMaxTurns);
-                logger.info('[LLMSettings] Max turns changed to:', newMaxTurns);
+                logger.info(
+                  '[LLMSettings] Max turns changed to:',
+                  newMaxTurns === null ? 'unlimited' : newMaxTurns
+                );
               }}
             >
               <SelectTrigger id="max-turns-select" className="w-full">
                 <SelectValue placeholder="Select max turns" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="unlimited">Unlimited</SelectItem>
                 <SelectItem value="10">10 turns</SelectItem>
                 <SelectItem value="20">20 turns</SelectItem>
                 <SelectItem value="50">50 turns</SelectItem>
@@ -439,7 +446,7 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
             </Select>
             <p className="text-xs text-text-muted mt-0.5 m-0">
               Maximum number of conversation turns before the session automatically terminates.
-              Lower values help prevent excessive API usage.
+              "Unlimited" allows sessions to continue indefinitely.
             </p>
           </div>
           <div className="space-y-1 mt-4">

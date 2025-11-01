@@ -152,7 +152,7 @@ export interface UserPreferences {
   compactOnTokenLimit: boolean;
   maxTokens: number;
   badgeNotifications: boolean;
-  maxTurns?: number; // Maximum turns per Claude Code session (default: 10)
+  maxTurns?: number | null; // Maximum turns per Claude Code session (null = unlimited, default: null)
   defaultModel?: ModelOption; // Default model for new conversations (see DEFAULT_MODEL in model.types.ts)
 }
 

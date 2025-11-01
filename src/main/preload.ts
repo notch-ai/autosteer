@@ -188,6 +188,9 @@ const electronAPI = {
     getRepoUrls: () => ipcRenderer.invoke('worktree:getRepoUrls'),
     getVimMode: () => ipcRenderer.invoke('worktree:getVimMode'),
     setVimMode: (enabled: boolean) => ipcRenderer.invoke('worktree:setVimMode', enabled),
+    setActiveTab: (projectId: string, tabId: string) =>
+      ipcRenderer.invoke('worktree:setActiveTab', projectId, tabId),
+    getActiveTab: (projectId: string) => ipcRenderer.invoke('worktree:getActiveTab', projectId),
   },
 
   // Slash commands

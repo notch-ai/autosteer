@@ -68,6 +68,7 @@ export const useCoreStore = create<CoreStore>()(
       streamingStates: new Map(), // Per-chat streaming states
       sessionIds: new Map(), // In-memory Claude session IDs per agent
       chatError: null,
+      pendingToolUses: new Map(),
 
       // State - Projects
       projects: new Map(),
@@ -875,73 +876,88 @@ export const useCoreStore = create<CoreStore>()(
                 }
               },
               onToolUse: (message) => {
-                // Handle tool use messages
                 set((state) => {
-                  const streamingMsg = state.streamingMessages.get(streamingChatId);
-                  if (streamingMsg) {
-                    if (!streamingMsg.toolCalls) {
-                      streamingMsg.toolCalls = [];
-                    }
-                    streamingMsg.toolCalls.push({
-                      type: 'tool_use',
-                      id: message.tool_id,
-                      name: message.tool_name,
-                      input: message.tool_input,
-                    });
+                  const pendingTool = {
+                    id: message.tool_id,
+                    name: message.tool_name,
+                    input: message.tool_input,
+                    timestamp: new Date(),
+                  };
+                  const newPendingToolUses = new Map(state.pendingToolUses);
+                  newPendingToolUses.set(message.tool_id, pendingTool);
+                  state.pendingToolUses = newPendingToolUses;
 
-                    const streamingMessage: any = {
-                      id: message.tool_id || `tool-${Date.now()}`,
-                      type: 'tool_use',
-                      timestamp: new Date().toISOString(),
-                      tool_id: message.tool_id,
-                      tool_name: message.tool_name,
-                      tool_input: message.tool_input,
-                      parent_tool_use_id: message.parent_tool_use_id || null,
-                      parent_message_id: capturedStreamingMessageId, // Pass ChatMessage ID for consistent todo IDs
-                    };
-                    // Use worktree-specific monitor
-                    const worktreeId = selectedProject?.folderName || selectedProject?.id;
-                    if (worktreeId) {
-                      const monitor = getTodoMonitor(worktreeId);
-                      if (monitor) {
-                        monitor.onMessage(streamingMessage);
-                      }
+                  // Handle TodoWrite tool monitoring
+                  const streamingMessage: any = {
+                    id: message.tool_id || `tool-${Date.now()}`,
+                    type: 'tool_use',
+                    timestamp: new Date().toISOString(),
+                    tool_id: message.tool_id,
+                    tool_name: message.tool_name,
+                    tool_input: message.tool_input,
+                    parent_tool_use_id: message.parent_tool_use_id || null,
+                    parent_message_id: capturedStreamingMessageId, // Pass ChatMessage ID for consistent todo IDs
+                  };
+                  // Use worktree-specific monitor
+                  const worktreeId = selectedProject?.folderName || selectedProject?.id;
+                  if (worktreeId) {
+                    const monitor = getTodoMonitor(worktreeId);
+                    if (monitor) {
+                      monitor.onMessage(streamingMessage);
                     }
+                  }
 
-                    if (message.tool_name === 'TodoWrite' && message.tool_input?.todos) {
-                      const messages = state.messages.get(streamingChatId) || [];
-                      const messageIndex = messages.findIndex(
-                        (m) => m.id === capturedStreamingMessageId
+                  if (message.tool_name === 'TodoWrite' && message.tool_input?.todos) {
+                    const messages = state.messages.get(streamingChatId) || [];
+                    const messageIndex = messages.findIndex(
+                      (m) => m.id === capturedStreamingMessageId
+                    );
+                    if (messageIndex !== -1 && messages[messageIndex]) {
+                      // Ensure todos have unique IDs
+                      const todosWithIds = message.tool_input.todos.map(
+                        (todo: any, index: number) => ({
+                          id: todo.id || `todo-${capturedStreamingMessageId}-${index}`,
+                          content: todo.content || '',
+                          status: todo.status || 'pending',
+                          activeForm: todo.activeForm || todo.content,
+                        })
                       );
-                      if (messageIndex !== -1 && messages[messageIndex]) {
-                        // Ensure todos have unique IDs
-                        const todosWithIds = message.tool_input.todos.map(
-                          (todo: any, index: number) => ({
-                            id: todo.id || `todo-${capturedStreamingMessageId}-${index}`,
-                            content: todo.content || '',
-                            status: todo.status || 'pending',
-                            activeForm: todo.activeForm || todo.content,
-                          })
-                        );
-                        messages[messageIndex].latestTodos = todosWithIds;
-                        state.messages.set(streamingChatId, [...messages]);
-                      }
+                      messages[messageIndex].latestTodos = todosWithIds;
+                      state.messages.set(streamingChatId, [...messages]);
                     }
                   }
                 });
               },
               onToolResult: (message) => {
                 set((state) => {
-                  const streamingMsg = state.streamingMessages.get(streamingChatId);
-                  if (streamingMsg) {
-                    if (!streamingMsg.toolCalls) {
-                      streamingMsg.toolCalls = [];
-                    }
-                    streamingMsg.toolCalls.push({
-                      type: 'tool_result',
-                      tool_use_id: message.tool_use_id,
-                      content: message.content,
-                    });
+                  const pendingTool = state.pendingToolUses.get(message.tool_use_id);
+                  if (pendingTool) {
+                    const toolMessage: ChatMessage = {
+                      id: nanoid(),
+                      role: 'assistant',
+                      content: '',
+                      toolCalls: [
+                        {
+                          type: 'tool_use',
+                          id: pendingTool.id,
+                          name: pendingTool.name,
+                          input: pendingTool.input,
+                        },
+                        {
+                          type: 'tool_result',
+                          tool_use_id: message.tool_use_id,
+                          content: message.content,
+                        },
+                      ],
+                      timestamp: new Date(),
+                    };
+
+                    const messages = state.messages.get(streamingChatId) || [];
+                    state.messages.set(streamingChatId, [...messages, toolMessage]);
+
+                    const newPendingToolUses = new Map(state.pendingToolUses);
+                    newPendingToolUses.delete(message.tool_use_id);
+                    state.pendingToolUses = newPendingToolUses;
                   }
                 });
               },

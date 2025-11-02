@@ -1,6 +1,36 @@
 /**
- * Claude Code CLI service that interfaces directly with the claude CLI
- * This replaces the TypeScript SDK to avoid spawn issues in Electron
+ * Claude Code CLI Service
+ *
+ * Direct interface to the Claude Code CLI for executing AI-powered coding tasks.
+ * Handles process spawning, streaming output parsing, session management, and
+ * permission request handling.
+ *
+ * @remarks
+ * This service replaces the TypeScript SDK to avoid spawn issues in Electron's
+ * main process. It communicates with the Claude Code CLI via stdio streams and
+ * parses JSON-formatted streaming responses.
+ *
+ * Key features:
+ * - Session persistence and resumption
+ * - Streaming output with real-time message parsing
+ * - Permission request detection and handling
+ * - File change detection and notification
+ * - Multi-session support with agent-to-session mapping
+ * - Attachment handling via temporary files
+ *
+ * @example
+ * ```typescript
+ * const service = ClaudeCodeCLIService.getInstance();
+ * const queryId = uuidv4();
+ *
+ * for await (const message of service.queryClaudeCode(queryId, {
+ *   prompt: 'Implement feature X',
+ *   sessionId: agentId,
+ *   options: { cwd: '/path/to/project' }
+ * })) {
+ *   console.log('Message:', message);
+ * }
+ * ```
  */
 
 import { ChildProcessWithoutNullStreams, execSync, spawn } from 'child_process';
@@ -16,26 +46,50 @@ import { logger } from '@/commons/utils/logger';
 import type { FileChangeMessage, FileChange, FileChangeDebugInfo } from '@/types/fileChange.types';
 import { isFileChangeMessage, extractFileChanges } from '@/types/fileChange.types';
 
+/**
+ * File attachment for Claude Code queries
+ * Supports images, documents, code files, and other file types
+ */
 export interface Attachment {
+  /** Type classification of the attachment */
   type: 'image' | 'document' | 'code' | 'other';
+  /** MIME type of the attachment */
   media_type: string;
-  data: string; // base64
+  /** Base64-encoded file data */
+  data: string;
+  /** Optional filename for the attachment */
   filename?: string;
 }
 
+/**
+ * Options for Claude Code query execution
+ */
 export interface ClaudeCodeQueryOptions {
+  /** The prompt/instruction to send to Claude Code */
   prompt: string;
+  /** Optional Anthropic API key (if not using default) */
   apiKey?: string;
+  /** Session ID for resuming conversations (maps to agent ID) */
   sessionId?: string;
+  /** File attachments to include with the query */
   attachments?: Attachment[];
+  /** Additional execution options */
   options?: {
+    /** Maximum number of turns for the conversation */
     maxTurns?: number;
+    /** Custom system prompt to override default */
     systemPrompt?: string;
+    /** Whitelist of allowed Claude Code tools */
     allowedTools?: string[];
+    /** Claude model to use (e.g., 'claude-sonnet-4-5-20250929') */
     model?: string;
+    /** Working directory for the Claude Code session */
     cwd?: string;
+    /** Maximum thinking tokens for extended thinking mode */
     maxThinkingTokens?: number;
+    /** Permission mode: 'ask', 'bypassPermissions', or 'readOnly' */
     permissionMode?: string;
+    /** Resume token for continuing a session */
     resume?: string;
   };
 }
@@ -173,7 +227,20 @@ export class ClaudeCodeCLIService {
   }
 
   /**
-   * Initialize a new Claude Code session and return the session ID
+   * Initialize a new Claude Code session
+   *
+   * Creates a new Claude Code session by spawning the CLI with a minimal initialization
+   * prompt. Returns the session ID that can be used to resume the session later.
+   *
+   * @param workingDirectory - Optional working directory for the session
+   * @returns Promise resolving to the Claude Code session ID
+   * @throws Error if Claude Code CLI is not installed or session creation fails
+   *
+   * @example
+   * ```typescript
+   * const sessionId = await ClaudeCodeCLIService.initializeSession('/path/to/project');
+   * console.log('Session created:', sessionId);
+   * ```
    */
   static async initializeSession(workingDirectory?: string): Promise<string> {
     const service = ClaudeCodeCLIService.getInstance();
@@ -225,7 +292,36 @@ export class ClaudeCodeCLIService {
   }
 
   /**
-   * Query Claude Code CLI and return messages as they come
+   * Query Claude Code CLI and stream responses
+   *
+   * Spawns the Claude Code CLI process and yields parsed messages as they arrive.
+   * Supports session resumption, file attachments, permission requests, and more.
+   *
+   * @param queryId - Unique identifier for this query (used for abort tracking)
+   * @param queryOptions - Query configuration including prompt, session, and options
+   * @yields ClaudeCodeMessage objects as they are parsed from CLI output
+   *
+   * @remarks
+   * This is an async generator that streams messages in real-time:
+   * - system/init: Session initialization with metadata
+   * - user/assistant: Conversation messages
+   * - result: Final result with usage statistics
+   * - Permission requests are detected and marked with __permissionRequest
+   * - File changes are detected and marked with __fileChangeMessage
+   *
+   * @example
+   * ```typescript
+   * const queryId = uuidv4();
+   * for await (const message of service.queryClaudeCode(queryId, {
+   *   prompt: 'Fix the bug in auth.ts',
+   *   sessionId: agentId,
+   *   options: { cwd: '/project/path' }
+   * })) {
+   *   if (message.type === 'assistant') {
+   *     console.log('Assistant:', message.content);
+   *   }
+   * }
+   * ```
    */
   async *queryClaudeCode(
     queryId: string,

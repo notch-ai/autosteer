@@ -14,9 +14,60 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
+/**
+ * FileHandlers class
+ * Handles all IPC communication for file system operations including file I/O,
+ * directory navigation, workspace search, and native file dialogs.
+ *
+ * @remarks
+ * This handler implements secure file system access with path normalization,
+ * .gitignore awareness, and dialog integration for file selection workflows.
+ *
+ * Key responsibilities:
+ * - File operations (read, write, save as)
+ * - Directory listing and navigation
+ * - Workspace-wide file search with .gitignore support
+ * - Native OS dialogs for file/folder selection
+ * - Path validation and security checks
+ *
+ * Security considerations:
+ * - All file paths are normalized using path.resolve() to prevent directory traversal
+ * - Supports home directory expansion (~/) for user convenience
+ * - Respects .gitignore patterns to exclude sensitive files from search results
+ * - File operations require explicit user interaction through dialogs
+ *
+ * Path handling:
+ * - Absolute paths are preferred for all file operations
+ * - Relative paths are resolved against the workspace root
+ * - Hidden files (starting with .) can be optionally included/excluded
+ * - Paths are normalized across platforms (Windows/macOS/Linux)
+ *
+ * @example
+ * ```typescript
+ * const handlers = new FileHandlers();
+ * handlers.registerHandlers();
+ * ```
+ */
 export class FileHandlers {
   /**
    * List all files and directories in the specified path
+   * @param request - Directory listing configuration including path and hidden file preferences
+   * @returns Sorted list of directory entries (directories first, then alphabetical)
+   * @private
+   *
+   * @remarks
+   * Security: Path is normalized using path.resolve() to prevent directory traversal.
+   * Sorting: Directories are listed before files, then sorted alphabetically (case-insensitive).
+   * Hidden files: Can be included/excluded based on request.includeHidden flag.
+   *
+   * @example
+   * ```typescript
+   * const result = await listDirectory(event, {
+   *   path: '/workspace',
+   *   includeHidden: false
+   * });
+   * // Returns: { entries: [...], currentPath: '/workspace' }
+   * ```
    */
   async listDirectory(
     _event: IpcMainInvokeEvent,
@@ -54,6 +105,34 @@ export class FileHandlers {
 
   /**
    * Read and parse .gitignore file patterns
+   * @param workspacePath - Absolute path to the workspace root
+   * @returns Array of glob patterns for file filtering (includes base patterns + .gitignore rules)
+   * @private
+   *
+   * @remarks
+   * Combines base ignore patterns with .gitignore file rules to filter workspace searches.
+   *
+   * Base patterns (always applied):
+   * - node_modules, .git, dist, build, .next, out, .vite
+   *
+   * .gitignore processing:
+   * - Converts .gitignore patterns to fast-glob compatible format
+   * - Supports negation patterns (!) for whitelisting files
+   * - Handles directory patterns (ending with /)
+   * - Handles root-relative patterns (starting with /)
+   * - Ignores comments (lines starting with #)
+   *
+   * Pattern conversion examples:
+   * - "node_modules/" -> "** /node_modules/**"
+   * - "/dist" -> "dist"
+   * - "*.log" -> "** /*.log"
+   * - "!important.log" -> "!** /important.log"
+   *
+   * @example
+   * ```typescript
+   * const patterns = await this.readGitignorePatterns('/workspace');
+   * // Returns: ['** /node_modules/**', '** /.git/**', 'custom-pattern', ...]
+   * ```
    */
   private async readGitignorePatterns(workspacePath: string): Promise<string[]> {
     const gitignorePath = path.join(workspacePath, '.gitignore');
@@ -117,6 +196,41 @@ export class FileHandlers {
 
   /**
    * Search for files and directories in the workspace matching a query
+   * @param request - Search configuration including workspace path, query, and result limits
+   * @returns Search results with entries, query, and total count
+   * @private
+   *
+   * @remarks
+   * Performs fast workspace-wide file search using fast-glob with .gitignore awareness.
+   *
+   * Features:
+   * - Fuzzy filename matching (case-insensitive)
+   * - Respects .gitignore patterns and base ignore patterns
+   * - Supports whitelist/negation patterns for including ignored files
+   * - Configurable result limits (default: 100)
+   * - Optional hidden file inclusion
+   * - Returns sorted results (directories first, then alphabetical)
+   *
+   * Search behavior:
+   * - Empty query: Returns all files (up to maxResults)
+   * - Query present: Filters by filename containing query (case-insensitive)
+   * - Whitelisted files: Included even if matched by ignore patterns
+   *
+   * Performance:
+   * - Uses fast-glob for efficient file system traversal
+   * - Results are limited to prevent UI overload
+   * - Suppresses errors for inaccessible files/directories
+   *
+   * @example
+   * ```typescript
+   * const results = await searchWorkspace(event, {
+   *   workspacePath: '/workspace',
+   *   query: 'component',
+   *   maxResults: 50,
+   *   includeHidden: false
+   * });
+   * // Returns: { entries: [...], query: 'component', totalFound: 42 }
+   * ```
    */
   async searchWorkspace(
     _event: IpcMainInvokeEvent,
@@ -247,6 +361,37 @@ export class FileHandlers {
     }
   }
 
+  /**
+   * Register all IPC handlers for file system operations
+   * Sets up listeners for file I/O, directory navigation, workspace search, and native dialogs
+   *
+   * @remarks
+   * Registered IPC channels:
+   * - FILE_OPEN: Read file content from disk
+   * - FILE_SAVE: Write content to existing file
+   * - FILE_SAVE_AS: Show save dialog and write content to selected path
+   * - FOLDER_OPEN: Open folder in native file explorer
+   * - DIALOG_OPEN_FILE: Show native file picker dialog
+   * - DIALOG_SAVE_FILE: Show native save dialog
+   * - DIALOG_MESSAGE: Show native message box dialog
+   * - FILE_LIST_DIRECTORY: List directory contents with optional hidden files
+   * - FILE_SEARCH_WORKSPACE: Search workspace files with .gitignore awareness
+   * - file:pathExists: Check if file/directory exists (with ~ expansion)
+   *
+   * Security features:
+   * - Path normalization prevents directory traversal attacks
+   * - All operations require explicit paths or user dialog interaction
+   * - Home directory expansion (~/) for convenience
+   * - .gitignore patterns respected in workspace searches
+   *
+   * Dialog integration:
+   * - File dialogs: Configurable filters for file types
+   * - Save dialogs: Default paths and extensions support
+   * - Message boxes: Native OS styling for confirmations
+   * - All dialogs require valid browser window context
+   *
+   * @public
+   */
   registerHandlers(): void {
     // Open file
     ipcMain.handle(IPC_CHANNELS.FILE_OPEN, async (_event: IpcMainInvokeEvent, filePath: string) => {

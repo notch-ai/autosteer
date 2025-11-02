@@ -27,7 +27,11 @@ export default defineConfig({
             provider: 'playwright',
             instances: [{ browser: 'chromium' }],
           },
-          setupFiles: ['.storybook/vitest.setup.ts'],
+          setupFiles: [
+            '.storybook/vitest.setup.ts',
+            './tests/setup/msw-node.ts',
+            './tests/setup/msw-browser.ts',
+          ],
         },
       },
     ],

@@ -37,7 +37,7 @@ module.exports = {
     '!src/entities/LoadedUsageEntry.ts', // Complex data structure with minimal logic
 
     // Keep only the truly problematic files excluded
-    '!src/main/ipc/handlers/AgentHandlers.ts', // 677 lines, would need extensive DB mocking
+    // AgentHandlers.ts now covered by comprehensive test suite
     '!src/main/ipc/IpcMigrationManager.ts', // 388 lines, complex migration logic
     '!src/commons/types/config.ts', // 115 lines, type definitions only
   ],
@@ -62,6 +62,7 @@ module.exports = {
     '/dist/',
     '/out/',
     'components/.*\\.test\\.[jt]sx?$', // Skip component tests for lean testing
+    'tests/component/', // Playwright component tests - run separately
     'tests/e2e/', // Playwright tests - run separately
     'tests/e2e-jest/', // Jest E2E tests - require API keys, run separately
     'tests/performance/', // Vitest performance tests - run separately

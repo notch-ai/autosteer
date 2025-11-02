@@ -24,6 +24,7 @@ export interface ChatMessage {
     outputTokens?: number;
     cacheCreationInputTokens?: number;
     cacheReadInputTokens?: number;
+    totalCost?: number;
   };
   // Total cost from SDK result message (only available after completion)
   totalCostUSD?: number;
@@ -64,9 +65,9 @@ export interface ChatMessage {
   permissionAction?: {
     type: 'accepted' | 'rejected';
     file_path: string;
-    old_string?: string;
-    new_string?: string;
-    content?: string;
+    old_string?: string | undefined;
+    new_string?: string | undefined;
+    content?: string | undefined;
     timestamp: Date;
   }; // Permission action taken (for displaying accepted/rejected changes inline)
   stopReason?:

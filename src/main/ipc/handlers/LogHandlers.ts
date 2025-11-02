@@ -5,7 +5,45 @@ import path from 'path';
 import fs from 'fs';
 import { app } from 'electron';
 
+/**
+ * LogHandlers class
+ * Handles all IPC communication for logging operations, providing a bridge between
+ * renderer processes and the main process electron-log system.
+ *
+ * @remarks
+ * This handler enables renderer processes to write structured logs to the main process,
+ * which are then persisted to disk and rotated automatically.
+ *
+ * Key responsibilities:
+ * - Forward log messages from renderer to main process
+ * - Support multiple log levels (info, warn, error, debug)
+ * - Provide log file path retrieval
+ * - Enable log file cleanup and management
+ * - List available log files
+ *
+ * @example
+ * ```typescript
+ * LogHandlers.register();
+ * ```
+ */
 export class LogHandlers {
+  /**
+   * Register all IPC handlers for logging operations
+   * Sets up listeners for log level handlers, log file management, and cleanup operations
+   *
+   * @remarks
+   * Registered IPC channels:
+   * - log:info: Log info level messages
+   * - log:warn: Log warning level messages
+   * - log:error: Log error level messages
+   * - log:debug: Log debug level messages
+   * - log: Generic log handler with level parameter
+   * - logs:getPath: Get the path to the main log file
+   * - logs:cleanOldLogs: Clean logs older than specified days
+   * - logs:getLogFiles: Get list of all log files
+   *
+   * @public
+   */
   static register(): void {
     // Log info messages
     ipcMain.handle(

@@ -19,6 +19,30 @@ import { ipcMain } from 'electron';
 import log from 'electron-log';
 import { BadgeService } from '../../services/BadgeService';
 
+/**
+ * BadgeHandlers class
+ * Manages IPC communication for application badge notifications in the dock/taskbar
+ *
+ * @remarks
+ * This handler provides a bridge between the renderer process and the main process
+ * for managing badge visibility on the application icon. It delegates badge operations
+ * to the BadgeService singleton and ensures all operations complete within performance
+ * targets (<5ms). The handler provides graceful degradation on platforms that don't
+ * support badge notifications (e.g., Windows, Linux).
+ *
+ * IPC Channels:
+ * - `badge:show` - Display badge on application icon
+ * - `badge:hide` - Remove badge from application icon
+ * - `badge:isSupported` - Check if badge operations are supported on current platform
+ *
+ * Performance: All badge operations are monitored and log warnings if they exceed 5ms.
+ *
+ * @example
+ * ```typescript
+ * const handler = new BadgeHandlers();
+ * handler.registerHandlers();
+ * ```
+ */
 export class BadgeHandlers {
   private badgeService: BadgeService;
 
@@ -26,6 +50,20 @@ export class BadgeHandlers {
     this.badgeService = BadgeService.getInstance();
   }
 
+  /**
+   * Registers all badge-related IPC handlers
+   *
+   * @remarks
+   * Sets up the following IPC handlers:
+   * - `badge:show` - Shows badge with performance monitoring
+   * - `badge:hide` - Hides badge with performance monitoring
+   * - `badge:isSupported` - Returns platform support status
+   *
+   * All handlers return standardized responses with success/error status.
+   * Operations exceeding 5ms trigger performance warnings in logs.
+   *
+   * @returns void
+   */
   registerHandlers(): void {
     // Show badge handler
     ipcMain.handle('badge:show', async () => {
@@ -86,6 +124,21 @@ export class BadgeHandlers {
     log.info('Badge handlers registered');
   }
 
+  /**
+   * Cleans up all registered badge IPC handlers
+   *
+   * @remarks
+   * Removes all badge-related IPC handlers from the main process.
+   * Should be called during application shutdown or when the handlers
+   * need to be re-registered.
+   *
+   * Removed handlers:
+   * - `badge:show`
+   * - `badge:hide`
+   * - `badge:isSupported`
+   *
+   * @returns void
+   */
   cleanup(): void {
     // Remove handlers on cleanup
     ipcMain.removeHandler('badge:show');

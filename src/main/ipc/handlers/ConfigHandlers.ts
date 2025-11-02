@@ -5,10 +5,28 @@ import { AutosteerConfig, CustomCommand } from '@/types/config.types';
 import { mainLogger } from '../../services/logger';
 
 /**
- * ConfigHandlers - IPC handlers for configuration management
+ * ConfigHandlers class
+ * Handles all IPC communication for application configuration management including settings,
+ * API keys, custom commands, and project directory configuration.
  *
- * Handles all config-related IPC calls for the SettingsStore.
- * All operations are performed on ~/.autosteer/config.json via FileDataStoreService.
+ * @remarks
+ * This handler manages persistent configuration stored in two files:
+ * - ~/.autosteer/config.json: User settings, API keys, custom commands, worktrees, agents
+ * - ~/.autosteer/app.json: Application-level settings like project directory
+ *
+ * Key responsibilities:
+ * - Configuration file read/write operations
+ * - Settings management (vimMode, devMode, etc.)
+ * - API key secure storage and retrieval
+ * - Custom command CRUD operations
+ * - Project directory configuration and validation
+ * - Configuration section access utilities
+ *
+ * @example
+ * ```typescript
+ * const handlers = new ConfigHandlers(ipcMain);
+ * handlers.register();
+ * ```
  */
 export class ConfigHandlers {
   private fileDataStore: FileDataStoreService;
@@ -17,6 +35,30 @@ export class ConfigHandlers {
     this.fileDataStore = FileDataStoreService.getInstance();
   }
 
+  /**
+   * Register all IPC handlers for configuration operations
+   * Sets up listeners for config read/write, settings management, API keys, and custom commands
+   *
+   * @remarks
+   * Registered IPC channels:
+   * - config:read: Read entire configuration file
+   * - config:updateSettings: Update settings section (vimMode, etc.)
+   * - config:setApiKey: Store API key for a service
+   * - config:removeApiKey: Remove API key for a service
+   * - config:clearApiKeys: Clear all stored API keys
+   * - config:addCustomCommand: Add a new custom command
+   * - config:updateCustomCommand: Update existing custom command
+   * - config:removeCustomCommand: Remove a custom command
+   * - config:clearCustomCommands: Clear all custom commands
+   * - config:getSection: Get a specific configuration section
+   * - config:getDevMode: Get development mode setting
+   * - config:setDevMode: Set development mode and update logger
+   * - config:setSection: Set a specific configuration section
+   * - config:getProjectDirectory: Get project directory from app.json
+   * - config:setProjectDirectory: Set and validate project directory
+   *
+   * @public
+   */
   register(): void {
     // Read entire config file
     this.ipcMain.handle('config:read', async (): Promise<AutosteerConfig> => {

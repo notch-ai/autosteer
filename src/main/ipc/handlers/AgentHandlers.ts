@@ -14,7 +14,10 @@ import * as path from 'path';
 import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
 
-// Model pricing data (per 1M tokens)
+/**
+ * Model pricing data (cost per 1M tokens)
+ * Used to calculate token costs for various Claude models
+ */
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'claude-3-5-sonnet-20241022': { input: 3.0, output: 15.0 },
   'claude-3-5-sonnet-20240620': { input: 3.0, output: 15.0 },
@@ -30,6 +33,28 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
 };
 
+/**
+ * AgentHandlers class
+ * Handles all IPC communication for agent-related operations including CRUD operations,
+ * session management, and chat history loading from Claude Code JSONL files.
+ *
+ * @remarks
+ * This handler implements multi-agent session support, allowing up to 5 concurrent
+ * Claude Code sessions per worktree with isolated contexts.
+ *
+ * Key responsibilities:
+ * - Agent lifecycle management (create, read, update, delete)
+ * - Session-to-agent mapping via SessionManifestService
+ * - Chat history parsing from ~/.claude/projects/ JSONL files
+ * - Token usage calculation and cost tracking
+ * - Additional directory management for agents
+ *
+ * @example
+ * ```typescript
+ * const handlers = new AgentHandlers();
+ * handlers.registerHandlers();
+ * ```
+ */
 export class AgentHandlers {
   private fileDataStore: FileDataStoreService;
   private sessionManifest: SessionManifestService;
@@ -39,7 +64,22 @@ export class AgentHandlers {
     this.sessionManifest = SessionManifestService.getInstance();
   }
 
-  // Helper function to calculate token cost
+  /**
+   * Calculate token cost based on usage and model pricing
+   * @param usage - Token usage object from Claude API response
+   * @param model - Claude model identifier
+   * @returns Total cost in USD (rounded to 6 decimal places)
+   * @private
+   *
+   * @example
+   * ```typescript
+   * const cost = this.calculateTokenCost(
+   *   { input_tokens: 1000, output_tokens: 500 },
+   *   'claude-3-5-sonnet-20241022'
+   * );
+   * // Returns: 0.0105 (1000/1M * 3.0 + 500/1M * 15.0)
+   * ```
+   */
   private calculateTokenCost(usage: any, model: string): number {
     const pricing = MODEL_PRICING[model] || { input: 15.0, output: 75.0 };
 
@@ -53,6 +93,25 @@ export class AgentHandlers {
     return Math.round(totalCost * 1_000_000) / 1_000_000;
   }
 
+  /**
+   * Register all IPC handlers for agent operations
+   * Sets up listeners for agent CRUD operations, session management, and chat history loading
+   *
+   * @remarks
+   * Registered IPC channels:
+   * - AGENTS_LOAD_ALL: Load all agents from config.json
+   * - AGENTS_LOAD_BY_PROJECT: Load agents for a specific project/worktree
+   * - AGENTS_CREATE: Create a new agent (max 5 per worktree)
+   * - AGENTS_UPDATE: Update existing agent properties
+   * - AGENTS_DELETE: Delete agent and clean up sessions
+   * - AGENTS_UPDATE_SESSION: Map agent to Claude Code session
+   * - AGENTS_SEARCH: Search agents by query string
+   * - AGENTS_LOAD_CHAT_HISTORY: Load chat history from JSONL files
+   * - agents:updateAdditionalDirectories: Update additional directories for agent
+   * - agents:getAdditionalDirectories: Get additional directories for agent
+   *
+   * @public
+   */
   registerHandlers(): void {
     // Load all agents
     ipcMain.handle(IPC_CHANNELS.AGENTS_LOAD_ALL, async () => {
@@ -858,7 +917,18 @@ export class AgentHandlers {
     );
   }
 
-  // Helper methods
+  /**
+   * Convert AgentConfig (stored format) to Agent (runtime format)
+   * @param config - Agent configuration from config.json
+   * @returns Agent entity object
+   * @private
+   *
+   * @remarks
+   * Performs data transformation:
+   * - Converts ISO date strings to Date objects
+   * - Maps snake_case properties to camelCase
+   * - Parses chat history if present
+   */
   private convertConfigToAgent(config: AgentConfig): Agent {
     const agent: Agent = {
       id: config.id,
@@ -891,6 +961,18 @@ export class AgentHandlers {
     return agent;
   }
 
+  /**
+   * Convert Agent (runtime format) to AgentConfig (stored format)
+   * @param agent - Agent entity object
+   * @returns Agent configuration for config.json
+   * @private
+   *
+   * @remarks
+   * Performs data transformation:
+   * - Converts Date objects to ISO date strings
+   * - Maps camelCase properties to snake_case
+   * - Serializes chat history if present
+   */
   private convertAgentToConfig(agent: Agent): AgentConfig {
     const config: AgentConfig = {
       id: agent.id,

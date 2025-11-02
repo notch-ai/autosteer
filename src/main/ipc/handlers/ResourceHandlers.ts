@@ -22,6 +22,39 @@ interface UploadMetadata {
   [key: string]: string | number | boolean | undefined;
 }
 
+/**
+ * ResourceHandlers class
+ * Handles all IPC communication for resource management including file uploads,
+ * storage, retrieval, and deletion.
+ *
+ * @remarks
+ * This handler manages file resources attached to agents or used within the application.
+ * Resources are stored in the app's userData directory and tracked via electron-store.
+ *
+ * Key responsibilities:
+ * - Resource file upload and storage
+ * - Resource metadata management
+ * - Resource type detection and classification
+ * - Resource retrieval by IDs
+ * - Resource deletion and cleanup
+ * - Resource preview generation (base64 encoding)
+ * - Resource file opening in system default application
+ *
+ * Supported resource types:
+ * - Images (IMAGE)
+ * - Videos (VIDEO)
+ * - Audio files (AUDIO)
+ * - Code files (CODE)
+ * - Documents (DOCUMENT)
+ * - Archives (ARCHIVE)
+ * - Other files (OTHER)
+ *
+ * @example
+ * ```typescript
+ * const handlers = new ResourceHandlers();
+ * handlers.registerHandlers();
+ * ```
+ */
 export class ResourceHandlers {
   private store: Store<ResourceStore>;
   private resourcesPath: string;
@@ -40,6 +73,15 @@ export class ResourceHandlers {
     void this.ensureResourcesDirectory();
   }
 
+  /**
+   * Ensure the resources directory exists
+   * Creates the resources directory in app userData if it doesn't exist
+   * @private
+   *
+   * @remarks
+   * Called during constructor initialization to prepare storage location.
+   * Uses recursive creation to handle any missing parent directories.
+   */
   private async ensureResourcesDirectory(): Promise<void> {
     try {
       await fs.mkdir(this.resourcesPath, { recursive: true });
@@ -48,6 +90,27 @@ export class ResourceHandlers {
     }
   }
 
+  /**
+   * Determine resource type based on MIME type and file extension
+   * @param mimeType - MIME type of the file
+   * @param extension - File extension including dot (e.g., '.png')
+   * @returns ResourceType enum value
+   * @private
+   *
+   * @remarks
+   * Classification priority:
+   * 1. MIME type prefix (image/, video/, audio/)
+   * 2. File extension for code files
+   * 3. File extension for documents
+   * 4. File extension for archives
+   * 5. Default to OTHER for unrecognized types
+   *
+   * @example
+   * ```typescript
+   * const type = this.getResourceType('image/png', '.png');
+   * // Returns: ResourceType.IMAGE
+   * ```
+   */
   private getResourceType(mimeType: string, extension: string): ResourceType {
     if (mimeType.startsWith('image/')) return ResourceType.IMAGE;
     if (mimeType.startsWith('video/')) return ResourceType.VIDEO;
@@ -79,6 +142,26 @@ export class ResourceHandlers {
     return ResourceType.OTHER;
   }
 
+  /**
+   * Register all IPC handlers for resource operations
+   * Sets up listeners for resource CRUD operations, file management, and preview generation
+   *
+   * @remarks
+   * Registered IPC channels:
+   * - RESOURCES_LOAD_BY_IDS: Load multiple resources by their IDs
+   * - RESOURCES_UPLOAD: Upload a new file and create resource record
+   * - RESOURCES_DELETE: Delete resource and remove file from disk
+   * - RESOURCES_OPEN: Open resource file in system default application
+   * - RESOURCES_PREVIEW: Generate base64-encoded preview of resource
+   *
+   * File handling:
+   * - Uploaded files are copied to app userData/resources directory
+   * - Files are renamed using UUID to prevent conflicts
+   * - Original file names are preserved in resource metadata
+   * - File cleanup is handled on resource deletion
+   *
+   * @public
+   */
   registerHandlers(): void {
     // Load resources by IDs
     ipcMain.handle(

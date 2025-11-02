@@ -131,6 +131,11 @@ console.error = (...args: any[]) => {
   originalConsoleError.call(console, ...args);
 };
 
+// NOTE: MSW integration commented out due to Jest environment incompatibility
+// MSW 2.x requires Web Streams API (TransformStream) not available in jsdom
+// Individual tests can import and use MSW directly if needed
+// See tests/setup/msw-node.ts for MSW server configuration
+
 // Setup global test environment
 beforeAll(() => {
   // Setup any global test configuration

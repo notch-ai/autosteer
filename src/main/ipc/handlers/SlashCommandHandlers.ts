@@ -5,7 +5,48 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 
+/**
+ * SlashCommandHandlers class
+ * Handles all IPC communication for slash command discovery and loading from markdown files.
+ *
+ * @remarks
+ * This handler implements a two-tier slash command system that loads commands from:
+ * 1. Local project commands (.claude/commands/ in worktree)
+ * 2. User-global commands (~/.claude/commands/)
+ *
+ * Key responsibilities:
+ * - Recursive directory scanning for command markdown files
+ * - Namespaced command discovery (e.g., engineering:fix-bug from engineering/fix-bug.md)
+ * - YAML frontmatter parsing for command metadata
+ * - Description extraction from markdown content
+ * - Path resolution for development and production environments
+ *
+ * @example
+ * ```typescript
+ * const handlers = new SlashCommandHandlers();
+ * handlers.registerHandlers();
+ * ```
+ */
 export class SlashCommandHandlers {
+  /**
+   * Register all IPC handlers for slash command operations
+   * Sets up listeners for command discovery and loading from filesystem
+   *
+   * @remarks
+   * Registered IPC channels:
+   * - SLASH_COMMANDS_LOAD: Load all slash commands from local and user directories
+   *
+   * Path resolution logic:
+   * 1. If projectPath provided: Use it as base directory
+   * 2. In development mode: Search upward for .claude/commands/
+   * 3. Fallback: Use current working directory
+   *
+   * Commands are loaded from both:
+   * - Local: {baseDir}/.claude/commands/
+   * - User: ~/.claude/commands/
+   *
+   * @public
+   */
   registerHandlers(): void {
     ipcMain.handle(
       IPC_CHANNELS.SLASH_COMMANDS_LOAD,
@@ -86,6 +127,38 @@ export class SlashCommandHandlers {
     );
   }
 
+  /**
+   * Recursively load slash commands from a directory structure
+   * @param dirPath - Absolute path to the directory to scan
+   * @param source - Command source identifier ('local' or 'user')
+   * @param baseDir - Base directory path for relative path calculations
+   * @param prefix - Namespace prefix for nested commands (e.g., 'engineering')
+   * @returns Array of SlashCommand objects loaded from markdown files
+   * @private
+   *
+   * @remarks
+   * Command naming convention:
+   * - Root level: `/command-name` from `command-name.md`
+   * - Nested: `/namespace:command` from `namespace/command.md`
+   * - Multi-level: `/namespace:sub:command` from `namespace/sub/command.md`
+   *
+   * Each markdown file is parsed for:
+   * - YAML frontmatter (if present) for description metadata
+   * - Full content for command expansion
+   * - Fallback description extraction from first non-empty line
+   *
+   * @example
+   * ```typescript
+   * // Load commands from engineering/ directory
+   * const commands = await this.loadCommandsFromDirectory(
+   *   '/path/.claude/commands/engineering',
+   *   'local',
+   *   '/path/.claude/commands',
+   *   'engineering'
+   * );
+   * // Returns: [{ trigger: 'engineering:fix-bug', ... }, { trigger: 'engineering:write-trd', ... }]
+   * ```
+   */
   private async loadCommandsFromDirectory(
     dirPath: string,
     source: 'local' | 'user',
@@ -141,6 +214,35 @@ export class SlashCommandHandlers {
     return commands;
   }
 
+  /**
+   * Extract description from markdown command file
+   * @param content - Raw markdown content from command file
+   * @returns Extracted description string or fallback message
+   * @private
+   *
+   * @remarks
+   * Description extraction priority:
+   * 1. YAML frontmatter `description` field (preferred)
+   * 2. First non-empty line after frontmatter (fallback)
+   * 3. "No description available" (last resort)
+   *
+   * Cleanup operations:
+   * - Strips markdown headers (#, ##, ###)
+   * - Removes bullet points (*, -)
+   * - Filters HTML comments
+   * - Trims whitespace
+   *
+   * @example
+   * ```typescript
+   * const content = `---
+   * description: Fix bugs using hypothesis tracking
+   * ---
+   * # Bug Fix Workflow
+   * Content here...`;
+   * const desc = this.extractDescription(content);
+   * // Returns: "Fix bugs using hypothesis tracking"
+   * ```
+   */
   private extractDescription(content: string): string {
     // Check if content has YAML frontmatter
     if (content.startsWith('---')) {

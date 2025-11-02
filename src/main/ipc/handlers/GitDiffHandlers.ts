@@ -25,30 +25,33 @@ export function registerGitDiffHandlers(): void {
   /**
    * Get diff between commits/branches
    */
-  ipcMain.handle('git-diff:get-diff', async (event, params: GetDiffParams): Promise<FileDiff[]> => {
-    try {
-      const service = new GitDiffService(params.repoPath);
-      const options: DiffOptions = {
-        repoPath: params.repoPath,
-        ...(params.from && { from: params.from }),
-        ...(params.to && { to: params.to }),
-        ...(params.filePath && { filePath: params.filePath }),
-        ...(params.contextLines !== undefined && { contextLines: params.contextLines }),
-      };
+  ipcMain.handle(
+    'git-diff:get-diff',
+    async (_event, params: GetDiffParams): Promise<FileDiff[]> => {
+      try {
+        const service = new GitDiffService(params.repoPath);
+        const options: DiffOptions = {
+          repoPath: params.repoPath,
+          ...(params.from && { from: params.from }),
+          ...(params.to && { to: params.to }),
+          ...(params.filePath && { filePath: params.filePath }),
+          ...(params.contextLines !== undefined && { contextLines: params.contextLines }),
+        };
 
-      return await service.getDiff(options);
-    } catch (error) {
-      logger.error('git-diff:get-diff failed:', error);
-      throw error;
+        return await service.getDiff(options);
+      } catch (error) {
+        logger.error('git-diff:get-diff failed:', error);
+        throw error;
+      }
     }
-  });
+  );
 
   /**
    * Get uncommitted changes (working directory)
    */
   ipcMain.handle(
     'git-diff:get-uncommitted',
-    async (event, params: { repoPath: string; filePath?: string }): Promise<FileDiff[]> => {
+    async (_event, params: { repoPath: string; filePath?: string }): Promise<FileDiff[]> => {
       try {
         const service = new GitDiffService(params.repoPath);
         return await service.getUncommittedDiff(params.filePath);
@@ -64,7 +67,7 @@ export function registerGitDiffHandlers(): void {
    */
   ipcMain.handle(
     'git-diff:get-staged',
-    async (event, params: { repoPath: string; filePath?: string }): Promise<FileDiff[]> => {
+    async (_event, params: { repoPath: string; filePath?: string }): Promise<FileDiff[]> => {
       try {
         const service = new GitDiffService(params.repoPath);
         return await service.getStagedDiff(params.filePath);
@@ -78,7 +81,7 @@ export function registerGitDiffHandlers(): void {
   /**
    * Get list of conflicted files
    */
-  ipcMain.handle('git-diff:get-conflicts', async (event, repoPath: string): Promise<string[]> => {
+  ipcMain.handle('git-diff:get-conflicts', async (_event, repoPath: string): Promise<string[]> => {
     try {
       const service = new GitDiffService(repoPath);
       return await service.getConflictedFiles();
@@ -93,7 +96,7 @@ export function registerGitDiffHandlers(): void {
    */
   ipcMain.handle(
     'git-diff:get-file-content',
-    async (event, params: GetFileContentParams): Promise<string> => {
+    async (_event, params: GetFileContentParams): Promise<string> => {
       try {
         const service = new GitDiffService(params.repoPath);
         return await service.getFileContent(params.filePath, params.ref);
@@ -154,7 +157,7 @@ export function registerGitDiffHandlers(): void {
   /**
    * Stop watching for git changes
    */
-  ipcMain.handle('git-diff:stop-watching', async (event, repoPath: string): Promise<void> => {
+  ipcMain.handle('git-diff:stop-watching', async (_event, repoPath: string): Promise<void> => {
     try {
       logger.info('[GitDiffHandlers] git-diff:stop-watching called', {
         repoPath,
@@ -182,7 +185,7 @@ export function registerGitDiffHandlers(): void {
    */
   ipcMain.handle(
     'git-diff:discard-file',
-    async (event, params: { repoPath: string; filePath: string }): Promise<void> => {
+    async (_event, params: { repoPath: string; filePath: string }): Promise<void> => {
       try {
         const service = new GitDiffService(params.repoPath);
         await service.discardFileChanges(params.filePath);
@@ -199,7 +202,7 @@ export function registerGitDiffHandlers(): void {
   ipcMain.handle(
     'git-diff:discard-hunk',
     async (
-      event,
+      _event,
       params: {
         repoPath: string;
         filePath: string;
@@ -229,7 +232,7 @@ export function registerGitDiffHandlers(): void {
   ipcMain.handle(
     'git-diff:discard-lines',
     async (
-      event,
+      _event,
       params: {
         repoPath: string;
         filePath: string;
@@ -257,7 +260,7 @@ export function registerGitDiffHandlers(): void {
    */
   ipcMain.handle(
     'git-diff:restore-file',
-    async (event, params: { repoPath: string; filePath: string }): Promise<void> => {
+    async (_event, params: { repoPath: string; filePath: string }): Promise<void> => {
       try {
         const service = new GitDiffService(params.repoPath);
         await service.restoreDeletedFile(params.filePath);

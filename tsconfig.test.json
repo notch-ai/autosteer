@@ -9,7 +9,9 @@
     "src/**/*",
     "tests/**/*",
     "playwright.config.ts",
-    "playwright-electron.config.ts"
+    "playwright-electron.config.ts",
+    "playwright-component.config.ts",
+    "vitest.config.ts"
   ],
   "exclude": [
     "node_modules",

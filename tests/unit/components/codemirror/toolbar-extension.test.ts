@@ -1,6 +1,6 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { createToolbarExtension } from '@/components/features/codemirror/toolbar-extension';
+import { createToolbarExtension } from '@/features/chat/components/editor/toolbar-extension';
 
 describe('toolbar-extension', () => {
   let view: EditorView;

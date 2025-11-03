@@ -1,6 +1,6 @@
 import { logger } from '@/commons/utils/logger';
 import { SearchService } from '@/commons/utils/SearchService';
-import { useCoreStore } from '@/stores';
+import { useSlashCommandsStore, useProjectsStore } from '@/stores';
 import { useEffect, useMemo, useRef } from 'react';
 
 interface SlashCommand {
@@ -164,9 +164,9 @@ export const builtInCommands: SlashCommand[] = [
 ];
 
 export const useSlashCommandLogic = (query: string) => {
-  const slashCommands = useCoreStore((state) => state.slashCommands || []);
-  const loadSlashCommands = useCoreStore((state) => state.loadSlashCommands);
-  const selectedProjectId = useCoreStore((state) => state.selectedProjectId);
+  const slashCommands = useSlashCommandsStore((state) => state.slashCommands || []);
+  const loadSlashCommands = useSlashCommandsStore((state) => state.loadSlashCommands);
+  const selectedProjectId = useProjectsStore((state) => state.selectedProjectId);
 
   // Create SearchService instance
   const searchServiceRef = useRef<SearchService<SlashCommand> | null>(null);
@@ -182,12 +182,12 @@ export const useSlashCommandLogic = (query: string) => {
   // Convert custom commands from store
   const customCommands = useMemo(() => {
     return slashCommands.map((cmd) => ({
-      command: cmd.trigger, // Don't add slash, it will be added in display
-      label: cmd.trigger,
-      description: cmd.description,
+      command: cmd.name, // Don't add slash, it will be added in display
+      label: cmd.name,
+      description: cmd.description || '',
       icon: '📄',
       action: () => {},
-      content: cmd.content,
+      content: cmd.prompt,
     }));
   }, [slashCommands]);
 

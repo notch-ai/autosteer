@@ -92,13 +92,36 @@ Object.defineProperty(window, 'electronAPI', {
 // Mock window.electron for worktree and other APIs
 Object.defineProperty(window, 'electron', {
   value: {
+    ipc: {
+      invoke: jest.fn().mockResolvedValue({}),
+      on: jest.fn(),
+      removeListener: jest.fn(),
+    },
+    slashCommands: {
+      load: jest.fn().mockResolvedValue([]),
+    },
+    agents: {
+      loadAll: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      loadChatHistory: jest.fn().mockResolvedValue([]),
+    },
+    monitoring: {
+      initialize: jest.fn().mockResolvedValue({ success: true }),
+      getActiveSession: jest.fn().mockResolvedValue({ success: true, data: null }),
+      onSessionUpdate: jest.fn(),
+    },
     worktree: {
       getVimMode: jest.fn().mockResolvedValue(false),
       saveVimMode: jest.fn().mockResolvedValue(undefined),
       setVimMode: jest.fn().mockResolvedValue({ success: true }),
       getWorktrees: jest.fn().mockResolvedValue([]),
+      getAll: jest.fn().mockResolvedValue([]), // Alias for getWorktrees
       createWorktree: jest.fn().mockResolvedValue(undefined),
+      create: jest.fn().mockResolvedValue({ success: true }), // Alias for createWorktree
       deleteWorktree: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn().mockResolvedValue({ success: true }), // Alias for deleteWorktree
       getDataDirectory: jest.fn().mockResolvedValue('/mock/data/directory'),
     },
     store: {
@@ -108,6 +131,12 @@ Object.defineProperty(window, 'electron', {
     },
     app: {
       getVersion: jest.fn().mockResolvedValue('1.0.0'),
+    },
+    terminal: {
+      list: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      sendInput: jest.fn(),
+      destroy: jest.fn(),
     },
   },
   writable: true,

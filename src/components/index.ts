@@ -6,91 +6,91 @@
  */
 
 // Basic UI Components
-export { Icon } from './features/Icon';
-export { Button, buttonVariants } from './features/Button';
-export { Input, Textarea, Select, inputVariants } from './features/Input';
-export { FormButton } from './features/FormButton';
-export { IconButton } from './features/IconButton';
-export { Toast } from './features/Toast';
-export { Skeleton } from './features/Skeleton';
-export { ErrorBoundary } from './features/ErrorBoundary';
+export { Icon } from '@/features/shared';
+export { Button, buttonVariants } from '@/features/shared/components/ui/Button';
+export { Input, Textarea, Select, inputVariants } from '@/features/shared/components/ui/Input';
+export { FormButton } from '@/features/shared';
+export { IconButton } from '@/features/shared';
+export { Toast } from '@/features/shared/components/ui/Toast';
+export { Skeleton } from '@/features/shared/components/ui/Skeleton';
+export { ErrorBoundary } from '@/features/shared/components/ui/ErrorBoundary';
 
 // Modal and Dialog Components
-export { Modal } from './features/Modal';
-export { AnchoredModal } from './features/AnchoredModal';
-export { ConfirmDialog } from './features/ConfirmDialog';
-export { LinkDialog } from './features/LinkDialog';
-export { ToastProvider } from './features/ToastProvider';
+export { Modal } from '@/features/shared/components/ui/Modal';
+export { AnchoredModal } from '@/features/shared';
+export { ConfirmDialog } from '@/features/shared/components/ui/ConfirmDialog';
+export { LinkDialog } from '@/features/chat';
+export { ToastProvider } from '@/features/shared';
 
 // Form and Input Components
-export { DropdownSelector } from './features/DropdownSelector';
-export { PermissionModeSelector } from './features/PermissionModeSelector';
-export { SlashCommandAdapter } from './features/SlashCommandAdapter';
+export { DropdownSelector } from '@/features/shared';
+export { PermissionModeSelector } from '@/features/shared';
+export { SlashCommandAdapter } from '@/features/chat';
 
 // Theme Components
-export { ThemeToggle } from './features/ThemeToggle';
-export { ThemeVariantToggle } from './features/ThemeVariantToggle';
+export { ThemeToggle } from '@/features/settings/components/ThemeToggle';
+export { ThemeVariantToggle } from '@/features/settings/components/ThemeVariantToggle';
 
 // Display and Status Components
-export { TodoDisplay } from './features/TodoDisplay';
-export { RequestTiming } from './features/RequestTiming';
-export { SessionTimeTracking } from './features/SessionTimeTracking';
-export { PlanEditModeIndicator } from './features/PlanEditModeIndicator';
-export { VimModeIndicator } from '@/renderer/features/settings/components/VimModeIndicator';
+export { TodoDisplay } from '@/features/shared';
+export { RequestTiming } from '@/features/monitoring';
+export { SessionTimeTracking } from '@/features/shared/components/session/SessionTimeTracking';
+export { PlanEditModeIndicator } from '@/features/shared';
+export { VimModeIndicator } from '@/features/settings/components/VimModeIndicator';
 
 // Panel and Layout Components
-export { DetailPanel } from './features/DetailPanel';
-export { ResizablePanel } from './features/ResizablePanel';
-export { VerticalSplitPanel } from './features/VerticalSplitPanel';
-export { ThreeColumnLayout } from './features/ThreeColumnLayout';
+export { DetailPanel } from '@/features/shared';
+export { ResizablePanel } from '@/features/shared/components/layout/ResizablePanel';
+export { VerticalSplitPanel } from '@/features/shared/components/layout/VerticalSplitPanel';
+export { ThreeColumnLayout } from '@/features/shared/components/layout/ThreeColumnLayout';
 
 // Task and Project Management
-export { TaskList } from './features/TaskList';
-export { TodoActivityTracker } from './features/TodoActivityTracker';
-export { AddProjectModal } from '@/renderer/features/shared/components/projects/AddProjectModal';
-export { ProjectList } from '@/renderer/features/shared/components/projects/ProjectList';
+export { TaskList } from '@/features/shared';
+export { TodoActivityTracker } from '@/features/shared';
+export { AddProjectModal } from '@/features/shared/components/projects/AddProjectModal';
+export { ProjectList } from '@/features/shared/components/projects/ProjectList';
 
 // Statistics and Monitoring
-export { StatsPanel } from './features/StatsPanel';
-export { UsageMonitor } from './features/UsageMonitor';
-export { UsageStats } from './features/UsageStats';
-export { UsageDashboard } from './features/UsageDashboard';
+export { StatsPanel } from '@/features/monitoring/components/StatsPanel';
+export { UsageMonitor } from '@/features/monitoring/components/UsageMonitor';
+export { UsageStats } from '@/features/monitoring/components/UsageStats';
+export { UsageDashboard } from '@/features/monitoring/components/UsageDashboard';
 
 // Main Layout Components
-export { MenuBar } from './features/MenuBar';
-export { Sidebar } from './features/Sidebar';
-export { MainContent } from './features/MainContent';
-export { UpdateNotification } from './features/UpdateNotification';
-export { ChatInterface } from './features/ChatInterface';
+export { MenuBar } from '@/features/shared/components/layout/MenuBar';
+export { Sidebar } from '@/features/shared/components/layout/Sidebar';
+export { MainContent } from '@/features/shared/components/layout/MainContent';
+export { UpdateNotification } from '@/features/shared';
+export { ChatInterface } from '@/features/chat/components/ChatInterface';
 
 // Text and Content Components
-export { RichTextEditor } from './features/RichTextEditor';
-export { MarkdownRenderer } from './features/MarkdownRenderer';
-export { DiffViewer } from './features/DiffViewer';
-export { StreamingEventDisplay } from './features/StreamingEventDisplay';
+export { RichTextEditor } from '@/features/chat/components/RichTextEditor';
+export { MarkdownRenderer } from '@/features/chat/components/MarkdownRenderer';
+export { DiffViewer } from '@/features/shared/components/git/DiffViewer';
+export { StreamingEventDisplay } from '@/features/monitoring';
 
 // Tool and Development Components
-export { ToolUsageDisplay } from './features/ToolUsageDisplay';
-export { EditorToolbar } from './features/EditorToolbar';
-export { SlashCommands } from './features/SlashCommands';
+export { ToolUsageDisplay } from '@/features/monitoring';
+export { EditorToolbar } from '@/features/chat';
+export { SlashCommands } from '@/features/chat/components/SlashCommands';
 
 // Text Editing and Interaction Components
-export { TextFormattingMenu } from './features/TextFormattingMenu';
-export { EmojiPicker } from './features/EmojiPicker';
-export { MentionPicker } from './features/MentionPicker';
-export { KeyboardShortcutsHelp } from './features/KeyboardShortcutsHelp';
-export { KeyboardShortcutTooltip } from './features/KeyboardShortcutTooltip';
+export { TextFormattingMenu } from '@/features/chat/components/TextFormattingMenu';
+export { EmojiPicker } from '@/features/chat/components/EmojiPicker';
+export { MentionPicker } from '@/features/chat';
+export { KeyboardShortcutsHelp } from '@/features/shared';
+export { KeyboardShortcutTooltip } from '@/features/shared';
 
 // Command and Navigation Components
-export { CommandMenu } from './features/CommandMenu';
+export { CommandMenu } from '@/features/chat/components/CommandMenu';
 
 // Settings and Configuration
-export { LLMSettings } from './features/LLMSettings';
+export { LLMSettings } from '@/features/settings/components/LLMSettings';
 
 // Export component types for type safety
-export type { IconName } from './features/Icon';
-export type { ModalProps } from './features/Modal';
-export type { CommandMenuItem } from './features/CommandMenu';
+export type { IconName } from '@/features/shared';
+export type { ModalProps } from '@/features/shared/components/ui/Modal';
+export type { CommandMenuItem } from '@/features/chat/components/CommandMenu';
 
 // Component categories for the test harness
 export const COMPONENT_CATEGORIES = {

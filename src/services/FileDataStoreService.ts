@@ -209,21 +209,8 @@ export class FileDataStoreService {
       });
 
       if (validWorktrees.length !== parsedConfig.worktrees.length) {
-        logger.info(
-          `[readConfig] Filtered out ${parsedConfig.worktrees.length - validWorktrees.length} invalid worktrees`
-        );
         parsedConfig.worktrees = validWorktrees;
       }
-
-      // Log worktrees on read for debugging
-      logger.info('[readConfig] Read config with', parsedConfig.worktrees.length, 'worktrees');
-      parsedConfig.worktrees.forEach((wt, idx) => {
-        logger.info(`[readConfig] Worktree ${idx}:`, {
-          git_repo: wt.git_repo,
-          branch_name: wt.branch_name,
-          folder_name: wt.folder_name,
-        });
-      });
 
       return parsedConfig;
     } catch (error) {
@@ -254,21 +241,7 @@ export class FileDataStoreService {
             logger.error('Invalid config structure, aborting write');
             throw new Error('Invalid config structure: worktrees must be an array');
           }
-
-          // Log worktrees structure for debugging
-          logger.info('[writeConfig] Writing config with', config.worktrees.length, 'worktrees');
-          config.worktrees.forEach((wt, idx) => {
-            logger.info(`[writeConfig] Worktree ${idx}:`, {
-              git_repo: wt.git_repo || 'MISSING',
-              branch_name: wt.branch_name || 'MISSING',
-              folder_name: wt.folder_name || 'MISSING',
-            });
-          });
-
           const content = JSON.stringify(config, null, 2);
-          logger.debug('Writing config to:', this.configPath);
-          logger.debug('Config content:', content);
-
           // Write to a temp file first, then rename for atomic operation
           const tempPath = `${this.configPath}.tmp.${Date.now()}`;
           await fsPromises.writeFile(tempPath, content, 'utf-8');

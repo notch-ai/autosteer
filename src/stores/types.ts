@@ -1,11 +1,11 @@
 // ============================================================================
-// DESKTOP APP STATE MANAGEMENT TYPES
+// NOTCH APP STATE MANAGEMENT TYPES
 // Single source of truth for all store type definitions
 // Based on TRD Section 2.3 - 3 Store Architecture (Core, UI, Settings)
 // ============================================================================
 
 // External imports
-import { VimMode } from '@/components/features/codemirror/vim-extension';
+import { VimMode } from '@/features/chat/components/editor/vim-extension';
 import { Agent, ChatMessage, Resource, StreamingEvent, ToolUsage } from '@/entities';
 import { VimState } from '@/stores/vimStore';
 import { WorktreeConfig } from '@/types/config.types';

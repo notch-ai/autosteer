@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { Sidebar } from '@/components/features/Sidebar';
+import { Sidebar } from '@/features/shared/components/layout/Sidebar';
 import { useCoreStore } from '@/stores';
 import '@testing-library/jest-dom';
 

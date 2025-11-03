@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState } from 'react';
 import { EditorView } from '@codemirror/view';
-import { VimMode, getVimMode, setVimMode } from '@/components/features/codemirror/vim-extension';
+import { VimMode, getVimMode, setVimMode } from '@/features/chat/components/editor/vim-extension';
 
 export interface UseVimModeOptions {
   editorView: EditorView | null;

@@ -37,7 +37,7 @@ module.exports = {
     '!src/entities/LoadedUsageEntry.ts', // Complex data structure with minimal logic
 
     // Keep only the truly problematic files excluded
-    // AgentHandlers.ts now covered by comprehensive test suite
+    // AgentHandlers.ts now covered by comprehensive test suite (NOTCH-1461)
     '!src/main/ipc/IpcMigrationManager.ts', // 388 lines, complex migration logic
     '!src/commons/types/config.ts', // 115 lines, type definitions only
   ],

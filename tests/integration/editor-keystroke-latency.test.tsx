@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RichTextEditor } from '@/components/features/RichTextEditor';
+import { RichTextEditor } from '@/features/chat/components/RichTextEditor';
 import React from 'react';
 
 describe.skip('Editor Keystroke Latency Integration Tests', () => {

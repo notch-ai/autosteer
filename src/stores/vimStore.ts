@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand';
-import { VimMode } from '@/components/features/codemirror/vim-extension';
+import { VimMode } from '@/features/chat/components/editor/vim-extension';
 
 export interface VimState {
   mode: VimMode;

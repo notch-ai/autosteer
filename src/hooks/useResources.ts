@@ -1,14 +1,14 @@
 import { Resource } from '@/entities';
 import { logger } from '@/commons/utils/logger';
 import { ipcService } from '@/renderer/services/IpcService';
-import { useCoreStore } from '@/stores';
+import { useResourcesStore } from '@/stores';
 import { useCallback } from 'react';
 
 export const useResources = () => {
-  const resources = useCoreStore((state) => state.resources);
-  const resourcesLoading = useCoreStore((state) => state.resourcesLoading);
-  const loadResources = useCoreStore((state) => state.loadResources);
-  const uploadResource = useCoreStore((state) => state.uploadResource);
+  const resources = useResourcesStore((state) => state.resources);
+  const resourcesLoading = useResourcesStore((state) => state.resourcesLoading);
+  const loadResources = useResourcesStore((state) => state.loadResources);
+  const uploadResource = useResourcesStore((state) => state.uploadResource);
 
   const resourcesArray = Array.from(resources.values());
 

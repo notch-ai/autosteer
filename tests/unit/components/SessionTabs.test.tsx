@@ -5,7 +5,7 @@
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { SessionTabs } from '@/components/features/SessionTabs';
+import { SessionTabs } from '@/features/shared/components/session/SessionTabs';
 import { useSessionTabs } from '@/hooks/useSessionTabs';
 import type { SessionTab } from '@/types/ui.types';
 

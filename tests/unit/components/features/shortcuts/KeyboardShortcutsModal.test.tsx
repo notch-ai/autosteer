@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { KeyboardShortcutsModal } from '../../../../../src/components/features/shortcuts/KeyboardShortcutsModal';
+import { KeyboardShortcutsModal } from '../../../../../src/features/shared/components/ui/KeyboardShortcutsModal';
 
 // Mock the shortcuts registry to provide predictable test data
 jest.mock('../../../../../src/commons/utils/shortcutsRegistry', () => ({

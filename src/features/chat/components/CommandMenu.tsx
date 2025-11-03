@@ -1,5 +1,4 @@
-import React, { useEffect } from 'react';
-import { Popover, PopoverContent } from '@/components/ui/popover';
+import React, { useEffect, useRef } from 'react';
 import {
   Command,
   CommandEmpty,
@@ -8,8 +7,8 @@ import {
   CommandList,
   CommandShortcut,
 } from '@/components/ui/command';
-import { useCommandMenu } from './useCommandMenu';
-import type { CommandMenuItem } from './useCommandMenu';
+import { useCommandMenu } from '@/components/common/CommandMenu/useCommandMenu';
+import type { CommandMenuItem } from '@/components/common/CommandMenu/useCommandMenu';
 
 export interface CommandMenuProps {
   items: CommandMenuItem[];
@@ -23,6 +22,7 @@ export interface CommandMenuProps {
   maxHeight?: number;
   emptyMessage?: string;
   className?: string;
+  forceVisible?: boolean;
 }
 
 export const CommandMenu: React.FC<CommandMenuProps> = ({
@@ -36,30 +36,60 @@ export const CommandMenu: React.FC<CommandMenuProps> = ({
   searchQuery = '',
   maxHeight = 270,
   emptyMessage,
+  forceVisible = false,
 }) => {
-  const { selectedIndex, itemRefs, handleKeyDown, handleItemClick, handleItemMouseEnter } =
-    useCommandMenu({
-      items,
-      onSelect,
-      onClose,
-      ...(onTabComplete && { onTabComplete }),
-      isOpen,
-    });
+  const commandRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Handle keyboard events
+  const { handleItemClick } = useCommandMenu({
+    items,
+    onSelect,
+    onClose,
+    ...(onTabComplete && { onTabComplete }),
+    isOpen,
+  });
+
+  // Add keyboard event handling with DOM containment check (like SlashCommands pattern)
   useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => {
-        document.removeEventListener('keydown', handleKeyDown);
-      };
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle events if this CommandMenu is mounted and visible in DOM
+      if (!containerRef.current || !document.body.contains(containerRef.current)) {
+        return;
+      }
+
+      // Handle keyboard navigation
+      switch (event.key) {
+        case 'Escape':
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  // Auto-focus the Command component when dropdown opens so it can receive keyboard events
+  // BUT: Skip auto-focus when anchored to an element (like an input field) to preserve input focus
+  useEffect(() => {
+    if (isOpen && commandRef.current && !anchorRef) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        commandRef.current?.focus();
+      }, 0);
     }
-    return undefined;
-  }, [isOpen, handleKeyDown]);
+  }, [isOpen, anchorRef]);
 
-  if (!isOpen) return null;
+  if (!isOpen && !forceVisible) {
+    return null;
+  }
 
-  // Render empty state
   const defaultEmptyMessage = searchQuery
     ? `No commands found for "${searchQuery}"`
     : 'No commands available';
@@ -67,31 +97,40 @@ export const CommandMenu: React.FC<CommandMenuProps> = ({
   const emptyMessage_ = emptyMessage || defaultEmptyMessage;
 
   const commandContent = (
-    <Command className="rounded-lg border shadow-md">
-      <CommandList style={{ maxHeight: `${maxHeight}px` }}>
+    <Command
+      ref={commandRef}
+      className="rounded-lg shadow-md bg-popover outline-none w-full"
+      shouldFilter={false}
+      loop
+      tabIndex={anchorRef ? -1 : 0}
+    >
+      <CommandList style={{ maxHeight: `${maxHeight}px` }} className="overflow-x-hidden">
         {items.length === 0 ? (
           <CommandEmpty>{emptyMessage_}</CommandEmpty>
         ) : (
-          <CommandGroup>
-            {items.map((item, index) => (
+          <CommandGroup className="overflow-hidden">
+            {items.map((item) => (
               <CommandItem
                 key={item.id}
-                ref={(el) => (itemRefs.current[index] = el as any)}
-                onSelect={() => handleItemClick(item, index)}
-                onMouseMove={() => handleItemMouseEnter(index)}
-                data-selected={selectedIndex === index}
-                className="flex items-center gap-2 cursor-pointer"
+                value={item.id}
+                onSelect={() => handleItemClick(item)}
+                className="flex items-center gap-2 cursor-pointer overflow-hidden"
+                title={item.label}
               >
-                {item.icon && <span className="text-text-muted">{item.icon}</span>}
-                <div className="flex-1 min-w-0">
-                  <span className="block truncate text-sm">{item.label}</span>
-                  {item.description && (
-                    <span className="block text-sm text-text-muted truncate">
-                      {item.description}
-                    </span>
-                  )}
-                </div>
-                {item.shortcut && <CommandShortcut>{item.shortcut}</CommandShortcut>}
+                {item.icon && <span className="flex-shrink-0 text-text-muted">{item.icon}</span>}
+                <span className="flex-1 min-w-0 block overflow-hidden text-ellipsis whitespace-nowrap text-sm">
+                  {item.label}
+                </span>
+                {item.description && (
+                  <span className="flex-1 min-w-0 truncate text-sm text-text-muted">
+                    {item.description}
+                  </span>
+                )}
+                {item.shortcut && (
+                  <div className="flex-shrink-0">
+                    <CommandShortcut>{item.shortcut}</CommandShortcut>
+                  </div>
+                )}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -100,22 +139,23 @@ export const CommandMenu: React.FC<CommandMenuProps> = ({
     </Command>
   );
 
-  // Use Popover if anchor ref is provided
-  if (anchorRef) {
+  if (anchorRef && anchorRef.current) {
+    const style: React.CSSProperties = {
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      marginTop: '4px',
+      zIndex: 10000,
+    };
+
     return (
-      <Popover open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <PopoverContent
-          className="p-0 w-auto"
-          align="start"
-          onOpenAutoFocus={(e) => e.preventDefault()}
-        >
-          <div data-testid="command-menu">{commandContent}</div>
-        </PopoverContent>
-      </Popover>
+      <div ref={containerRef} style={style} data-testid="command-menu">
+        {commandContent}
+      </div>
     );
   }
 
-  // Legacy position-based rendering
   const style = position
     ? {
         position: 'fixed' as const,
@@ -125,7 +165,7 @@ export const CommandMenu: React.FC<CommandMenuProps> = ({
     : {};
 
   return (
-    <div style={style} data-testid="command-menu">
+    <div ref={containerRef} style={style} data-testid="command-menu">
       {commandContent}
     </div>
   );

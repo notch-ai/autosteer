@@ -114,7 +114,7 @@ export const useUIStore = create<UIStore>()(
       vimEnabled: false,
 
       // Model State - Initialize with default from settings or fallback
-      selectedModel: useSettingsStore.getState().preferences.defaultModel || DEFAULT_MODEL,
+      selectedModel: useSettingsStore.getState()?.preferences?.defaultModel || DEFAULT_MODEL,
 
       // UI Actions
       toggleSidebar: () => {

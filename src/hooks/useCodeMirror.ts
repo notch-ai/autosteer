@@ -5,7 +5,7 @@ import {
   destroyEditor,
   focusEditor,
   setEditorContent,
-} from '@/components/features/codemirror/setup';
+} from '@/features/chat/components/editor/setup';
 import { Compartment, Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { useCallback, useEffect, useRef, useState } from 'react';

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/features/Button';
-import { Input } from '@/components/features/Input';
-import { Icon } from '@/components/features/Icon';
+import { Button } from '@/features/shared/components/ui/Button';
+import { Input } from '@/features/shared/components/ui/Input';
+import { Icon } from '@/features/shared/components/ui/Icon';
 
 export const VisualComparisonTool: React.FC = () => {
   const [activeComponent, setActiveComponent] = useState<'button' | 'input'>('button');

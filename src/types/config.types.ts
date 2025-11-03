@@ -16,6 +16,7 @@ export interface WorktreeConfig {
   branch_name: string;
   folder_name: string;
   agent_ids?: string[];
+  activeTabId?: string;
 }
 
 export interface AgentConfig {

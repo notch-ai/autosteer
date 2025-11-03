@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { ErrorBoundary } from '@/components/features/ErrorBoundary';
-import { LLMSettings } from '@/components/features/LLMSettings';
-import { MenuBar } from '@/components/features/MenuBar';
-import { ThreeColumnLayout } from '@/components/features/ThreeColumnLayout';
-import { ToastProvider } from '@/components/features/ToastProvider';
-import { UpdateNotification } from '@/components/features/UpdateNotification';
-import { AddProjectModal } from '@/renderer/features/shared/components/projects/AddProjectModal';
-import { KeyboardShortcutsModal } from '@/components/features/shortcuts/KeyboardShortcutsModal';
+import { ErrorBoundary } from '@/features/shared/components/ui/ErrorBoundary';
+import { LLMSettings } from '@/features/settings/components/LLMSettings';
+import { MenuBar } from '@/features/shared/components/layout/MenuBar';
+import { ThreeColumnLayout } from '@/features/shared/components/layout/ThreeColumnLayout';
+import { ToastProvider } from '@/features/shared';
+import { UpdateNotification } from '@/features/shared';
+import { AddProjectModal } from '@/features/shared/components/projects/AddProjectModal';
+import { KeyboardShortcutsModal } from '@/features/shared/components/ui/KeyboardShortcutsModal';
 import { ElectronProvider } from '@/commons/contexts/ElectronContext';
 import { ThemeProvider } from '@/commons/contexts/ThemeContext';
 import { LLMService } from '@/renderer/services/LLMService';
 import { useUIStore } from '@/stores/ui';
-import { useCoreStore } from '@/stores/core';
+import { useSlashCommandsStore } from '@/stores';
 import { useSettingsStore } from '@/stores/settings';
 import { logger } from '@/commons/utils/logger';
 import { Card } from '@/components/ui/card';
@@ -127,12 +127,48 @@ const AppContent: React.FC = () => {
         }
 
         // Load initial data - projects first, then agents, then slash commands
-        const { loadProjects, loadAgents, loadSlashCommands } = useCoreStore.getState();
-        await loadProjects();
-        await loadAgents();
+        // Use new domain-specific stores instead of deprecated core.ts methods
+        const { useProjectsStore } = await import('@/stores/projects.store');
+        const { useAgentsStore } = await import('@/stores/agents.store');
+        const projectsStore = useProjectsStore.getState();
+        const agentsStore = useAgentsStore.getState();
+        const { loadSlashCommands } = useSlashCommandsStore.getState();
+
+        logger.info('[App] ========== APP INITIALIZATION START ==========');
+
+        await projectsStore.loadProjects();
+        logger.info('[App] Projects loaded:', projectsStore.projects.size);
+
+        await agentsStore.loadAgents();
+        logger.info('[App] Agents loaded:', agentsStore.agents.size);
+
+        // Auto-select the first project if none is selected
+        logger.info('[App] Current selectedProjectId:', projectsStore.selectedProjectId);
+        if (!projectsStore.selectedProjectId && projectsStore.projects.size > 0) {
+          const firstProject = Array.from(projectsStore.projects.values())[0];
+          logger.info('[App] Auto-selecting first project:', firstProject.id);
+          await projectsStore.selectProject(firstProject.id);
+          logger.info('[App] Project selection completed');
+
+          // Verify selection worked
+          const afterSelect = useProjectsStore.getState();
+          logger.info(
+            '[App] selectedProjectId after selectProject:',
+            afterSelect.selectedProjectId
+          );
+          const agentsAfter = useAgentsStore.getState();
+          logger.info('[App] selectedAgentId after selectProject:', agentsAfter.selectedAgentId);
+        } else {
+          logger.warn('[App] Skipping project auto-select:', {
+            hasSelectedProject: !!projectsStore.selectedProjectId,
+            projectCount: projectsStore.projects.size,
+          });
+        }
 
         // Load slash commands for the selected project (or default if no project selected)
         await loadSlashCommands();
+
+        logger.info('[App] ========== APP INITIALIZATION COMPLETE ==========');
 
         setIsLoading(false);
       } catch (error) {

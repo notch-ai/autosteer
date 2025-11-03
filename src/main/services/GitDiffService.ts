@@ -192,6 +192,7 @@ export class GitDiffService {
 
   /**
    * Detect and parse merge conflicts
+   * @deprecated Currently unused - reserved for future conflict resolution features
    */
   private detectConflicts(content: string): ConflictMarker[] {
     const conflicts: ConflictMarker[] = [];
@@ -741,118 +742,5 @@ export class GitDiffService {
     }
 
     return patchLines.join('\n') + '\n';
-  }
-
-  /**
-   * Build patch from filtered DiffHunk objects (for line-level discard)
-   * @private
-   */
-  private buildPatchFromFilteredHunks(filePath: string, hunks: DiffHunk[]): string {
-    const lines: string[] = [];
-
-    // Patch header
-    lines.push(`diff --git a/${filePath} b/${filePath}`);
-    lines.push(`--- a/${filePath}`);
-    lines.push(`+++ b/${filePath}`);
-
-    // Process each hunk
-    for (const hunk of hunks) {
-      // Recalculate line counts based on filtered changes
-      const oldLines = hunk.changes.filter((c) => c.type === 'del' || c.type === 'normal').length;
-      const newLines = hunk.changes.filter((c) => c.type === 'add' || c.type === 'normal').length;
-
-      // Hunk header
-      lines.push(`@@ -${hunk.oldStart},${oldLines} +${hunk.newStart},${newLines} @@`);
-
-      // Hunk changes
-      for (const change of hunk.changes) {
-        if (change.type === 'add') {
-          lines.push('+' + change.content);
-        } else if (change.type === 'del') {
-          lines.push('-' + change.content);
-        } else {
-          lines.push(' ' + change.content);
-        }
-      }
-    }
-
-    return lines.join('\n') + '\n';
-  }
-
-  /**
-   * Generate minimal patch for specific lines with context
-   * @private
-   */
-  private async generateLinePatch(
-    filePath: string,
-    lines: Array<{ lineNumber: number; type: 'add' | 'del' }>
-  ): Promise<string> {
-    try {
-      // Get the full diff for the file
-      const diffs = await this.getUncommittedDiff(filePath);
-
-      if (diffs.length === 0) {
-        throw new Error('No changes found for file');
-      }
-
-      const fileDiff = diffs[0];
-      const patchLines: string[] = [];
-
-      // Patch header
-      patchLines.push('diff --git a/' + filePath + ' b/' + filePath);
-      patchLines.push('--- a/' + filePath);
-      patchLines.push('+++ b/' + filePath);
-
-      // Create a set of line identifiers to discard
-      const linesToDiscard = new Set(lines.map((l) => `${l.lineNumber}-${l.type}`));
-
-      // Process each hunk
-      for (const hunk of fileDiff.hunks) {
-        const hunkChanges: DiffChange[] = [];
-        let hasSelectedLines = false;
-
-        // Filter changes to only include selected lines and context
-        for (const change of hunk.changes) {
-          const lineKey = `${change.lineNumber}-${change.type}`;
-
-          if (linesToDiscard.has(lineKey)) {
-            hunkChanges.push(change);
-            hasSelectedLines = true;
-          } else if (change.type === 'normal') {
-            // Include context lines
-            hunkChanges.push(change);
-          }
-        }
-
-        if (hasSelectedLines) {
-          // Calculate new line counts
-          const oldLines = hunkChanges.filter(
-            (c) => c.type === 'del' || c.type === 'normal'
-          ).length;
-          const newLines = hunkChanges.filter(
-            (c) => c.type === 'add' || c.type === 'normal'
-          ).length;
-
-          // Hunk header
-          patchLines.push(`@@ -${hunk.oldStart},${oldLines} +${hunk.newStart},${newLines} @@`);
-
-          // Add changes
-          for (const change of hunkChanges) {
-            if (change.type === 'add') {
-              patchLines.push('+' + change.content);
-            } else if (change.type === 'del') {
-              patchLines.push('-' + change.content);
-            } else {
-              patchLines.push(' ' + change.content);
-            }
-          }
-        }
-      }
-
-      return patchLines.join('\n') + '\n';
-    } catch (error) {
-      logger.error(`Failed to generate line patch for ${filePath}:`, error);
-      throw error;
-    }
   }
 }

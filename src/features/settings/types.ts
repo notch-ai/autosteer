@@ -21,6 +21,9 @@ export interface DevModeToggleProps {
 export interface VimModeIndicatorProps {
   className?: string;
   isVisible?: boolean;
+  enabled?: boolean;
+  mode?: 'normal' | 'insert' | 'visual' | 'command' | 'NORMAL' | 'INSERT';
+  onToggle?: () => void;
 }
 
 // Hook types

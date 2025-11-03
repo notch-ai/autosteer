@@ -860,17 +860,16 @@ export const useChatStore = create<ChatStore>()(
                 });
               },
               onResult: (result: any) => {
-                // Stop streaming on error
-                if (result.error || result.is_error) {
-                  set((state) => {
-                    if (streamingChatId) {
-                      state.streamingStates = new Map(state.streamingStates).set(
-                        streamingChatId,
-                        false
-                      );
-                    }
-                  });
-                }
+                // Stop streaming when we receive any result message (success or error)
+                // The result message indicates the stream has ended
+                set((state) => {
+                  if (streamingChatId) {
+                    state.streamingStates = new Map(state.streamingStates).set(
+                      streamingChatId,
+                      false
+                    );
+                  }
+                });
 
                 // Handle session termination errors
                 if (
@@ -1433,6 +1432,16 @@ export const useChatStore = create<ChatStore>()(
                 }
               }
             }
+
+            // Immediately add interrupted message for instant UI feedback
+            const messages = state.messages.get(state.activeChat) || [];
+            const interruptedMessage: ChatMessage = {
+              id: nanoid(),
+              role: 'user',
+              content: '[Request interrupted by user]',
+              timestamp: new Date(),
+            };
+            state.messages.set(state.activeChat, [...messages, interruptedMessage]);
           }
 
           if (state.activeChat) {

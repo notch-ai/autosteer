@@ -515,8 +515,10 @@ describe('ChatStore', () => {
       useChatStore.getState().stopStreaming();
 
       const messages = useChatStore.getState().messages.get('agent-1');
-      expect(messages).toHaveLength(1);
+      expect(messages).toHaveLength(2);
       expect(messages?.[0].id).toBe('msg-1');
+      expect(messages?.[1].role).toBe('user');
+      expect(messages?.[1].content).toBe('[Request interrupted by user]');
     });
   });
 

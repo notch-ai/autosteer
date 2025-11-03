@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.15](https://github.com/notch-ai/autosteer/compare/v0.1.14...v0.1.15) (2025-11-03)
+
+
+### Features
+
+* add testing infrastructure setup ([04e8116](https://github.com/notch-ai/autosteer/commit/04e81165256dbfd1eeccf34aec0ee9b96146e557))
+
+
+### Bug Fixes
+
+* UX issues ([ca6382f](https://github.com/notch-ai/autosteer/commit/ca6382f0d4f18cfdf5dd08211c31a29f60763921))
+
 ## [0.1.14](https://github.com/notch-ai/autosteer/compare/v0.1.13...v0.1.14) (2025-11-01)
 
 

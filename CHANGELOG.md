@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/notch-ai/autosteer/compare/v0.1.15...v0.1.16) (2025-11-03)
+
+
+### Bug Fixes
+
+* clear streaming state on all result messages ([8c4cd94](https://github.com/notch-ai/autosteer/commit/8c4cd94b4c10ed4f027cc2d4e3d5baee545e864f))
+
 ## [0.1.15](https://github.com/notch-ai/autosteer/compare/v0.1.14...v0.1.15) (2025-11-03)
 
 

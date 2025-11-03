@@ -2,7 +2,7 @@
  * Permission mode types for Claude Code SDK integration
  */
 
-import type { IconName } from '@/components/features/Icon';
+import type { IconName } from '@/features/shared/components/ui/Icon';
 
 export type PermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions' | 'default';
 

@@ -9,7 +9,7 @@ import {
   StreamingEvent,
   ChatMessage,
 } from '@/entities';
-import { Task } from '@/components/features/TaskList';
+import { Task } from '@/features/shared/components/tasks/TaskList';
 import { VimState } from '@/stores/vimStore';
 import { Project } from '@/types/project.types';
 import { AppStore } from '@/stores/types';

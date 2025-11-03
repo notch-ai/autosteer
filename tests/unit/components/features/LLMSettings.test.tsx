@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { LLMSettings } from '@/components/features/LLMSettings';
+import { LLMSettings } from '@/features/settings/components/LLMSettings';
 import { useSettingsStore, useUIStore } from '@/stores';
 
 // Mock the stores

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/features/Button';
-import { Input, Textarea, Select } from '@/components/features/Input';
+import { Button } from '@/features/shared/components/ui/Button';
+import { Input, Textarea, Select } from '@/features/shared/components/ui/Input';
 
 // Old button styles for comparison
 const OldButton: React.FC<{

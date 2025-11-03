@@ -2,7 +2,7 @@
  * Model types for Claude Code SDK integration
  */
 
-import type { IconName } from '@/components/features/Icon';
+import type { IconName } from '@/features/shared/components/ui/Icon';
 
 export type ModelOption =
   | 'claude-opus-4-20250514'

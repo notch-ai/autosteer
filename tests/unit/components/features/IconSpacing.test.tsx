@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { ThemeToggle } from '@/components/features/ThemeToggle';
+import { ThemeToggle } from '@/features/settings/components/ThemeToggle';
 
 // Mock the ThemeContext
 const mockSetTheme = jest.fn();

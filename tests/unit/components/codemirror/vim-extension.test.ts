@@ -5,7 +5,7 @@ import {
   getVimMode,
   setVimMode,
   VimMode,
-} from '@/components/features/codemirror/vim-extension';
+} from '@/features/chat/components/editor/vim-extension';
 
 describe('vim-extension', () => {
   let container: HTMLElement;

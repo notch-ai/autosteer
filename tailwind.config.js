@@ -3,6 +3,7 @@ module.exports = {
   darkMode: ['class'],
   content: [
     './src/components/**/*.{js,jsx,ts,tsx}',
+    './src/features/**/*.{js,jsx,ts,tsx}',
     './src/views/**/*.{js,jsx,ts,tsx}',
     './src/commons/**/*.{js,jsx,ts,tsx}',
     './src/stores/**/*.{js,jsx,ts,tsx}',

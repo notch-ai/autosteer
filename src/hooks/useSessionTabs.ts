@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useMemo } from 'react';
 import { generateSessionName } from '../commons/utils/sessionNameGenerator';
 import type { Agent } from '../entities/Agent';
 import { AgentStatus, AgentType } from '../entities/Agent';
-import { useCoreStore } from '../stores/core';
+import { useAgentsStore } from '../stores/agents.store';
+import { useProjectsStore } from '../stores/projects.store';
 import { useUIStore } from '../stores/ui';
 import { SessionTab } from '../types/ui.types';
 import { MAX_TABS, TERMINAL_TAB_ID, CHANGES_TAB_ID } from '../constants/tabs';
@@ -46,23 +47,20 @@ const persistActiveTab = async (projectId: string, tabId: string): Promise<void>
 };
 
 export const useSessionTabs = () => {
-  // Store subscriptions
-  const agents = useCoreStore((state) => state.agents);
-  const selectedProjectId = useCoreStore((state) => state.selectedProjectId);
-  const projects = useCoreStore((state) => state.projects);
-  const selectedAgentId = useCoreStore((state) => state.selectedAgentId);
-  const selectAgent = useCoreStore((state) => state.selectAgent);
-  const createAgent = useCoreStore((state) => state.createAgent);
-  const deleteAgent = useCoreStore((state) => state.deleteAgent);
+  // Use domain-specific stores instead of deprecated core.ts methods
+  const agents = useAgentsStore((state) => state.agents);
+  const selectedProjectId = useProjectsStore((state) => state.selectedProjectId);
+  const projects = useProjectsStore((state) => state.projects);
+  const selectedAgentId = useAgentsStore((state) => state.selectedAgentId);
+  const selectAgent = useAgentsStore((state) => state.selectAgent);
+  const createAgent = useAgentsStore((state) => state.createAgent);
+  const deleteAgent = useAgentsStore((state) => state.deleteAgent);
   const setActiveTab = useUIStore((state) => state.setActiveTab);
   const removeTab = useUIStore((state) => state.removeTab);
 
   // Derived state
   const currentProject = selectedProjectId ? projects.get(selectedProjectId) : undefined;
   const projectId = currentProject?.folderName || currentProject?.id;
-
-  // Hydration tracking
-  const lastLoadedProjectId = useRef<string | null>(null);
 
   // Generate tabs
   const tabs = useMemo(() => {
@@ -164,30 +162,6 @@ export const useSessionTabs = () => {
 
   // Feature flag for tabs - can be controlled via settings
   const isTabsEnabled = true;
-
-  // Load saved active tab when project changes
-  useEffect(() => {
-    const loadSavedTab = async () => {
-      // Skip if no project or no tabs
-      if (!projectId || !tabs.length) return;
-
-      // Skip if we've already loaded this project in this render cycle
-      if (lastLoadedProjectId.current === projectId) return;
-
-      try {
-        const savedTabId = await window.electron.worktree.getActiveTab(projectId);
-        if (savedTabId && tabs.some((tab) => tab.id === savedTabId)) {
-          // Mark this project as loaded
-          lastLoadedProjectId.current = projectId;
-          await switchToTab(savedTabId);
-        }
-      } catch (error) {
-        console.error('Failed to load saved tab:', error);
-      }
-    };
-
-    void loadSavedTab();
-  }, [projectId, tabs, switchToTab]);
 
   return {
     tabs,

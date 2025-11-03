@@ -6,7 +6,7 @@ import {
   getEditorContent,
   setEditorContent,
   focusEditor,
-} from '@/components/features/codemirror/setup';
+} from '@/features/chat/components/editor/setup';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 

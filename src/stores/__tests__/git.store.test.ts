@@ -3,6 +3,28 @@
  * Tests all actions with 100% coverage following TRD requirements
  */
 
+// Mock electron-log/renderer before any imports
+jest.mock('electron-log/renderer', () => {
+  const mockLog: any = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+    verbose: jest.fn(),
+    silly: jest.fn(),
+    log: jest.fn(),
+    transports: {
+      file: { level: false, format: '', maxSize: 0 },
+      console: { level: false, format: '' },
+    },
+    initialize: jest.fn(),
+    scope: jest.fn(function (this: any) {
+      return this;
+    }),
+  };
+  return { __esModule: true, default: mockLog };
+});
+
 import { useGitStore, GitStatus, GitDiff, GitFileStatus } from '@/stores';
 
 describe('GitStore', () => {

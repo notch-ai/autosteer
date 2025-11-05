@@ -478,6 +478,10 @@ export class ClaudeCodeCLIService {
 
       this.activeProcesses.set(queryId, child);
 
+      // Track stderr and process errors to throw after the stream completes
+      let stderrError: Error | null = null;
+      let processError: Error | null = null;
+
       child.stderr.on('data', (data) => {
         const stderr = data.toString();
         logger.debug('[DEBUG queryClaudeCode] stderr:', stderr);
@@ -485,7 +489,7 @@ export class ClaudeCodeCLIService {
           if (sessionId) {
             this.sessionMap.delete(sessionId);
           }
-          throw new Error(`No conversation found with session ID: ${sessionId}`);
+          stderrError = new Error(`No conversation found with session ID: ${sessionId}`);
         }
       });
 
@@ -506,7 +510,9 @@ export class ClaudeCodeCLIService {
         logger.error('[DEBUG queryClaudeCode] Child process error:', error);
         log.error('[Claude Code] Child process error:', error);
         this.activeProcesses.delete(queryId);
-        throw error;
+        processError = error;
+        // Close the readline interface to exit the loop
+        rl.close();
       });
 
       child.on('exit', (code, signal) => {
@@ -656,7 +662,11 @@ export class ClaudeCodeCLIService {
                 this.sessionMap.set(sessionId, message.session_id);
               }
 
-              message.session_id = message.session_id || actualSessionId;
+              // Only auto-fill session_id for non-result messages
+              // Result messages should preserve the absence of session_id for error detection
+              if (message.type !== 'result') {
+                message.session_id = message.session_id || actualSessionId;
+              }
               yield message;
             } catch (e) {
               logger.debug('[DEBUG queryClaudeCode] Failed to parse line:', line.substring(0, 100));
@@ -671,6 +681,14 @@ export class ClaudeCodeCLIService {
           'messages:',
           messageCount
         );
+
+        // Throw process error or stderr error if one was captured
+        if (processError) {
+          throw processError;
+        }
+        if (stderrError) {
+          throw stderrError;
+        }
       } finally {
         this.activeProcesses.delete(queryId);
 

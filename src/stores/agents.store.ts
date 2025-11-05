@@ -270,9 +270,9 @@ export const useAgentsStore = create<AgentsStore>()(
         logger.info('[AgentsStore] ========== SELECT AGENT START ==========');
         logger.info('[AgentsStore] Selecting agent:', id || 'none');
 
-        set((state) => {
-          state.selectedAgentId = id;
-        });
+        // CRITICAL: Don't set selectedAgentId yet - wait until all async setup is complete
+        // Otherwise React will render the component before the agent is fully initialized
+        // causing effects to be skipped in Strict Mode
 
         // Update activeChat in chat store and load chat history
         const { useChatStore } = await import('./chat.store');
@@ -359,6 +359,13 @@ export const useAgentsStore = create<AgentsStore>()(
             }
           }
         }
+
+        // NOW set selectedAgentId after all async setup is complete
+        // This ensures React renders the component with all data ready
+        set((state) => {
+          state.selectedAgentId = id;
+        });
+        logger.info('[AgentsStore] Set selectedAgentId to:', id);
 
         logger.info('[AgentsStore] ========== SELECT AGENT END ==========');
       },

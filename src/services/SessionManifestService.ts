@@ -10,6 +10,7 @@ const fsPromises = {
   writeFile: promisify(fs.writeFile),
   access: promisify(fs.access),
   rename: promisify(fs.rename),
+  unlink: promisify(fs.unlink),
 };
 
 interface SessionManifest {
@@ -21,6 +22,7 @@ interface SessionManifest {
 export class SessionManifestService {
   private static instance: SessionManifestService;
   private sessionsDir: string;
+  private locks: Map<string, Promise<void>> = new Map();
 
   private constructor() {
     this.sessionsDir = path.join(app.getPath('home'), '.autosteer', 'sessions');
@@ -41,33 +43,69 @@ export class SessionManifestService {
     return path.join(this.sessionsDir, `${worktreeId}.json`);
   }
 
-  async updateAgentSession(worktreeId: string, agentId: string, sessionId: string): Promise<void> {
-    await this.ensureSessionsDirectory();
-
-    const manifestPath = this.getManifestPath(worktreeId);
-    let manifest: SessionManifest;
-
-    try {
-      const content = await fsPromises.readFile(manifestPath, 'utf-8');
-      manifest = JSON.parse(content);
-    } catch (error) {
-      // File doesn't exist or is corrupted, create new manifest
-      manifest = {
-        agents: {},
-        lastUpdated: new Date().toISOString(),
-      };
+  private async withLock<T>(worktreeId: string, fn: () => Promise<T>): Promise<T> {
+    // Wait for any existing lock and get it before creating new one
+    while (this.locks.has(worktreeId)) {
+      await this.locks.get(worktreeId);
     }
 
-    // Update the session for this agent
-    manifest.agents[agentId] = sessionId;
-    manifest.lastUpdated = new Date().toISOString();
+    // Create new lock
+    let releaseLock: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    this.locks.set(worktreeId, lockPromise);
 
-    // Write atomically using temp file + rename
-    const tempPath = `${manifestPath}.tmp.${Date.now()}`;
-    await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
-    await fsPromises.rename(tempPath, manifestPath);
+    try {
+      return await fn();
+    } finally {
+      // Release lock
+      releaseLock!();
+      this.locks.delete(worktreeId);
+    }
+  }
 
-    logger.debug(`Updated session manifest for ${worktreeId}/${agentId}: ${sessionId}`);
+  private async cleanupTempFile(tempPath: string): Promise<void> {
+    try {
+      await fsPromises.unlink(tempPath);
+    } catch (error) {
+      // Ignore cleanup errors
+    }
+  }
+
+  async updateAgentSession(worktreeId: string, agentId: string, sessionId: string): Promise<void> {
+    return this.withLock(worktreeId, async () => {
+      await this.ensureSessionsDirectory();
+
+      const manifestPath = this.getManifestPath(worktreeId);
+      const tempPath = `${manifestPath}.tmp.${Date.now()}`;
+
+      try {
+        let manifest: SessionManifest;
+
+        try {
+          const content = await fsPromises.readFile(manifestPath, 'utf-8');
+          manifest = JSON.parse(content);
+        } catch (error) {
+          manifest = {
+            agents: {},
+            lastUpdated: new Date().toISOString(),
+          };
+        }
+
+        manifest.agents[agentId] = sessionId;
+        manifest.lastUpdated = new Date().toISOString();
+
+        await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
+        await fsPromises.rename(tempPath, manifestPath);
+
+        logger.debug(`Updated session manifest for ${worktreeId}/${agentId}: ${sessionId}`);
+      } catch (error) {
+        await this.cleanupTempFile(tempPath);
+        logger.error('Failed to update session manifest:', error);
+        throw error;
+      }
+    });
   }
 
   async getAgentSession(worktreeId: string, agentId: string): Promise<string | undefined> {
@@ -156,21 +194,25 @@ export class SessionManifestService {
   }
 
   async deleteAgentSessions(worktreeId: string, agentId: string): Promise<void> {
-    try {
-      const manifestPath = this.getManifestPath(worktreeId);
-      const content = await fsPromises.readFile(manifestPath, 'utf-8');
-      const manifest: SessionManifest = JSON.parse(content);
+    return this.withLock(worktreeId, async () => {
+      try {
+        const manifestPath = this.getManifestPath(worktreeId);
+        const content = await fsPromises.readFile(manifestPath, 'utf-8');
+        const manifest: SessionManifest = JSON.parse(content);
 
-      if (manifest.agents[agentId]) {
-        delete manifest.agents[agentId];
-        manifest.lastUpdated = new Date().toISOString();
+        if (manifest.agents[agentId]) {
+          delete manifest.agents[agentId];
+          manifest.lastUpdated = new Date().toISOString();
 
-        await fsPromises.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
-        logger.debug(`Deleted session for agent ${agentId} from worktree ${worktreeId}`);
+          const tempPath = `${manifestPath}.tmp.${Date.now()}`;
+          await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
+          await fsPromises.rename(tempPath, manifestPath);
+          logger.debug(`Deleted session for agent ${agentId} from worktree ${worktreeId}`);
+        }
+      } catch (error) {
+        logger.debug(`Could not delete session for ${worktreeId}/${agentId}:`, error);
       }
-    } catch (error) {
-      logger.debug(`Could not delete session for ${worktreeId}/${agentId}:`, error);
-    }
+    });
   }
 
   async deleteWorktreeManifest(worktreeId: string): Promise<void> {
@@ -192,33 +234,38 @@ export class SessionManifestService {
     agentId: string,
     directories: string[]
   ): Promise<void> {
-    await this.ensureSessionsDirectory();
-    const manifestPath = this.getManifestPath(worktreeId);
-    let manifest: SessionManifest;
-
     try {
-      const content = await fsPromises.readFile(manifestPath, 'utf-8');
-      manifest = JSON.parse(content);
+      await this.ensureSessionsDirectory();
+      const manifestPath = this.getManifestPath(worktreeId);
+      let manifest: SessionManifest;
+
+      try {
+        const content = await fsPromises.readFile(manifestPath, 'utf-8');
+        manifest = JSON.parse(content);
+      } catch (error) {
+        manifest = {
+          agents: {},
+          additionalDirectories: {},
+          lastUpdated: new Date().toISOString(),
+        };
+      }
+
+      if (!manifest.additionalDirectories) {
+        manifest.additionalDirectories = {};
+      }
+
+      manifest.additionalDirectories[agentId] = directories;
+      manifest.lastUpdated = new Date().toISOString();
+
+      const tempPath = `${manifestPath}.tmp.${Date.now()}`;
+      await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      await fsPromises.rename(tempPath, manifestPath);
+
+      logger.debug(`Updated additional directories for ${worktreeId}/${agentId}:`, directories);
     } catch (error) {
-      manifest = {
-        agents: {},
-        additionalDirectories: {},
-        lastUpdated: new Date().toISOString(),
-      };
+      logger.error('Failed to update additional directories:', error);
+      throw error;
     }
-
-    if (!manifest.additionalDirectories) {
-      manifest.additionalDirectories = {};
-    }
-
-    manifest.additionalDirectories[agentId] = directories;
-    manifest.lastUpdated = new Date().toISOString();
-
-    const tempPath = `${manifestPath}.tmp.${Date.now()}`;
-    await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
-    await fsPromises.rename(tempPath, manifestPath);
-
-    logger.debug(`Updated additional directories for ${worktreeId}/${agentId}:`, directories);
   }
 
   /**

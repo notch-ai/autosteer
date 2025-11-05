@@ -89,6 +89,7 @@ export function isFileChangeMessage(message: unknown): message is FileChangeMess
     Array.isArray(msg.fileChanges) ||
     Array.isArray(msg.changes) ||
     Array.isArray(msg.files) ||
+    Array.isArray(msg.tool_results) ||
     (msg.content && typeof msg.content === 'object' && Array.isArray(msg.content.fileChanges));
 
   return hasValidType || hasFileChanges;
@@ -109,6 +110,7 @@ export function extractFileChanges(message: unknown): FileChange[] | null {
     msg.fileChanges ||
     msg.changes ||
     msg.files ||
+    msg.tool_results ||
     msg.content?.fileChanges ||
     msg.content?.changes ||
     msg.message?.fileChanges;
@@ -120,7 +122,8 @@ export function extractFileChanges(message: unknown): FileChange[] | null {
   // Normalize to our FileChange format
   return possibleChanges
     .map((change: any) => ({
-      filePath: change.filePath || change.path || change.file || change.filename,
+      filePath:
+        change.filePath || change.file_path || change.path || change.file || change.filename,
       changeType: change.changeType || change.type || change.action || 'modify',
       oldContent: change.oldContent || change.old_content || change.before,
       newContent: change.newContent || change.new_content || change.after || change.content,

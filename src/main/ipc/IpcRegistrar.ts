@@ -8,26 +8,24 @@ import { promisify } from 'util';
 import * as os from 'os';
 import * as path from 'path';
 import { ErrorHandler } from '../utils/errorHandler';
-import { registerSafeHandler } from './safeHandlerWrapper';
 
 const fsPromises = {
   access: promisify(fs.access),
   rm: promisify(fs.rm),
 };
 import { convertToFolderName } from '../utils/folderName';
-import { AgentHandlers } from './handlers/AgentHandlers';
-import { StoreHandlers } from './handlers/StoreHandlers';
-import { SlashCommandHandlers } from './handlers/SlashCommandHandlers';
-import { FileHandlers } from './handlers/FileHandlers';
-import { ResourceHandlers } from './handlers/ResourceHandlers';
-import { ConfigHandlers } from './handlers/ConfigHandlers';
-import { BadgeHandlers } from './handlers/BadgeHandlers';
-import { TerminalHandlers } from './handlers/TerminalHandlers';
-import { McpHandlers } from './handlers/McpHandlers';
+import { ClaudeHandlers, ProjectHandlers, GitHandlers, SystemHandlers } from './handlers';
 import { registerClaudeCodeHandlers } from './claudeCodeHandlers';
 import { registerGitHandlers } from './gitHandlers';
 import { registerAttachmentHandlers } from './attachmentHandlers';
-import { registerGitDiffHandlers } from './handlers/GitDiffHandlers';
+import { UpdateService } from '@/services/UpdateService';
+
+// Phase 4 - IPC Simplification (NOTCH-1465) - COMPLETE
+// Migrated from 13 specialized handlers to 4 domain handlers:
+// - ClaudeHandlers (Agent, MCP, SlashCommand)
+// - ProjectHandlers (File, Resource)
+// - GitHandlers (GitDiff)
+// - SystemHandlers (Terminal, Badge, Config, Log, Store, Update)
 
 /**
  * Centralized IPC registrar that replaces SimplifiedIpcManager, IpcManager, and IpcMigrationManager
@@ -36,199 +34,184 @@ import { registerGitDiffHandlers } from './handlers/GitDiffHandlers';
 export class IpcRegistrar {
   private fileDataStore: FileDataStoreService;
   private gitService: GitService;
-  private agentHandlers: AgentHandlers;
-  private storeHandlers: StoreHandlers;
-  private slashCommandHandlers: SlashCommandHandlers;
-  private fileHandlers: FileHandlers;
-  private resourceHandlers: ResourceHandlers;
-  private configHandlers: ConfigHandlers;
-  private badgeHandlers: BadgeHandlers;
-  private terminalHandlers: TerminalHandlers;
-  private mcpHandlers: McpHandlers;
+  private claudeHandlers: ClaudeHandlers;
+  private projectHandlers: ProjectHandlers;
+  private gitHandlers: GitHandlers;
+  private systemHandlers: SystemHandlers;
 
   constructor(private applicationContainer: ApplicationContainer) {
     this.fileDataStore = FileDataStoreService.getInstance();
     this.gitService = GitService.getInstance();
-    this.agentHandlers = new AgentHandlers();
-    this.storeHandlers = new StoreHandlers(ipcMain);
-    this.slashCommandHandlers = new SlashCommandHandlers();
-    this.fileHandlers = new FileHandlers();
-    this.resourceHandlers = new ResourceHandlers();
-    this.configHandlers = new ConfigHandlers();
-    this.badgeHandlers = new BadgeHandlers();
-    this.terminalHandlers = new TerminalHandlers();
-    this.mcpHandlers = new McpHandlers();
+    this.claudeHandlers = new ClaudeHandlers();
+    this.projectHandlers = new ProjectHandlers();
+    this.gitHandlers = new GitHandlers();
+    this.systemHandlers = new SystemHandlers();
   }
 
   initialize(): void {
     try {
+      log.info('[IpcRegistrar] Starting IPC handler registration (Phase 4 architecture)');
+
+      // Register base handlers (app, settings, window, shell, theme, worktree, test-mode)
       this.registerHandlers();
+      log.debug('[IpcRegistrar] Base handlers registered');
 
-      // Register additional handlers
-      this.agentHandlers.registerHandlers();
-      this.storeHandlers.registerHandlers();
-      this.slashCommandHandlers.registerHandlers();
-      this.fileHandlers.registerHandlers();
-      this.resourceHandlers.registerHandlers();
-      this.configHandlers.register();
-      this.badgeHandlers.registerHandlers(); // Register Badge handlers
-      this.terminalHandlers.registerHandlers(); // Register Terminal handlers
-      this.mcpHandlers.registerHandlers(); // Register MCP handlers
-      registerClaudeCodeHandlers(); // Register Claude Code handlers
-      registerGitHandlers(); // Register Git handlers
-      registerGitDiffHandlers(); // Register Git Diff handlers
-      registerAttachmentHandlers(); // Register Attachment handlers
-      // LogHandlers.register() is already called in main.ts before app ready
+      // Phase 4: Register 4 consolidated domain handlers
+      this.claudeHandlers.registerHandlers();
+      log.debug('[IpcRegistrar] Claude handlers registered (Agent, MCP, SlashCommand)');
 
-      log.info('All IPC handlers registered');
+      this.projectHandlers.registerHandlers();
+      log.debug('[IpcRegistrar] Project handlers registered (File, Resource)');
+
+      this.gitHandlers.registerHandlers();
+      log.debug('[IpcRegistrar] Git handlers registered (GitDiff)');
+
+      this.systemHandlers.registerHandlers();
+      log.debug(
+        '[IpcRegistrar] System handlers registered (Terminal, Badge, Config, Log, Store, Update)'
+      );
+
+      // Specialized utility handlers (separate from domain handler consolidation)
+      // These handle specific SDK/utility operations not part of core IPC domains
+      registerClaudeCodeHandlers();
+      log.debug('[IpcRegistrar] Claude Code SDK handlers registered');
+
+      registerGitHandlers();
+      log.debug('[IpcRegistrar] Git utility handlers registered');
+
+      registerAttachmentHandlers();
+      log.debug('[IpcRegistrar] Attachment handlers registered');
+
+      log.info('[IpcRegistrar] All IPC handlers registered successfully (4 domain + 3 utility)');
     } catch (error) {
-      log.error('Failed to initialize IPC handlers:', error);
+      log.error('[IpcRegistrar] Failed to initialize IPC handlers:', error);
       throw error;
     }
   }
 
+  /**
+   * Set the update service (called after UpdateService is initialized)
+   */
+  setUpdateService(updateService: UpdateService): void {
+    this.systemHandlers.setUpdateService(updateService);
+  }
+
   private registerHandlers(): void {
     // App info handlers
-    registerSafeHandler(
-      'app:getVersion',
-      () => {
-        return this.applicationContainer.getAppVersion();
-      },
-      { operationName: 'get app version' }
-    );
+    ipcMain.handle('app:getVersion', () => {
+      return this.applicationContainer.getAppVersion();
+    });
 
-    registerSafeHandler(
-      'app:getPlatform',
-      () => {
-        return process.platform;
-      },
-      { operationName: 'get platform' }
-    );
+    ipcMain.handle('app:getPlatform', () => {
+      return process.platform;
+    });
 
     // Settings handlers
-    registerSafeHandler(
-      'settings:get',
-      (_event: IpcMainInvokeEvent, key: string) => {
+    ipcMain.handle('settings:get', (_event: IpcMainInvokeEvent, key: string) => {
+      try {
         return this.applicationContainer.getSettingsService().get(key);
-      },
-      { operationName: 'get setting' }
-    );
+      } catch (error) {
+        log.error('Failed to get setting:', error);
+        throw error;
+      }
+    });
 
-    registerSafeHandler(
-      'settings:set',
-      (_event: IpcMainInvokeEvent, key: string, value: unknown) => {
+    ipcMain.handle('settings:set', (_event: IpcMainInvokeEvent, key: string, value: unknown) => {
+      try {
         this.applicationContainer.getSettingsService().set(key, value);
-      },
-      { operationName: 'set setting' }
-    );
+      } catch (error) {
+        log.error('Failed to set setting:', error);
+        throw error;
+      }
+    });
 
-    registerSafeHandler(
-      'settings:getAll',
-      () => {
+    ipcMain.handle('settings:getAll', () => {
+      try {
         return this.applicationContainer.getSettingsService().getAll();
-      },
-      { operationName: 'get all settings' }
-    );
+      } catch (error) {
+        log.error('Failed to get all settings:', error);
+        throw error;
+      }
+    });
 
     // Window handlers
-    registerSafeHandler(
-      'window:minimize',
-      (event: IpcMainInvokeEvent) => {
-        const window = BrowserWindow.fromWebContents(event.sender);
-        if (window) {
-          window.minimize();
-        }
-      },
-      { operationName: 'minimize window' }
-    );
+    ipcMain.handle('window:minimize', (event: IpcMainInvokeEvent) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (window) {
+        window.minimize();
+      }
+    });
 
-    registerSafeHandler(
-      'window:maximize',
-      (event: IpcMainInvokeEvent) => {
-        const window = BrowserWindow.fromWebContents(event.sender);
-        if (window) {
-          if (window.isMaximized()) {
-            window.unmaximize();
-          } else {
-            window.maximize();
-          }
+    ipcMain.handle('window:maximize', (event: IpcMainInvokeEvent) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (window) {
+        if (window.isMaximized()) {
+          window.unmaximize();
+        } else {
+          window.maximize();
         }
-      },
-      { operationName: 'maximize window' }
-    );
+      }
+    });
 
-    registerSafeHandler(
-      'window:close',
-      (event: IpcMainInvokeEvent) => {
-        const window = BrowserWindow.fromWebContents(event.sender);
-        if (window) {
-          window.close();
-        }
-      },
-      { operationName: 'close window' }
-    );
+    ipcMain.handle('window:close', (event: IpcMainInvokeEvent) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (window) {
+        window.close();
+      }
+    });
 
     // Shell handlers
-    registerSafeHandler(
-      'shell:openExternal',
-      async (_event: IpcMainInvokeEvent, url: string) => {
+    ipcMain.handle('shell:openExternal', async (_event: IpcMainInvokeEvent, url: string) => {
+      try {
         await shell.openExternal(url);
         return { success: true };
-      },
-      { operationName: 'open external URL' }
-    );
+      } catch (error) {
+        log.error('Failed to open external URL:', error);
+        throw error;
+      }
+    });
 
     // Theme handlers
-    // Note: This handler has special error handling - returns 'system' instead of throwing
-    registerSafeHandler(
-      'theme:get',
-      () => {
-        try {
-          return this.applicationContainer.getSettingsService().get('theme') || 'system';
-        } catch (error) {
-          log.error('Failed to get theme:', error);
-          return 'system';
-        }
-      },
-      { operationName: 'get theme', suppressNotification: true }
-    );
+    ipcMain.handle('theme:get', () => {
+      try {
+        return this.applicationContainer.getSettingsService().get('theme') || 'system';
+      } catch (error) {
+        log.error('Failed to get theme:', error);
+        return 'system';
+      }
+    });
 
-    registerSafeHandler(
+    ipcMain.handle(
       'theme:set',
       (_event: IpcMainInvokeEvent, theme: 'light' | 'dark' | 'system') => {
-        this.applicationContainer.getSettingsService().set('theme', theme);
-      },
-      { operationName: 'set theme' }
+        try {
+          this.applicationContainer.getSettingsService().set('theme', theme);
+        } catch (error) {
+          log.error('Failed to set theme:', error);
+          throw error;
+        }
+      }
     );
 
-    // Note: This handler has special error handling - returns 'light' instead of throwing
-    registerSafeHandler(
-      'theme:getSystemPreference',
-      () => {
-        try {
-          return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
-        } catch (error) {
-          log.error('Failed to get system theme preference:', error);
-          return 'light';
-        }
-      },
-      { operationName: 'get system theme preference', suppressNotification: true }
-    );
+    ipcMain.handle('theme:getSystemPreference', () => {
+      try {
+        return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+      } catch (error) {
+        log.error('Failed to get system theme preference:', error);
+        return 'light';
+      }
+    });
 
     // Config handlers are now handled by ConfigHandlers.register()
     // Removed duplicate config:getDevMode and config:setDevMode handlers
 
     // Worktree handlers
-    registerSafeHandler(
-      'worktree:getDataDirectory',
-      async () => {
-        await this.fileDataStore.ensureDirectories();
-        return this.fileDataStore.getDataDirectory();
-      },
-      { operationName: 'get data directory' }
-    );
+    ipcMain.handle('worktree:getDataDirectory', async () => {
+      await this.fileDataStore.ensureDirectories();
+      return this.fileDataStore.getDataDirectory();
+    });
 
-    registerSafeHandler(
+    ipcMain.handle(
       'worktree:getCurrentDirectory',
       async (_event: IpcMainInvokeEvent, cwd?: string) => {
         if (cwd) {
@@ -264,12 +247,10 @@ export class IpcRegistrar {
         }
 
         return process.cwd();
-      },
-      { operationName: 'get current directory' }
+      }
     );
 
-    // Note: This handler has special error handling - returns structured error responses
-    registerSafeHandler(
+    ipcMain.handle(
       'worktree:create',
       async (_event: IpcMainInvokeEvent, options: { githubRepo: string; branchName: string }) => {
         log.info('[worktree:create] Starting worktree creation:', {
@@ -421,169 +402,142 @@ export class IpcRegistrar {
             error: errorMessage,
           };
         }
-      },
-      { operationName: 'create worktree', suppressNotification: true }
+      }
     );
 
-    // Note: This handler has special error handling - returns structured error responses
-    registerSafeHandler(
-      'worktree:delete',
-      async (_event: IpcMainInvokeEvent, folderName: string) => {
+    ipcMain.handle('worktree:delete', async (_event: IpcMainInvokeEvent, folderName: string) => {
+      try {
+        const config = await this.fileDataStore.readConfig();
+        const worktree = config.worktrees.find((w) => w.folder_name === folderName);
+
+        if (!worktree) {
+          throw new Error('Worktree not found in config');
+        }
+
+        const worktreePath = this.fileDataStore.getWorktreePath(folderName);
+        const mainRepoPath = this.fileDataStore.getMainRepoPath(worktree.git_repo);
+
+        const removeResult = await this.gitService.removeWorktree({
+          mainRepoPath,
+          worktreePath,
+          branchName: worktree.branch_name,
+        });
+
+        if (!removeResult.success) {
+          log.warn('Git worktree remove failed:', removeResult.error);
+        }
+
+        // Delete session manifest for this worktree
         try {
-          const config = await this.fileDataStore.readConfig();
-          const worktree = config.worktrees.find((w) => w.folder_name === folderName);
+          const { SessionManifestService } = await import('@/services/SessionManifestService');
+          const sessionManifest = SessionManifestService.getInstance();
+          await sessionManifest.deleteWorktreeManifest(folderName);
+        } catch (error) {
+          log.warn('Failed to delete session manifest:', error);
+          // Don't fail the entire deletion if session cleanup fails
+        }
 
-          if (!worktree) {
-            throw new Error('Worktree not found in config');
-          }
+        // Delete Claude Code chat history (JSONL files) for this worktree
+        try {
+          const os = await import('os');
+          const homedir = os.homedir();
+          const homedirFormatted = homedir.substring(1).replace(/[^a-zA-Z0-9]/g, '-');
+          const projectDirName = `-${homedirFormatted}--autosteer-worktrees-${folderName}`;
+          const claudeProjectsDir = path.join(homedir, '.claude', 'projects', projectDirName);
 
-          const worktreePath = this.fileDataStore.getWorktreePath(folderName);
-          const mainRepoPath = this.fileDataStore.getMainRepoPath(worktree.git_repo);
-
-          const removeResult = await this.gitService.removeWorktree({
-            mainRepoPath,
-            worktreePath,
-            branchName: worktree.branch_name,
-          });
-
-          if (!removeResult.success) {
-            log.warn('Git worktree remove failed:', removeResult.error);
-          }
-
-          // Delete session manifest for this worktree
+          // Check if directory exists before attempting to delete
           try {
-            const { SessionManifestService } = await import('@/services/SessionManifestService');
-            const sessionManifest = SessionManifestService.getInstance();
-            await sessionManifest.deleteWorktreeManifest(folderName);
-          } catch (error) {
-            log.warn('Failed to delete session manifest:', error);
-            // Don't fail the entire deletion if session cleanup fails
+            await fsPromises.access(claudeProjectsDir, fs.constants.F_OK);
+            await fsPromises.rm(claudeProjectsDir, { recursive: true, force: true });
+            log.info(`Deleted Claude Code chat history for worktree: ${folderName}`);
+          } catch (err) {
+            log.debug(`No Claude Code chat history to delete for worktree: ${folderName}`);
           }
-
-          // Delete Claude Code chat history (JSONL files) for this worktree
-          try {
-            const os = await import('os');
-            const homedir = os.homedir();
-            const homedirFormatted = homedir.substring(1).replace(/[^a-zA-Z0-9]/g, '-');
-            const projectDirName = `-${homedirFormatted}--autosteer-worktrees-${folderName}`;
-            const claudeProjectsDir = path.join(homedir, '.claude', 'projects', projectDirName);
-
-            // Check if directory exists before attempting to delete
-            try {
-              await fsPromises.access(claudeProjectsDir, fs.constants.F_OK);
-              await fsPromises.rm(claudeProjectsDir, { recursive: true, force: true });
-              log.info(`Deleted Claude Code chat history for worktree: ${folderName}`);
-            } catch (err) {
-              log.debug(`No Claude Code chat history to delete for worktree: ${folderName}`);
-            }
-          } catch (error) {
-            log.warn('Failed to delete Claude Code chat history:', error);
-            // Don't fail the entire deletion if chat history cleanup fails
-          }
-
-          await this.fileDataStore.removeWorktree(folderName);
-
-          return {
-            success: true,
-            message: 'Successfully removed worktree',
-          };
         } catch (error) {
-          const errorMessage = ErrorHandler.log({
-            operation: 'delete worktree',
-            error,
-            context: { folderName },
-          });
-
-          return {
-            success: false,
-            message: ErrorHandler.formatUserMessage('delete worktree', error),
-            error: errorMessage,
-          };
+          log.warn('Failed to delete Claude Code chat history:', error);
+          // Don't fail the entire deletion if chat history cleanup fails
         }
-      },
-      { operationName: 'delete worktree', suppressNotification: true }
-    );
 
-    // Note: This handler has special error handling - returns empty array instead of throwing
-    registerSafeHandler(
-      'worktree:getAll',
-      async () => {
-        try {
-          const config = await this.fileDataStore.readConfig();
-          return config.worktrees;
-        } catch (error) {
-          ErrorHandler.log({
-            operation: 'get all worktrees',
-            error,
-          });
-          return [];
+        await this.fileDataStore.removeWorktree(folderName);
+
+        return {
+          success: true,
+          message: 'Successfully removed worktree',
+        };
+      } catch (error) {
+        const errorMessage = ErrorHandler.log({
+          operation: 'delete worktree',
+          error,
+          context: { folderName },
+        });
+
+        return {
+          success: false,
+          message: ErrorHandler.formatUserMessage('delete worktree', error),
+          error: errorMessage,
+        };
+      }
+    });
+
+    ipcMain.handle('worktree:getAll', async () => {
+      try {
+        const config = await this.fileDataStore.readConfig();
+        return config.worktrees;
+      } catch (error) {
+        ErrorHandler.log({
+          operation: 'get all worktrees',
+          error,
+        });
+        return [];
+      }
+    });
+
+    ipcMain.handle('worktree:getRepoUrls', async () => {
+      try {
+        const config = await this.fileDataStore.readConfig();
+        const repoUrls = [...new Set(config.worktrees.map((w) => w.git_repo))];
+        return repoUrls;
+      } catch (error) {
+        ErrorHandler.log({
+          operation: 'get repo urls',
+          error,
+        });
+        return [];
+      }
+    });
+
+    ipcMain.handle('worktree:getVimMode', async () => {
+      try {
+        const config = await this.fileDataStore.readConfig();
+        return config.settings?.vimMode ?? false;
+      } catch (error) {
+        ErrorHandler.log({
+          operation: 'get vim mode',
+          error,
+        });
+        return false;
+      }
+    });
+
+    ipcMain.handle('worktree:setVimMode', async (_event: IpcMainInvokeEvent, enabled: boolean) => {
+      try {
+        const config = await this.fileDataStore.readConfig();
+        if (!config.settings) {
+          config.settings = {};
         }
-      },
-      { operationName: 'get all worktrees', suppressNotification: true }
-    );
+        config.settings.vimMode = enabled;
+        await this.fileDataStore.writeConfig(config);
+        return { success: true };
+      } catch (error) {
+        const errorMessage = ErrorHandler.log({
+          operation: 'set vim mode',
+          error,
+        });
+        return { success: false, error: errorMessage };
+      }
+    });
 
-    // Note: This handler has special error handling - returns empty array instead of throwing
-    registerSafeHandler(
-      'worktree:getRepoUrls',
-      async () => {
-        try {
-          const config = await this.fileDataStore.readConfig();
-          const repoUrls = [...new Set(config.worktrees.map((w) => w.git_repo))];
-          return repoUrls;
-        } catch (error) {
-          ErrorHandler.log({
-            operation: 'get repo urls',
-            error,
-          });
-          return [];
-        }
-      },
-      { operationName: 'get repo URLs', suppressNotification: true }
-    );
-
-    // Note: This handler has special error handling - returns false instead of throwing
-    registerSafeHandler(
-      'worktree:getVimMode',
-      async () => {
-        try {
-          const config = await this.fileDataStore.readConfig();
-          return config.settings?.vimMode ?? false;
-        } catch (error) {
-          ErrorHandler.log({
-            operation: 'get vim mode',
-            error,
-          });
-          return false;
-        }
-      },
-      { operationName: 'get vim mode', suppressNotification: true }
-    );
-
-    // Note: This handler has special error handling - returns structured error response
-    registerSafeHandler(
-      'worktree:setVimMode',
-      async (_event: IpcMainInvokeEvent, enabled: boolean) => {
-        try {
-          const config = await this.fileDataStore.readConfig();
-          if (!config.settings) {
-            config.settings = {};
-          }
-          config.settings.vimMode = enabled;
-          await this.fileDataStore.writeConfig(config);
-          return { success: true };
-        } catch (error) {
-          const errorMessage = ErrorHandler.log({
-            operation: 'set vim mode',
-            error,
-          });
-          return { success: false, error: errorMessage };
-        }
-      },
-      { operationName: 'set vim mode', suppressNotification: true }
-    );
-
-    // Note: This handler has special error handling - returns structured error response
-    registerSafeHandler(
+    ipcMain.handle(
       'worktree:setActiveTab',
       async (_event: IpcMainInvokeEvent, projectId: string, tabId: string) => {
         try {
@@ -608,12 +562,10 @@ export class IpcRegistrar {
           });
           return { success: false, error: errorMessage };
         }
-      },
-      { operationName: 'set active tab', suppressNotification: true }
+      }
     );
 
-    // Note: This handler has special error handling - returns null instead of throwing
-    registerSafeHandler(
+    ipcMain.handle(
       'worktree:getActiveTab',
       async (_event: IpcMainInvokeEvent, projectId: string) => {
         try {
@@ -631,23 +583,18 @@ export class IpcRegistrar {
           });
           return null;
         }
-      },
-      { operationName: 'get active tab', suppressNotification: true }
+      }
     );
 
     // Test mode handlers - provide fallback when test mode is not active
-    registerSafeHandler(
-      'test-mode:getState',
-      () => {
-        return {
-          isActive: false,
-          currentComponent: null,
-          componentProps: {},
-          themeVariant: 'day',
-        };
-      },
-      { operationName: 'get test mode state' }
-    );
+    ipcMain.handle('test-mode:getState', () => {
+      return {
+        isActive: false,
+        currentComponent: null,
+        componentProps: {},
+        themeVariant: 'day',
+      };
+    });
 
     // Dialog handlers are registered in FileHandlers
   }

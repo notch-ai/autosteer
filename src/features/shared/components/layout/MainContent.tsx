@@ -7,17 +7,17 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { AgentType, ChatMessage } from '@/entities';
-import { mockPermissionChatMessage } from '@/mocks/gitDiffMockData';
-import { useUIStore, useAgentsStore, useProjectsStore, useChatStore } from '@/stores';
-import { attachResourceToChat, detachResourceFromChat } from '@/stores/resources.store';
-import { Link2, Music, Video } from 'lucide-react';
-import React, { useCallback, useRef, useState } from 'react';
-import { ChangesTab } from '@/features/shared/components/git/ChangesTab';
 import { ChatInterface } from '@/features/chat/components/ChatInterface';
-import { DetailPanel } from '@/features/shared/components/ui/DetailPanel';
+import { ChangesTab } from '@/features/shared/components/git/ChangesTab';
 import { ResizablePanel } from '@/features/shared/components/layout/ResizablePanel';
 import { SessionTabs } from '@/features/shared/components/session/SessionTabs';
 import { TerminalTab } from '@/features/shared/components/terminal/TerminalTab';
+import { DetailPanel } from '@/features/shared/components/ui/DetailPanel';
+import { mockPermissionChatMessage } from '@/mocks/gitDiffMockData';
+import { useAgentsStore, useChatStore, useProjectsStore, useUIStore } from '@/stores';
+import { attachResourceToChat, detachResourceFromChat } from '@/stores/resources.store';
+import { Link2, Music, Video } from 'lucide-react';
+import React, { useCallback, useRef, useState } from 'react';
 
 // Toggle this to show mock permission message for UX development
 const USE_MOCK_PERMISSION = false;
@@ -28,6 +28,8 @@ export const MainContent: React.FC = () => {
   const agents = useAgentsStore((state) => state.agents);
   const selectedProjectId = useProjectsStore((state) => state.selectedProjectId);
   const projects = useProjectsStore((state) => state.projects);
+
+  console.log('[MainContent] 🎨 RENDER - selectedAgentId:', selectedAgentId);
 
   // Subscribe to chat store for messages reactivity
   // Important: Subscribe to activeChat separately to avoid re-renders when other chats update
@@ -94,20 +96,17 @@ export const MainContent: React.FC = () => {
   React.useEffect(() => {
     logger.info('[MainContent] ========== STATE UPDATE ==========');
     logger.info('[MainContent] selectedAgentId:', selectedAgentId);
-    logger.info('[MainContent] activeChat:', activeChat);
-    logger.info('[MainContent] baseChatMessages length:', baseChatMessages.length);
-    logger.info('[MainContent] final chatMessages:', chatMessages.length);
-
-    if (baseChatMessages.length > 0) {
-      logger.info('[MainContent] First message ID:', baseChatMessages[0].id);
-      logger.info(
-        '[MainContent] Last message ID:',
-        baseChatMessages[baseChatMessages.length - 1].id
-      );
-    }
-    logger.info('[MainContent] ========================================');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAgentId, activeChat, baseChatMessages.length]);
+
+  // HYPOTHESIS LOGGING: Track TerminalTab visibility in MainContent
+  React.useEffect(() => {
+    logger.debug('[HYPO-MAINCONTENT] TerminalTab container visibility changed', {
+      selectedAgentId,
+      isTerminalVisible: selectedAgentId === 'terminal-tab',
+      isChangesVisible: selectedAgentId === 'changes-tab',
+      isChatVisible: selectedAgentId !== 'terminal-tab' && selectedAgentId !== 'changes-tab',
+    });
+  }, [selectedAgentId]);
 
   // Get current attachments (resource IDs) from chat store
   const attachments = useChatStore((state) => state.attachments);
@@ -382,11 +381,30 @@ export const MainContent: React.FC = () => {
                 data-section="chat-interface"
                 className="flex-1 flex flex-col min-h-0 chat-interface-container"
               >
-                {selectedAgentId === 'terminal-tab' ? (
+                {/* Keep TerminalTab mounted to preserve state across tab switches */}
+                <div
+                  className={cn('flex-1 flex flex-col', {
+                    hidden: selectedAgentId !== 'terminal-tab',
+                  })}
+                >
                   <TerminalTab className="flex-1" />
-                ) : selectedAgentId === 'changes-tab' ? (
+                </div>
+
+                {/* Keep ChangesTab mounted to preserve state across tab switches */}
+                <div
+                  className={cn('flex-1 flex flex-col', {
+                    hidden: selectedAgentId !== 'changes-tab',
+                  })}
+                >
                   <ChangesTab className="flex-1" />
-                ) : (
+                </div>
+
+                {/* Keep ChatInterface mounted to preserve state across tab switches */}
+                <div
+                  className={cn('flex-1 flex flex-col', {
+                    hidden: selectedAgentId === 'terminal-tab' || selectedAgentId === 'changes-tab',
+                  })}
+                >
                   <ChatInterface
                     ref={chatInterfaceRef}
                     messages={chatMessages}
@@ -414,7 +432,7 @@ export const MainContent: React.FC = () => {
                       }
                     }}
                   />
-                )}
+                </div>
               </div>
             </div>
           </div>

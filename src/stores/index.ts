@@ -1,5 +1,5 @@
 // ============================================================================
-// NOTCH STORE EXPORTS
+// AUTOSTEER STORE EXPORTS
 // New 3-Store Architecture (TRD Section 2.1.1)
 //
 // ARCHITECTURE OVERVIEW:

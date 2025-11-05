@@ -24,6 +24,8 @@ export function useTerminalActions() {
   const getTerminalSession = useTerminalStore((state) => state.getTerminalSession);
   const removeTerminalSession = useTerminalStore((state) => state.removeTerminalSession);
   const hasTerminalSession = useTerminalStore((state) => state.hasTerminalSession);
+  const getTerminalsForProject = useTerminalStore((state) => state.getTerminalsForProject);
+  const getLastTerminalForProject = useTerminalStore((state) => state.getLastTerminalForProject);
 
   // Buffer state actions
   const saveBufferState = useTerminalStore((state) => state.saveBufferState);
@@ -56,6 +58,8 @@ export function useTerminalActions() {
     getTerminalSession,
     removeTerminalSession,
     hasTerminalSession,
+    getTerminalsForProject,
+    getLastTerminalForProject,
 
     // Buffer state actions
     saveBufferState,

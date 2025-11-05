@@ -7,6 +7,7 @@ import {
   TerminalCreateResponse,
 } from '@/types/terminal.types';
 import { useTerminalPool } from '../renderer/hooks/useTerminalPool';
+import { logger } from '@/commons/utils/logger';
 
 /**
  * useTerminal Hook - Phase 2 Refactored for Instance Pooling
@@ -32,7 +33,7 @@ import { useTerminalPool } from '../renderer/hooks/useTerminalPool';
  * @see docs/terminal-persistence-architecture.md Phase 2
  */
 export const useTerminal = () => {
-  const listenersRef = useRef<Set<string>>(new Set());
+  const listenersRef = useRef<Map<string, () => void>>(new Map()); // Store cleanup functions
   const { getPoolSize, getAllTerminalIds } = useTerminalPool();
 
   /**
@@ -51,7 +52,7 @@ export const useTerminal = () => {
    */
   const createTerminal = useCallback(
     async (params?: TerminalCreateParams): Promise<Terminal> => {
-      console.log('[useTerminal] Creating terminal (pooling enabled)', {
+      logger.debug('[useTerminal] Creating terminal (pooling enabled)', {
         poolSize: getPoolSize(),
         maxPoolSize: 10,
       });
@@ -67,7 +68,7 @@ export const useTerminal = () => {
 
       const terminal = convertTerminalData(response.data);
 
-      console.log('[useTerminal] Terminal created', {
+      logger.debug('[useTerminal] Terminal created', {
         terminalId: terminal.id,
         poolSize: getPoolSize(),
       });
@@ -81,7 +82,7 @@ export const useTerminal = () => {
    * Write data to terminal
    */
   const writeToTerminal = useCallback(async (terminalId: string, data: string): Promise<void> => {
-    console.log('[useTerminal] writeToTerminal called:', {
+    logger.debug('[useTerminal] writeToTerminal called:', {
       terminalId,
       data,
       dataLength: data.length,
@@ -93,7 +94,7 @@ export const useTerminal = () => {
       data,
     });
 
-    console.log('[useTerminal] writeToTerminal response:', response);
+    logger.debug('[useTerminal] writeToTerminal response:', response);
 
     if (!response.success) {
       throw new Error(response.error || 'Failed to write to terminal');
@@ -123,7 +124,7 @@ export const useTerminal = () => {
    */
   const destroyTerminal = useCallback(
     async (terminalId: string): Promise<void> => {
-      console.log('[useTerminal] Destroying terminal (pooling enabled)', {
+      logger.debug('[useTerminal] Destroying terminal (pooling enabled)', {
         terminalId,
         poolSize: getPoolSize(),
       });
@@ -137,7 +138,7 @@ export const useTerminal = () => {
         throw new Error(response.error || 'Failed to destroy terminal');
       }
 
-      console.log('[useTerminal] Terminal destroyed', {
+      logger.debug('[useTerminal] Terminal destroyed', {
         terminalId,
         remainingInPool: getPoolSize(),
       });
@@ -157,27 +158,45 @@ export const useTerminal = () => {
       const dataChannel = `terminal:data:${terminalId}`;
       const exitChannel = `terminal:exit:${terminalId}`;
 
-      console.log('[useTerminal] setupTerminalListeners called for:', terminalId);
+      logger.debug('[useTerminal] setupTerminalListeners called for:', terminalId);
 
       // Remove any existing listeners first to prevent duplicates
-      console.log('[useTerminal] Removing existing listeners for:', dataChannel);
-      window.electron.ipcRenderer.removeAllListeners(dataChannel);
-      window.electron.ipcRenderer.removeAllListeners(exitChannel);
+      const existingDataCleanup = listenersRef.current.get(dataChannel);
+      const existingExitCleanup = listenersRef.current.get(exitChannel);
 
-      // Set up data listener
-      console.log('[useTerminal] Adding new data listener for:', dataChannel);
-      window.electron.ipc.on(dataChannel, (_event, data) => {
-        console.log('[useTerminal] Data received on channel:', dataChannel, 'data:', data);
+      if (existingDataCleanup) {
+        logger.debug('[useTerminal] Removing existing data listener for:', dataChannel);
+        existingDataCleanup();
+        listenersRef.current.delete(dataChannel);
+      }
+      if (existingExitCleanup) {
+        existingExitCleanup();
+        listenersRef.current.delete(exitChannel);
+      }
+
+      // Set up data listener and store cleanup function
+      logger.debug('[useTerminal] Adding new data listener for:', dataChannel);
+      const dataCleanup = window.electron.ipc.on(dataChannel, (_event, data) => {
+        // HYPOTHESIS LOGGING: Track frontend IPC listener invocations
+        logger.info(
+          `[DIAG-H1-IPC-RECV] channel=${dataChannel} terminalId=${terminalId.substring(0, 8)} dataLen=${(data as string).length} dataPreview=${(data as string).substring(0, 30).replace(/\n/g, '\\n')} activeListeners=${Array.from(
+            listenersRef.current.keys()
+          )
+            .map((ch) => ch.split(':')[2]?.substring(0, 8) || 'unknown')
+            .join(',')}`
+        );
+        logger.debug('[useTerminal] Data received on channel:', dataChannel, 'data:', data);
         onData(data as string);
       });
-      listenersRef.current.add(dataChannel);
+      listenersRef.current.set(dataChannel, dataCleanup);
 
-      // Set up exit listener
-      window.electron.ipc.on(exitChannel, (_event, exitCode) =>
+      // Set up exit listener and store cleanup function
+      const exitCleanup = window.electron.ipc.on(exitChannel, (_event, exitCode) =>
         onExit(exitCode as { exitCode: number; signal?: number })
       );
-      listenersRef.current.add(exitChannel);
-      console.log('[useTerminal] Listeners setup complete for:', terminalId);
+      listenersRef.current.set(exitChannel, exitCleanup);
+
+      logger.debug('[useTerminal] Listeners setup complete for:', terminalId);
     },
     []
   );
@@ -189,11 +208,36 @@ export const useTerminal = () => {
     const dataChannel = `terminal:data:${terminalId}`;
     const exitChannel = `terminal:exit:${terminalId}`;
 
-    window.electron.ipcRenderer.removeAllListeners(dataChannel);
-    window.electron.ipcRenderer.removeAllListeners(exitChannel);
+    // Call cleanup functions if they exist
+    const dataCleanup = listenersRef.current.get(dataChannel);
+    const exitCleanup = listenersRef.current.get(exitChannel);
 
-    listenersRef.current.delete(dataChannel);
-    listenersRef.current.delete(exitChannel);
+    // HYPOTHESIS LOGGING: Track listener removal to detect leaks
+    const listenersBefore = Array.from(listenersRef.current.keys())
+      .map((ch) => ch.split(':')[2]?.substring(0, 8) || 'unknown')
+      .join(',');
+
+    logger.info(
+      `[DIAG-H1-IPC-CLEANUP-BEFORE] terminalId=${terminalId.substring(0, 8)} dataChannel=${dataChannel} hadDataListener=${!!dataCleanup} hadExitListener=${!!exitCleanup} listenersBefore=${listenersBefore}`
+    );
+
+    if (dataCleanup) {
+      dataCleanup();
+      listenersRef.current.delete(dataChannel);
+    }
+    if (exitCleanup) {
+      exitCleanup();
+      listenersRef.current.delete(exitChannel);
+    }
+
+    // Verify cleanup worked
+    const listenersAfter = Array.from(listenersRef.current.keys())
+      .map((ch) => ch.split(':')[2]?.substring(0, 8) || 'unknown')
+      .join(',');
+
+    logger.info(
+      `[DIAG-H1-IPC-CLEANUP-AFTER] terminalId=${terminalId.substring(0, 8)} listenersAfter=${listenersAfter} cleanupSuccessful=${!listenersAfter.includes(terminalId.substring(0, 8))}`
+    );
   }, []);
 
   /**
@@ -201,8 +245,9 @@ export const useTerminal = () => {
    */
   useEffect(() => {
     return () => {
-      listenersRef.current.forEach((channel) => {
-        window.electron.ipcRenderer.removeAllListeners(channel);
+      // Call all cleanup functions
+      listenersRef.current.forEach((cleanup) => {
+        cleanup();
       });
       listenersRef.current.clear();
     };

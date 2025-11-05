@@ -6,7 +6,7 @@
 import { IpcMainInvokeEvent, ipcMain, BrowserWindow } from 'electron';
 import { ErrorHandler } from '../utils/errorHandler';
 
-type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any;
+type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any>;
 
 interface HandlerOptions {
   operationName?: string;
@@ -33,7 +33,7 @@ export function registerSafeHandler(
       });
 
       // Notify user unless suppressed
-      if (!options?.suppressNotification) {
+      if (!options?.suppressNotification && event?.sender) {
         const window = BrowserWindow.fromWebContents(event.sender);
         if (window) {
           ErrorHandler.notifyUser(

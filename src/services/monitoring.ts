@@ -75,6 +75,12 @@ class MonitoringService {
       this.monitor[Symbol.dispose]();
     }
     this.monitor = null;
+    // Reset config to defaults
+    this.config = {
+      sessionHours: 5,
+      costMode: 'auto',
+      debug: false,
+    };
   }
 }
 

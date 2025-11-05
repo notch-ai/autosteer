@@ -173,7 +173,11 @@ export const useSlashCommandLogic = (query: string) => {
 
   // Load commands when the hook is first used OR when selected project changes
   useEffect(() => {
-    loadSlashCommands().catch((error) => {
+    const projectsState = useProjectsStore.getState();
+    const selectedProject = projectsState.getSelectedProject();
+    const projectPath = selectedProject?.localPath;
+
+    loadSlashCommands(projectPath).catch((error) => {
       logger.error('[useSlashCommandLogic] Failed to load slash commands:', error);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

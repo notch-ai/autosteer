@@ -5,8 +5,6 @@ import { app, BrowserWindow } from 'electron';
 import contextMenu from 'electron-context-menu';
 import log from 'electron-log';
 import path from 'path';
-import { LogHandlers } from './ipc/handlers/LogHandlers';
-import { UpdateHandlers } from './ipc/handlers/UpdateHandlers';
 import { IpcRegistrar } from './ipc/IpcRegistrar';
 import { mainLogger } from './services/logger';
 import { getTestModeHandler, isTestModeActive } from './test-mode';
@@ -61,11 +59,11 @@ if (app.isPackaged) {
   app.commandLine.appendSwitch('disable-dev-shm-usage');
 }
 
-// Initialize main logger and log handlers early (before app ready)
+// Initialize main logger early (before app ready)
 // This prevents "logger isn't initialized" errors from renderer process
+// Log handlers will be registered by IpcRegistrar.initialize()
 (async () => {
   await mainLogger.initialize();
-  LogHandlers.register();
 })();
 
 // Configure logging
@@ -105,56 +103,8 @@ class ElectronApp {
     this.setupEventHandlers();
   }
 
-  private setupGlobalErrorHandlers(): void {
-    // Handle uncaught exceptions
-    process.on('uncaughtException', (error) => {
-      log.error('[Main] Uncaught exception:', error);
-
-      // Notify user if main window exists
-      const mainWindow = this.windowManager.getMainWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('main-process-error', {
-          type: 'uncaughtException',
-          error: {
-            name: error.name,
-            message: error.message,
-            stack: error.stack,
-          },
-        });
-      }
-
-      // Don't exit immediately - try to recover
-      // Only exit if error is truly fatal
-      if (error.message.includes('Cannot find module') || error.message.includes('ENOENT')) {
-        app.quit();
-      }
-    });
-
-    // Handle unhandled promise rejections
-    process.on('unhandledRejection', (reason, _promise) => {
-      log.error('[Main] Unhandled promise rejection:', reason);
-
-      const mainWindow = this.windowManager.getMainWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('main-process-error', {
-          type: 'unhandledRejection',
-          error: {
-            name: 'UnhandledPromiseRejection',
-            message: reason instanceof Error ? reason.message : String(reason),
-            stack: reason instanceof Error ? reason.stack : undefined,
-          },
-        });
-      }
-    });
-
-    log.info('[Main] Global error handlers initialized');
-  }
-
   private setupEventHandlers(): void {
     log.info('[SETUP] Setting up Electron event handlers');
-
-    // Set up global error handlers first
-    this.setupGlobalErrorHandlers();
 
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
@@ -270,7 +220,7 @@ class ElectronApp {
         log.debug('[UPDATE] Main window found, creating update service');
         this.updateService = new UpdateService();
         await this.updateService.initialize(mainWindow);
-        new UpdateHandlers(this.updateService);
+        this.ipcRegistrar.setUpdateService(this.updateService);
         log.info('[UPDATE] Update service initialized successfully');
       } else {
         log.error('[UPDATE] Main window not found, cannot initialize update service');

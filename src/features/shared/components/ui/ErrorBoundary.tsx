@@ -1,5 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { globalErrorHandler } from '@/renderer/services/GlobalErrorHandler';
+import { logger } from '@/commons/utils/logger';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
-  context?: Record<string, any>;
 }
 
 interface State {
@@ -18,7 +17,6 @@ interface State {
 
 /**
  * Feature component for ErrorBoundary
- * Integrated with GlobalErrorHandler for centralized error handling
  * Uses UI components for consistent styling
  * Provides error recovery and reporting functionality
  */
@@ -33,17 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Forward to global handler (logs + toast)
-    const errorContext: any = {
-      subsystem: 'react',
-      componentStack: errorInfo.componentStack,
-      ...this.props.context,
-    };
-    if (this.props.context?.component) {
-      errorContext.component = this.props.context.component;
-    }
-    globalErrorHandler.handle(error, errorContext);
-
+    logger.error('Error caught by boundary:', error, errorInfo);
     this.setState({ error, errorInfo });
   }
 

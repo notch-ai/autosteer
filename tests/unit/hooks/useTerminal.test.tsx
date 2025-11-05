@@ -8,7 +8,7 @@ import { useTerminal } from '@/hooks/useTerminal';
 
 // Mock IPC
 const mockInvoke = jest.fn();
-const mockOn = jest.fn();
+const mockOn = jest.fn(() => jest.fn()); // Return a cleanup function
 const mockRemoveAllListeners = jest.fn();
 
 // Mock electron API
@@ -192,6 +192,18 @@ describe('useTerminal', () => {
     });
 
     it('should cleanup listeners on unmount', () => {
+      const dataCleanup = jest.fn();
+      const exitCleanup = jest.fn();
+
+      // Configure mockOn to return cleanup functions in sequence
+      let callCount = 0;
+      mockOn.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) return dataCleanup;
+        if (callCount === 2) return exitCleanup;
+        return jest.fn();
+      });
+
       const { result, unmount } = renderHook(() => useTerminal());
 
       act(() => {
@@ -200,8 +212,9 @@ describe('useTerminal', () => {
 
       unmount();
 
-      expect(mockRemoveAllListeners).toHaveBeenCalledWith('terminal:data:terminal-1');
-      expect(mockRemoveAllListeners).toHaveBeenCalledWith('terminal:exit:terminal-1');
+      // Verify cleanup functions were called
+      expect(dataCleanup).toHaveBeenCalled();
+      expect(exitCleanup).toHaveBeenCalled();
     });
   });
 });

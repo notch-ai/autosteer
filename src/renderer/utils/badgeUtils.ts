@@ -9,16 +9,21 @@ import { logger } from '@/commons/utils/logger';
  * @returns Promise<boolean> - true if badge was shown successfully
  */
 export async function showBadgeWithLogging(): Promise<boolean> {
-  logger.info('[BadgeUtils] Attempting to show badge notification');
+  try {
+    logger.info('[BadgeUtils] Attempting to show badge notification');
 
-  const electronWithBadge = window.electron as any;
-  const result = await electronWithBadge.badge.show();
+    const electronWithBadge = window.electron as any;
+    const result = await electronWithBadge.badge.show();
 
-  if (result.success) {
-    logger.info('[BadgeUtils] Badge shown successfully');
-    return true;
-  } else {
-    logger.error('[BadgeUtils] Failed to show badge:', result.error);
+    if (result.success) {
+      logger.info('[BadgeUtils] Badge shown successfully');
+      return true;
+    } else {
+      logger.error('[BadgeUtils] Failed to show badge:', result.error);
+      return false;
+    }
+  } catch (error) {
+    logger.error('[BadgeUtils] Exception while showing badge:', error);
     return false;
   }
 }
@@ -28,16 +33,21 @@ export async function showBadgeWithLogging(): Promise<boolean> {
  * @returns Promise<boolean> - true if badge was hidden successfully
  */
 export async function hideBadgeWithLogging(): Promise<boolean> {
-  logger.info('[BadgeUtils] Attempting to hide badge notification');
+  try {
+    logger.info('[BadgeUtils] Attempting to hide badge notification');
 
-  const electronWithBadge = window.electron as any;
-  const result = await electronWithBadge.badge.hide();
+    const electronWithBadge = window.electron as any;
+    const result = await electronWithBadge.badge.hide();
 
-  if (result.success) {
-    logger.info('[BadgeUtils] Badge hidden successfully');
-    return true;
-  } else {
-    logger.error('[BadgeUtils] Failed to hide badge:', result.error);
+    if (result.success) {
+      logger.info('[BadgeUtils] Badge hidden successfully');
+      return true;
+    } else {
+      logger.error('[BadgeUtils] Failed to hide badge:', result.error);
+      return false;
+    }
+  } catch (error) {
+    logger.error('[BadgeUtils] Exception while hiding badge:', error);
     return false;
   }
 }

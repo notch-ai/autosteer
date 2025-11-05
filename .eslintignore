@@ -6,6 +6,7 @@ out/
 # Config files
 forge.config.js
 vite.*.config.ts
+jest.config.js
 
 # Dependencies
 node_modules/

@@ -62,21 +62,8 @@ Range.prototype.getClientRects = jest.fn(() => {
   return list;
 });
 
-// Mock electron
-jest.mock('electron', () => ({
-  ipcRenderer: {
-    invoke: jest.fn(),
-    on: jest.fn(),
-    removeListener: jest.fn(),
-  },
-  app: {
-    getVersion: () => '1.0.0',
-    getPath: () => '/mock/path',
-  },
-  shell: {
-    openExternal: jest.fn(),
-  },
-}));
+// Note: Electron mock removed from setup.ts - individual test files mock electron as needed
+// This prevents conflicts with test-specific electron mocks that need different configurations
 
 // Mock window.electronAPI
 Object.defineProperty(window, 'electronAPI', {
@@ -94,7 +81,7 @@ Object.defineProperty(window, 'electron', {
   value: {
     ipc: {
       invoke: jest.fn().mockResolvedValue({}),
-      on: jest.fn(),
+      on: jest.fn(() => jest.fn()), // Return a cleanup function
       removeListener: jest.fn(),
     },
     slashCommands: {

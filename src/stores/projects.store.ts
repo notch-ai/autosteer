@@ -273,30 +273,10 @@ export const useProjectsStore = create<ProjectsStore>()(
       selectProject: async (id: string, skipAgentSelection?: boolean) => {
         const previousProjectId = get().selectedProjectId;
 
-        // Clean up terminal session from previous project
-        if (previousProjectId && previousProjectId !== id) {
-          const { useTerminalStore } = await import('./terminal.store');
-          const terminalStore = useTerminalStore.getState();
-          const session = terminalStore.getTerminalSession(previousProjectId);
-          if (session) {
-            try {
-              logger.info(
-                `[ProjectsStore] Cleaning up terminal for previous project ${previousProjectId}`
-              );
-              // Destroy the terminal process via IPC
-              await window.electron.ipc.invoke('terminal:destroy', session.terminalId);
-              // Remove terminal from store
-              terminalStore.removeTerminal(session.terminalId);
-            } catch (err) {
-              logger.error(
-                '[ProjectsStore] Failed to destroy terminal during project switch:',
-                err
-              );
-            }
-            // Remove the session from store (this will dispose XTerm instance)
-            terminalStore.removeTerminalSession(previousProjectId);
-          }
-        }
+        // NOTE: Terminal sessions are preserved across project switches
+        // TerminalTab component handles terminal session management (save/restore)
+        // Backend terminal processes remain alive and can be reconnected
+        // This allows seamless switching between projects without losing terminal state
 
         // Log terminal count when selecting a project
         try {

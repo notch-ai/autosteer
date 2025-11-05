@@ -49,7 +49,6 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { PermissionActionDisplay } from '@/features/shared';
 import { RequestTiming } from '@/features/monitoring';
 import { StreamingEventDisplay } from '@/features/monitoring';
-import { TerminalTab } from '@/features/shared/components/terminal/TerminalTab';
 import { TodoDisplay } from '@/features/shared';
 import { ToolPairDisplay } from '@/features/monitoring';
 import { ToolUsageDisplay } from '@/features/monitoring';
@@ -827,162 +826,179 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           </DialogContent>
         </Dialog>
 
-        {/* Messages Area or Terminal */}
-        {selectedAgentId === 'terminal-tab' ? (
-          <div className="flex-1">
-            <TerminalTab />
-          </div>
-        ) : (
-          <div
-            className="flex-1 flex flex-col relative min-h-0 overflow-hidden"
-            onDragEnter={dragHandlers.onDragEnter}
-            onDragOver={dragHandlers.onDragOver}
-            onDragLeave={dragHandlers.onDragLeave}
-            onDrop={dragHandlers.onDrop}
-            onClick={() => {
-              // Focus the chat input if clicking in the messages area
-              // and the current focus is not already in chat messages or chat input
-              const chatContainer = document.querySelector('[data-chat-interface]');
-              const activeElement = document.activeElement;
-              const isFocusedInChat = activeElement && chatContainer?.contains(activeElement);
+        {/* Messages Area */}
+        <div
+          className="flex-1 flex flex-col relative min-h-0 overflow-hidden"
+          onDragEnter={dragHandlers.onDragEnter}
+          onDragOver={dragHandlers.onDragOver}
+          onDragLeave={dragHandlers.onDragLeave}
+          onDrop={dragHandlers.onDrop}
+          onClick={() => {
+            // Focus the chat input if clicking in the messages area
+            // and the current focus is not already in chat messages or chat input
+            const chatContainer = document.querySelector('[data-chat-interface]');
+            const activeElement = document.activeElement;
+            const isFocusedInChat = activeElement && chatContainer?.contains(activeElement);
 
-              // Check if there's an active text selection - preserve it
-              const selection = window.getSelection();
-              const hasSelection =
-                selection && !selection.isCollapsed && selection.toString().length > 0;
+            // Check if there's an active text selection - preserve it
+            const selection = window.getSelection();
+            const hasSelection =
+              selection && !selection.isCollapsed && selection.toString().length > 0;
 
-              // Only focus editor if:
-              // 1. Focus is not already in chat
-              // 2. There's no active text selection (preserve selection for copy operations)
-              if (!isFocusedInChat && !hasSelection) {
-                // Find the CodeMirror editor and focus it
-                const cmEditor = document.querySelector('.cm-editor .cm-content') as HTMLElement;
-                if (cmEditor) {
-                  cmEditor.focus();
-                }
+            // Only focus editor if:
+            // 1. Focus is not already in chat
+            // 2. There's no active text selection (preserve selection for copy operations)
+            if (!isFocusedInChat && !hasSelection) {
+              // Find the CodeMirror editor and focus it
+              const cmEditor = document.querySelector('.cm-editor .cm-content') as HTMLElement;
+              if (cmEditor) {
+                cmEditor.focus();
               }
-            }}
-          >
-            {/* Drag overlay */}
-            {isDragging && (
-              <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center pointer-events-none">
-                <div className="bg-background/90 rounded-lg p-4 flex flex-col items-center gap-2 pointer-events-none">
-                  <Paperclip className="h-8 w-8 text-primary" />
-                  <p className="text-sm font-medium text-text">Drop files to attach</p>
-                </div>
+            }
+          }}
+        >
+          {/* Drag overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center pointer-events-none">
+              <div className="bg-background/90 rounded-lg p-4 flex flex-col items-center gap-2 pointer-events-none">
+                <Paperclip className="h-8 w-8 text-primary" />
+                <p className="text-sm font-medium text-text">Drop files to attach</p>
               </div>
-            )}
+            </div>
+          )}
 
-            <ScrollArea className="flex-1 px-2 py-1.5">
-              <div role="log" aria-live="polite" aria-label="Chat messages" className="mr-2">
-                {messages.map((message, index) => (
-                  <MessageItem
-                    key={message.id}
-                    message={message}
-                    streamingMessageId={streamingMessageId}
-                    resources={resources}
-                    formatTimestamp={formatTimestamp}
-                    isLastMessage={index === messages.length - 1}
-                    onScrollToBottom={() =>
-                      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-                    }
-                    isStreaming={isStreaming}
-                  />
-                ))}
+          <ScrollArea className="flex-1 px-2 py-1.5">
+            <div role="log" aria-live="polite" aria-label="Chat messages" className="mr-2">
+              {messages.map((message, index) => (
+                <MessageItem
+                  key={message.id}
+                  message={message}
+                  streamingMessageId={streamingMessageId}
+                  resources={resources}
+                  formatTimestamp={formatTimestamp}
+                  isLastMessage={index === messages.length - 1}
+                  onScrollToBottom={() =>
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+                  }
+                  isStreaming={isStreaming}
+                />
+              ))}
 
-                {/* Standalone Streaming Indicator - Shown when actively streaming */}
-                {isStreaming && streamingMessage && (
-                  <div className="mb-1 group min-w-0 text-text bg-muted rounded px-1 py-1 pb-2">
-                    <div className="pl-2 text-sm min-w-0 overflow-hidden">
-                      <div className="flex items-center gap-2">
-                        <ThreeDots
-                          height="12"
-                          width="24"
-                          color="#4caf50"
-                          ariaLabel="three-dots-loading"
-                        />
-                        {(() => {
-                          const lastMessage = messages[messages.length - 1];
-                          if (lastMessage?.role === 'assistant') {
-                            return (
-                              <>
-                                <RequestTiming
-                                  startTime={lastMessage.startTime}
-                                  isStreaming={true}
-                                />
-                                {lastMessage.currentResponseOutputTokens &&
-                                  lastMessage.currentResponseOutputTokens > 0 && (
-                                    <span className="text-text-muted">
-                                      ↓ {formatTokenCount(lastMessage.currentResponseOutputTokens)}{' '}
-                                      tokens
-                                    </span>
-                                  )}
-                              </>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
+              {/* Standalone Streaming Indicator - Shown when actively streaming */}
+              {isStreaming && streamingMessage && (
+                <div className="mb-1 group min-w-0 text-text bg-muted rounded px-1 py-1 pb-2">
+                  <div className="pl-2 text-sm min-w-0 overflow-hidden">
+                    <div className="flex items-center gap-2">
+                      <ThreeDots
+                        height="12"
+                        width="24"
+                        color="#4caf50"
+                        ariaLabel="three-dots-loading"
+                      />
+                      {(() => {
+                        const lastMessage = messages[messages.length - 1];
+                        if (lastMessage?.role === 'assistant') {
+                          return (
+                            <>
+                              <RequestTiming startTime={lastMessage.startTime} isStreaming={true} />
+                              {lastMessage.currentResponseOutputTokens &&
+                                lastMessage.currentResponseOutputTokens > 0 && (
+                                  <span className="text-text-muted">
+                                    ↓ {formatTokenCount(lastMessage.currentResponseOutputTokens)}{' '}
+                                    tokens
+                                  </span>
+                                )}
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Inline Permission Request */}
-                {currentPermissionRequest && !showPermissionDialog && (
-                  <div className="mb-4">
-                    <div className="rounded-lg py-2 bg-muted">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2 ml-1 px-2">
-                            <FileCheck2 className="h-4 w-4 text-red flex-shrink-0" />
-                            <div className="text-sm font-mono break-all">
-                              {currentPermissionRequest.tool_name === 'Bash'
-                                ? 'Run Command'
-                                : currentPermissionRequest.tool_name === 'WebFetch'
-                                  ? 'Fetch URL'
-                                  : currentPermissionRequest.tool_name === 'WebSearch'
-                                    ? 'Search Web'
-                                    : currentPermissionRequest.tool_name || 'Edit'}{' '}
-                              {currentPermissionRequest.url ||
-                                currentPermissionRequest.query ||
-                                (currentPermissionRequest.file_path
-                                  ? stripWorktreePath(currentPermissionRequest.file_path)
-                                  : '')}
-                            </div>
+              {/* Inline Permission Request */}
+              {currentPermissionRequest && !showPermissionDialog && (
+                <div className="mb-4">
+                  <div className="rounded-lg py-2 bg-muted">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2 ml-1 px-2">
+                          <FileCheck2 className="h-4 w-4 text-red flex-shrink-0" />
+                          <div className="text-sm font-mono break-all">
+                            {currentPermissionRequest.tool_name === 'Bash'
+                              ? 'Run Command'
+                              : currentPermissionRequest.tool_name === 'WebFetch'
+                                ? 'Fetch URL'
+                                : currentPermissionRequest.tool_name === 'WebSearch'
+                                  ? 'Search Web'
+                                  : currentPermissionRequest.tool_name || 'Edit'}{' '}
+                            {currentPermissionRequest.url ||
+                              currentPermissionRequest.query ||
+                              (currentPermissionRequest.file_path
+                                ? stripWorktreePath(currentPermissionRequest.file_path)
+                                : '')}
                           </div>
+                        </div>
 
-                          {/* Show diff or content */}
-                          <div className="space-y-0 overflow-hidden max-h-[400px] overflow-y-auto mb-2 pr-2 pl-5">
-                            {currentPermissionRequest.old_string && (
+                        {/* Show diff or content */}
+                        <div className="space-y-0 overflow-hidden max-h-[400px] overflow-y-auto mb-2 pr-2 pl-5">
+                          {currentPermissionRequest.old_string && (
+                            <div>
+                              {currentPermissionRequest.old_string
+                                .split('\n')
+                                .map((line: string, i: number) => (
+                                  <div
+                                    key={`old-${i}`}
+                                    className="flex font-mono text-sm leading-5 bg-red-50 dark:bg-red-950"
+                                  >
+                                    <span className="inline-block px-2 text-right select-none flex-shrink-0 w-16 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300">
+                                      {i + 1}
+                                    </span>
+                                    <span className="px-2 select-none text-red-600 dark:text-red-400">
+                                      -
+                                    </span>
+                                    <span className="flex-1 pr-3 text-foreground">
+                                      {line || ' '}
+                                    </span>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+
+                          {currentPermissionRequest.new_string && (
+                            <div>
+                              {currentPermissionRequest.new_string
+                                .split('\n')
+                                .map((line: string, i: number) => (
+                                  <div
+                                    key={`new-${i}`}
+                                    className="flex font-mono text-sm leading-5 bg-green-50 dark:bg-green-950"
+                                  >
+                                    <span className="inline-block px-2 text-right select-none flex-shrink-0 w-16 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+                                      {i + 1}
+                                    </span>
+                                    <span className="px-2 select-none text-green-600 dark:text-green-400">
+                                      +
+                                    </span>
+                                    <span className="flex-1 pr-3 text-foreground">
+                                      {line || ' '}
+                                    </span>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+
+                          {/* Show content for Write operations (new file) */}
+                          {currentPermissionRequest.content &&
+                            !currentPermissionRequest.old_string && (
                               <div>
-                                {currentPermissionRequest.old_string
+                                {currentPermissionRequest.content
                                   .split('\n')
                                   .map((line: string, i: number) => (
                                     <div
-                                      key={`old-${i}`}
-                                      className="flex font-mono text-sm leading-5 bg-red-50 dark:bg-red-950"
-                                    >
-                                      <span className="inline-block px-2 text-right select-none flex-shrink-0 w-16 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300">
-                                        {i + 1}
-                                      </span>
-                                      <span className="px-2 select-none text-red-600 dark:text-red-400">
-                                        -
-                                      </span>
-                                      <span className="flex-1 pr-3 text-foreground">
-                                        {line || ' '}
-                                      </span>
-                                    </div>
-                                  ))}
-                              </div>
-                            )}
-
-                            {currentPermissionRequest.new_string && (
-                              <div>
-                                {currentPermissionRequest.new_string
-                                  .split('\n')
-                                  .map((line: string, i: number) => (
-                                    <div
-                                      key={`new-${i}`}
+                                      key={`content-${i}`}
                                       className="flex font-mono text-sm leading-5 bg-green-50 dark:bg-green-950"
                                     >
                                       <span className="inline-block px-2 text-right select-none flex-shrink-0 w-16 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
@@ -998,83 +1014,57 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                                   ))}
                               </div>
                             )}
+                        </div>
 
-                            {/* Show content for Write operations (new file) */}
-                            {currentPermissionRequest.content &&
-                              !currentPermissionRequest.old_string && (
-                                <div>
-                                  {currentPermissionRequest.content
-                                    .split('\n')
-                                    .map((line: string, i: number) => (
-                                      <div
-                                        key={`content-${i}`}
-                                        className="flex font-mono text-sm leading-5 bg-green-50 dark:bg-green-950"
-                                      >
-                                        <span className="inline-block px-2 text-right select-none flex-shrink-0 w-16 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
-                                          {i + 1}
-                                        </span>
-                                        <span className="px-2 select-none text-green-600 dark:text-green-400">
-                                          +
-                                        </span>
-                                        <span className="flex-1 pr-3 text-foreground">
-                                          {line || ' '}
-                                        </span>
-                                      </div>
-                                    ))}
-                                </div>
-                              )}
-                          </div>
-
-                          {/* Action buttons */}
-                          <div className="flex gap-2 pt-4 px-3 pb-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={handlePermissionApprove}
-                              className="border-transparent h-auto py-0.5 px-2 text-[11px] bg-green-400 text-white shadow-xs hover:bg-green hover:text-white hover:shadow-xs"
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={handlePermissionReject}
-                              className="border-transparent h-auto py-0.5 px-2 text-[11px] bg-red-400 text-white  hover:bg-red hover:text-white hover:shadow-xs"
-                            >
-                              Reject
-                            </Button>
-                          </div>
+                        {/* Action buttons */}
+                        <div className="flex gap-2 pt-4 px-3 pb-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handlePermissionApprove}
+                            className="border-transparent h-auto py-0.5 px-2 text-[11px] bg-green-400 text-white shadow-xs hover:bg-green hover:text-white hover:shadow-xs"
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handlePermissionReject}
+                            className="border-transparent h-auto py-0.5 px-2 text-[11px] bg-red-400 text-white  hover:bg-red hover:text-white hover:shadow-xs"
+                          >
+                            Reject
+                          </Button>
                         </div>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Loading Indicator */}
-                {isLoading && !isStreaming && (
-                  <div className="mb-1.5">
-                    <div className="flex items-center gap-1 mb-0.5 text-sm text-text-muted">
-                      <Circle className="h-1.5 w-1.5 fill-current" />
-                      <span>Assistant</span>
-                    </div>
-                    <div className="pl-2">
-                      <div data-testid="typing-indicator">
-                        <ThreeDots
-                          height="12"
-                          width="24"
-                          color="#4caf50"
-                          ariaLabel="three-dots-loading"
-                        />
-                      </div>
+              {/* Loading Indicator */}
+              {isLoading && !isStreaming && (
+                <div className="mb-1.5">
+                  <div className="flex items-center gap-1 mb-0.5 text-sm text-text-muted">
+                    <Circle className="h-1.5 w-1.5 fill-current" />
+                    <span>Assistant</span>
+                  </div>
+                  <div className="pl-2">
+                    <div data-testid="typing-indicator">
+                      <ThreeDots
+                        height="12"
+                        width="24"
+                        color="#4caf50"
+                        ariaLabel="three-dots-loading"
+                      />
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
-          </div>
-        )}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
+        </div>
 
         {/* Input Area - Hidden when terminal tab is active */}
         {selectedAgentId !== 'terminal-tab' && (

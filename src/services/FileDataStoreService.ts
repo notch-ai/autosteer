@@ -54,32 +54,37 @@ export class FileDataStoreService {
       return instance;
     }
 
-    // Ensure ~/.autosteer exists for app.json
-    await fsPromises.mkdir(instance.appDir, { recursive: true });
-
-    // Read app.json to check for custom projectDirectory
     try {
-      await fsPromises.access(instance.appConfigPath, fs.constants.F_OK);
-      const content = await fsPromises.readFile(instance.appConfigPath, 'utf-8');
-      const appConfig = JSON.parse(content) as AppConfig;
+      // Ensure ~/.autosteer exists for app.json
+      await fsPromises.mkdir(instance.appDir, { recursive: true });
 
-      // If a custom project directory is set, use it
-      if (appConfig.projectDirectory) {
-        const customDir = appConfig.projectDirectory;
-        logger.info(`Loading custom project directory from app.json: ${customDir}`);
-        instance.setDataDirectory(customDir);
+      // Read app.json to check for custom projectDirectory
+      try {
+        await fsPromises.access(instance.appConfigPath, fs.constants.F_OK);
+        const content = await fsPromises.readFile(instance.appConfigPath, 'utf-8');
+        const appConfig = JSON.parse(content) as AppConfig;
 
-        // Ensure the custom directory exists
-        await instance.ensureDirectories();
-      } else {
-        logger.info('Using default project directory: ~/.autosteer');
+        // If a custom project directory is set, use it
+        if (appConfig.projectDirectory) {
+          const customDir = appConfig.projectDirectory;
+          logger.info(`Loading custom project directory from app.json: ${customDir}`);
+          instance.setDataDirectory(customDir);
+
+          // Ensure the custom directory exists
+          await instance.ensureDirectories();
+        } else {
+          logger.info('Using default project directory: ~/.autosteer');
+        }
+      } catch (error) {
+        // app.json doesn't exist yet or can't be read - use default
+        logger.info('app.json not found, using default project directory: ~/.autosteer');
       }
+
+      FileDataStoreService.initialized = true;
     } catch (error) {
-      // app.json doesn't exist yet or can't be read - use default
-      logger.info('app.json not found, using default project directory: ~/.autosteer');
+      logger.error('Error during FileDataStoreService initialization:', error);
     }
 
-    FileDataStoreService.initialized = true;
     return instance;
   }
 
@@ -101,10 +106,15 @@ export class FileDataStoreService {
    * Write app.json (always at ~/.autosteer/app.json)
    */
   async writeAppConfig(config: AppConfig): Promise<void> {
-    await fsPromises.mkdir(this.appDir, { recursive: true });
-    const content = JSON.stringify(config, null, 2);
-    await fsPromises.writeFile(this.appConfigPath, content, 'utf-8');
-    logger.info(`app.json written to: ${this.appConfigPath}`);
+    try {
+      await fsPromises.mkdir(this.appDir, { recursive: true });
+      const content = JSON.stringify(config, null, 2);
+      await fsPromises.writeFile(this.appConfigPath, content, 'utf-8');
+      logger.info(`app.json written to: ${this.appConfigPath}`);
+    } catch (error) {
+      logger.error('Failed to write app.json:', error);
+      throw error;
+    }
   }
 
   getDataDirectory(): string {
@@ -123,8 +133,13 @@ export class FileDataStoreService {
   }
 
   async ensureDirectories(): Promise<void> {
-    await fsPromises.mkdir(this.dataDir, { recursive: true });
-    await fsPromises.mkdir(this.worktreesDir, { recursive: true });
+    try {
+      await fsPromises.mkdir(this.dataDir, { recursive: true });
+      await fsPromises.mkdir(this.worktreesDir, { recursive: true });
+    } catch (error) {
+      logger.error('Failed to create autosteer directories:', error);
+      throw error;
+    }
   }
 
   async configExists(): Promise<boolean> {
@@ -321,11 +336,16 @@ export class FileDataStoreService {
   }
 
   async deleteWorktreeDirectory(folderName: string): Promise<void> {
-    const worktreePath = path.join(this.worktreesDir, folderName);
-    // Check if directory exists before attempting to delete
-    const exists = await this.worktreeExists(folderName);
-    if (exists) {
-      await fsPromises.rm(worktreePath, { recursive: true, force: true });
+    try {
+      const worktreePath = path.join(this.worktreesDir, folderName);
+      // Check if directory exists before attempting to delete
+      const exists = await this.worktreeExists(folderName);
+      if (exists) {
+        await fsPromises.rm(worktreePath, { recursive: true, force: true });
+      }
+    } catch (error) {
+      logger.error('Failed to delete worktree directory:', error);
+      throw error;
     }
   }
 

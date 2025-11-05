@@ -68,10 +68,18 @@ jest.mock('@/stores', () => ({
       loadSlashCommands: jest.fn().mockResolvedValue(undefined),
     })
   ),
-  useProjectsStore: jest.fn((selector) =>
-    selector({
-      selectedProjectId: 'test-project',
-    })
+  useProjectsStore: Object.assign(
+    jest.fn((selector) =>
+      selector({
+        selectedProjectId: 'test-project',
+      })
+    ),
+    {
+      getState: jest.fn(() => ({
+        selectedProjectId: 'test-project',
+        getSelectedProject: jest.fn(() => ({ localPath: '/test/path' })),
+      })),
+    }
   ),
 }));
 

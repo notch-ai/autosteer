@@ -6,13 +6,16 @@
     "types": ["node", "electron"],
     "lib": ["ES2022"],
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "downlevelIteration": true
   },
   "include": [
     "src/main/**/*",
     "src/services/**/*",
     "src/types/**/*",
-    "src/commons/**/*"
+    "src/commons/**/*",
+    "src/entities/**/*",
+    "src/constants/**/*"
   ],
   "exclude": [
     "node_modules",

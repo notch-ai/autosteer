@@ -194,6 +194,7 @@ export class GitDiffService {
    * Detect and parse merge conflicts
    * @deprecated Currently unused - reserved for future conflict resolution features
    */
+  // @ts-expect-error - Reserved for future use
   private detectConflicts(content: string): ConflictMarker[] {
     const conflicts: ConflictMarker[] = [];
     const lines = content.split('\n');
@@ -661,6 +662,7 @@ export class GitDiffService {
    * Generate unified diff patch for a hunk
    * @private
    */
+  // @ts-expect-error - Reserved for future use
   private generateHunkPatch(filePath: string, hunk: DiffHunk): string {
     const lines: string[] = [];
 
@@ -690,6 +692,7 @@ export class GitDiffService {
    * Build patch from git diff containing only specified hunks
    * @private
    */
+  // @ts-expect-error - filePath parameter reserved for future use
   private buildPatchFromHunks(filePath: string, gitDiff: string, hunks: DiffHunk[]): string {
     const lines = gitDiff.split('\n');
     const patchLines: string[] = [];

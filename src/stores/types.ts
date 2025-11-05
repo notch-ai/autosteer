@@ -1,5 +1,5 @@
 // ============================================================================
-// NOTCH APP STATE MANAGEMENT TYPES
+// AUTOSTEER APP STATE MANAGEMENT TYPES
 // Single source of truth for all store type definitions
 // Based on TRD Section 2.3 - 3 Store Architecture (Core, UI, Settings)
 // ============================================================================

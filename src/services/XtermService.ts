@@ -51,9 +51,16 @@ export class XtermService {
           terminalId: params.terminalId,
           dataLength: params.data.length,
         });
-        // Error handling moved to IPC wrapper level
-        await this.writeToTerminal(params.terminalId, params.data);
-        return { success: true };
+        try {
+          await this.writeToTerminal(params.terminalId, params.data);
+          return { success: true };
+        } catch (error) {
+          log.error('[XtermService] IPC terminal:write error:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to write to terminal',
+          };
+        }
       }
     );
 
@@ -61,9 +68,15 @@ export class XtermService {
     ipcMain.handle(
       'terminal:resize',
       async (_event, params: { terminalId: string; cols: number; rows: number }) => {
-        // Error handling moved to IPC wrapper level
-        await this.resizeTerminal(params.terminalId, params.cols, params.rows);
-        return { success: true };
+        try {
+          await this.resizeTerminal(params.terminalId, params.cols, params.rows);
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to resize terminal',
+          };
+        }
       }
     );
 
@@ -97,55 +110,60 @@ export class XtermService {
     const title = params?.title || 'Terminal';
     const env = this.getFilteredEnv();
 
-    // Spawn PTY with persistent shell session
-    const pty = ptySpawn(shell, [], {
-      name: 'xterm-256color',
-      cols: size.cols,
-      rows: size.rows,
-      cwd,
-      env: {
-        ...env,
-        TERM: 'xterm-256color',
-        COLORTERM: 'truecolor',
-        FORCE_COLOR: '1',
-      },
-    });
+    try {
+      // Spawn PTY with persistent shell session
+      const pty = ptySpawn(shell, [], {
+        name: 'xterm-256color',
+        cols: size.cols,
+        rows: size.rows,
+        cwd,
+        env: {
+          ...env,
+          TERM: 'xterm-256color',
+          COLORTERM: 'truecolor',
+          FORCE_COLOR: '1',
+        },
+      });
 
-    const terminal: XtermTerminal = {
-      id: terminalId,
-      pid: pty.pid,
-      pty,
-      window,
-      shell,
-      cwd,
-      isActive: true,
-      size,
-      hasExited: false,
-      disposables: [],
-    };
+      const terminal: XtermTerminal = {
+        id: terminalId,
+        pid: pty.pid,
+        pty,
+        window,
+        shell,
+        cwd,
+        isActive: true,
+        size,
+        hasExited: false,
+        disposables: [],
+      };
 
-    this.terminals.set(terminalId, terminal);
+      this.terminals.set(terminalId, terminal);
 
-    // Setup PTY event handlers
-    this.setupPtyHandlers(terminalId, pty, window);
+      // Setup PTY event handlers
+      this.setupPtyHandlers(terminalId, pty, window);
 
-    log.info(
-      `Created PTY terminal ${terminalId} with PID ${pty.pid}, shell: ${shell}. Active terminals: ${this.terminals.size}/${this.maxTerminals}`
-    );
+      log.info(
+        `Created PTY terminal ${terminalId} with PID ${pty.pid}, shell: ${shell}. Active terminals: ${this.terminals.size}/${this.maxTerminals}`
+      );
 
-    const now = new Date();
-    return {
-      id: terminalId,
-      pid: pty.pid,
-      title,
-      isActive: true,
-      createdAt: now.toISOString(),
-      lastAccessed: now.toISOString(),
-      shell,
-      cwd,
-      size,
-      status: 'running',
-    };
+      const now = new Date();
+      return {
+        id: terminalId,
+        pid: pty.pid,
+        title,
+        isActive: true,
+        createdAt: now.toISOString(),
+        lastAccessed: now.toISOString(),
+        shell,
+        cwd,
+        size,
+        status: 'running',
+      };
+    } catch (error) {
+      log.error('Failed to create PTY terminal:', error);
+      throw error;
+    }
   }
 
   /**
@@ -160,6 +178,15 @@ export class XtermService {
 
     // Handle PTY data output
     const dataDisposable = pty.onData((data: string) => {
+      // HYPOTHESIS LOGGING: Track backend PTY output routing
+      log.info(
+        `[DIAG-H2-PTY-DATA] terminalId=${terminalId.substring(0, 8)} pid=${pty.pid} windowId=${window.id} dataLen=${data.length} dataPreview=${data.substring(0, 30).replace(/\n/g, '\\n')} channel=terminal:data:${terminalId.substring(0, 8)} windowDestroyed=${window.isDestroyed()} allTerminals=${Array.from(
+          this.terminals.keys()
+        )
+          .map((id) => id.substring(0, 8))
+          .join(',')}`
+      );
+
       if (!window.isDestroyed()) {
         window.webContents.send(`terminal:data:${terminalId}`, data);
       }
@@ -176,7 +203,11 @@ export class XtermService {
 
           // Cleanup disposables
           term.disposables.forEach((d) => {
-            d.dispose();
+            try {
+              d.dispose();
+            } catch (error) {
+              log.error(`Failed to dispose terminal ${terminalId} listener:`, error);
+            }
           });
         }
 
@@ -211,8 +242,12 @@ export class XtermService {
       throw new Error('Terminal is not active');
     }
 
-    // Let errors bubble up to global handler
-    terminal.pty.write(data);
+    try {
+      terminal.pty.write(data);
+    } catch (error) {
+      log.error(`Failed to write to PTY terminal ${terminalId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -224,10 +259,14 @@ export class XtermService {
       throw new Error(`Terminal not found: ${terminalId}`);
     }
 
-    // Let errors bubble up to global handler
-    terminal.pty.resize(cols, rows);
-    terminal.size = { cols, rows };
-    log.debug(`Resized PTY terminal ${terminalId} to ${cols}x${rows}`);
+    try {
+      terminal.pty.resize(cols, rows);
+      terminal.size = { cols, rows };
+      log.debug(`Resized PTY terminal ${terminalId} to ${cols}x${rows}`);
+    } catch (error) {
+      log.error(`Failed to resize PTY terminal ${terminalId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -266,7 +305,6 @@ export class XtermService {
                   try {
                     d.dispose();
                   } catch (error) {
-                    // Keep try-catch for cleanup - prevent one failed disposal from stopping others
                     log.error(`Failed to dispose terminal ${terminalId} listener:`, error);
                   }
                 });

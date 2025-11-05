@@ -8,6 +8,7 @@
   "include": [
     "src/**/*",
     "tests/**/*",
+    "__mocks__/**/*",
     "playwright.config.ts",
     "playwright-electron.config.ts",
     "playwright-component.config.ts",

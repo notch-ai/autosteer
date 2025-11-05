@@ -47,34 +47,12 @@ const electronAPI = {
 
   // Simplified IPC methods using domain:action pattern
   ipc: {
-    invoke: async (channel: string, ...args: unknown[]) => {
+    invoke: (channel: string, ...args: unknown[]) => {
       // Validate domain:action pattern
       if (!channel.includes(':')) {
         throw new Error(`Invalid channel format: ${channel}. Use 'domain:action' pattern.`);
       }
-      try {
-        return await ipcRenderer.invoke(channel, ...args);
-      } catch (error) {
-        // Send error to renderer's global handler via special channel
-        ipcRenderer.send('ipc-error', {
-          channel,
-          error: {
-            name: (error as Error).name || 'Error',
-            message: (error as Error).message || String(error),
-            stack: (error as Error).stack,
-          },
-          args: args.map((arg) => {
-            // Sanitize sensitive data
-            if (typeof arg === 'object' && arg !== null) {
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              const { password, token, apiKey, ...safe } = arg as any;
-              return safe;
-            }
-            return arg;
-          }),
-        });
-        throw error;
-      }
+      return ipcRenderer.invoke(channel, ...args);
     },
     on: (channel: string, listener: IpcListener) => {
       ipcRenderer.on(channel, listener);
@@ -150,23 +128,7 @@ const electronAPI = {
 
   // Expose ipcRenderer for IpcService
   ipcRenderer: {
-    invoke: async (channel: string, ...args: unknown[]) => {
-      try {
-        return await ipcRenderer.invoke(channel, ...args);
-      } catch (error) {
-        // Send error to renderer's global handler
-        ipcRenderer.send('ipc-error', {
-          channel,
-          error: {
-            name: (error as Error).name || 'Error',
-            message: (error as Error).message || String(error),
-            stack: (error as Error).stack,
-          },
-          args: args.length > 0 ? ['[sanitized]'] : [],
-        });
-        throw error;
-      }
-    },
+    invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
     send: (channel: string, ...args: unknown[]) => ipcRenderer.send(channel, ...args),
     on: (channel: string, listener: IpcListener) => {
       ipcRenderer.on(channel, listener);

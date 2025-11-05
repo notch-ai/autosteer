@@ -402,6 +402,12 @@ select:focus-visible {
   background-color: rgb(var(--color-terminal-scrollbar) / 0.5);
 }
 
+/* Terminal cursor height adjustment - 90% of cell height (10% reduction) */
+.xterm .xterm-cursor-layer .xterm-cursor {
+  height: 90% !important;
+  top: 5% !important;
+}
+
 /* CodeMirror editor-content - disable horizontal scrollbar, enable text wrapping */
 .editor-content {
   overflow-x: hidden !important;

@@ -5,3 +5,4 @@
 
 export * from './agent.factory';
 export * from './session.factory';
+export * from './service.factory';

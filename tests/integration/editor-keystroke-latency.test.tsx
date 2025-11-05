@@ -9,6 +9,28 @@
  * Run manual testing according to TRD manual testing procedures.
  */
 
+// Mock electron-log/renderer before any imports
+jest.mock('electron-log/renderer', () => {
+  const mockLog: any = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+    verbose: jest.fn(),
+    silly: jest.fn(),
+    log: jest.fn(),
+    transports: {
+      file: { level: false, format: '', maxSize: 0 },
+      console: { level: false, format: '' },
+    },
+    initialize: jest.fn(),
+    scope: jest.fn(function (this: any) {
+      return this;
+    }),
+  };
+  return { __esModule: true, default: mockLog };
+});
+
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

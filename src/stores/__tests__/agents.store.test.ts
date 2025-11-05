@@ -9,6 +9,28 @@
  * - Edge cases (duplicate names, missing IDs, concurrent operations)
  */
 
+// Mock electron-log/renderer before any imports
+jest.mock('electron-log/renderer', () => {
+  const mockLog: any = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+    verbose: jest.fn(),
+    silly: jest.fn(),
+    log: jest.fn(),
+    transports: {
+      file: { level: false, format: '', maxSize: 0 },
+      console: { level: false, format: '' },
+    },
+    initialize: jest.fn(),
+    scope: jest.fn(function (this: any) {
+      return this;
+    }),
+  };
+  return { __esModule: true, default: mockLog };
+});
+
 import { Agent, AgentStatus, AgentType } from '@/entities';
 import { useAgentsStore } from '@/stores';
 import { createTestAgent, createTestAgents } from '../../../tests/factories';
@@ -475,7 +497,7 @@ describe('AgentsStore', () => {
   });
 
   describe('selectAgent', () => {
-    it('should select an agent by ID', () => {
+    it('should select an agent by ID', async () => {
       const mockAgent = createTestAgent();
       const { result } = renderHook(() => useAgentsStore());
 
@@ -483,14 +505,14 @@ describe('AgentsStore', () => {
         addAgentToStore(mockAgent);
       });
 
-      act(() => {
-        result.current.selectAgent(mockAgent.id);
+      await act(async () => {
+        await result.current.selectAgent(mockAgent.id);
       });
 
       expect(result.current.selectedAgentId).toBe(mockAgent.id);
     });
 
-    it('should allow deselecting by passing null', () => {
+    it('should allow deselecting by passing null', async () => {
       const mockAgent = createTestAgent();
       const { result } = renderHook(() => useAgentsStore());
 
@@ -499,18 +521,18 @@ describe('AgentsStore', () => {
         setSelectedAgent(mockAgent.id);
       });
 
-      act(() => {
-        result.current.selectAgent(null);
+      await act(async () => {
+        await result.current.selectAgent(null);
       });
 
       expect(result.current.selectedAgentId).toBeNull();
     });
 
-    it('should support selecting non-existent agent (graceful handling)', () => {
+    it('should support selecting non-existent agent (graceful handling)', async () => {
       const { result } = renderHook(() => useAgentsStore());
 
-      act(() => {
-        result.current.selectAgent('non-existent-id');
+      await act(async () => {
+        await result.current.selectAgent('non-existent-id');
       });
 
       // Should set the ID even if agent doesn't exist (lazy loading pattern)
@@ -747,11 +769,11 @@ describe('AgentsStore', () => {
       expect(agent).toBeNull();
     });
 
-    it('should handle empty string agent ID in selectAgent', () => {
+    it('should handle empty string agent ID in selectAgent', async () => {
       const { result } = renderHook(() => useAgentsStore());
 
-      act(() => {
-        result.current.selectAgent('');
+      await act(async () => {
+        await result.current.selectAgent('');
       });
 
       expect(result.current.selectedAgentId).toBe('');

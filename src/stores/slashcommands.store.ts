@@ -21,14 +21,25 @@ import { immer } from 'zustand/middleware/immer';
 const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
 
 /**
+ * SlashCommand Interface from IPC Handler
+ * Represents a slash command definition loaded from .claude/commands
+ */
+export interface SlashCommandFromIPC {
+  trigger: string; // The command trigger (e.g., 'pr', 'commit', 'engineering:fix-bug')
+  description: string; // Description from markdown file
+  content: string; // Full markdown content for Claude Code
+  source: 'local' | 'user'; // Whether from .claude/commands or ~/.claude/commands
+}
+
+/**
  * SlashCommand Interface
- * Represents a slash command definition
+ * Represents a slash command definition for internal use
  */
 export interface SlashCommand {
   name: string;
   description?: string;
   prompt: string;
-  path: string;
+  source: 'local' | 'user';
 }
 
 /**
@@ -77,7 +88,16 @@ export const useSlashCommandsStore = create<SlashCommandsStore>()(
         try {
           if (window.electron?.slashCommands) {
             // Pass the project path to load commands from the correct directory
-            const commands = await window.electron.slashCommands.load(projectPath);
+            const commandsFromIPC: SlashCommandFromIPC[] =
+              await window.electron.slashCommands.load(projectPath);
+
+            // Transform IPC commands to internal format
+            const commands: SlashCommand[] = commandsFromIPC.map((cmd) => ({
+              name: cmd.trigger,
+              description: cmd.description,
+              prompt: cmd.content,
+              source: cmd.source,
+            }));
 
             set((state) => {
               state.slashCommands = commands;

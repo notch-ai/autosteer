@@ -3,6 +3,35 @@
  * Tests all actions with 100% coverage following TRD requirements
  */
 
+// Mock electron-log/renderer before any imports
+jest.mock('electron-log/renderer', () => {
+  const mockLog: any = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+    verbose: jest.fn(),
+    silly: jest.fn(),
+    log: jest.fn(),
+    transports: {
+      file: {
+        level: false,
+        format: '',
+        maxSize: 0,
+      },
+      console: {
+        level: false,
+        format: '',
+      },
+    },
+    initialize: jest.fn(),
+    scope: jest.fn(function (this: any) {
+      return this;
+    }),
+  };
+  return { __esModule: true, default: mockLog };
+});
+
 import { useTerminalStore, clearTerminalCaches } from '@/stores';
 import { Terminal, TerminalBufferState, TerminalSessionState } from '@/types/terminal.types';
 
@@ -297,6 +326,7 @@ describe('TerminalStore', () => {
         terminal: createMockTerminal({ id: 'term-1', pid: 1234, title: 'Terminal 1' }),
         terminalId: 'term-1',
         lastActive: new Date(),
+        ownerProjectId: 'proj-1',
       };
 
       const state = useTerminalStore.getState();
@@ -313,6 +343,7 @@ describe('TerminalStore', () => {
         terminal: createMockTerminal({ id: 'term-1', pid: 1234, title: 'Terminal 1' }),
         terminalId: 'term-1',
         lastActive: new Date(),
+        ownerProjectId: 'proj-1',
       };
 
       const state = useTerminalStore.getState();
@@ -336,6 +367,7 @@ describe('TerminalStore', () => {
         terminal: createMockTerminal({ id: 'term-1', pid: 1234, title: 'Terminal 1' }),
         terminalId: 'term-1',
         lastActive: new Date(),
+        ownerProjectId: 'proj-1',
       };
 
       const state = useTerminalStore.getState();
@@ -353,6 +385,7 @@ describe('TerminalStore', () => {
         terminal: createMockTerminal({ id: 'term-1', pid: 1234, title: 'Terminal 1' }),
         terminalId: 'term-1',
         lastActive: new Date(),
+        ownerProjectId: 'proj-1',
       };
 
       const state = useTerminalStore.getState();

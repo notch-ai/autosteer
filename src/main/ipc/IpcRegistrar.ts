@@ -54,7 +54,7 @@ export class IpcRegistrar {
     this.slashCommandHandlers = new SlashCommandHandlers();
     this.fileHandlers = new FileHandlers();
     this.resourceHandlers = new ResourceHandlers();
-    this.configHandlers = new ConfigHandlers(ipcMain);
+    this.configHandlers = new ConfigHandlers();
     this.badgeHandlers = new BadgeHandlers();
     this.terminalHandlers = new TerminalHandlers();
     this.mcpHandlers = new McpHandlers();

@@ -22,8 +22,8 @@ jest.mock('electron', () => ({
     fromWebContents: jest.fn(() => ({
       webContents: {
         isDestroyed: jest.fn(() => false),
-        send: jest.fn()
-      }
+        send: jest.fn(),
+      },
     })),
   },
 }));

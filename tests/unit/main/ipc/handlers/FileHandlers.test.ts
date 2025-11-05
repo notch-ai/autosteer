@@ -63,8 +63,8 @@ describe('FileHandlers', () => {
       id: 1,
       webContents: {
         isDestroyed: jest.fn().mockReturnValue(false),
-        send: jest.fn()
-      }
+        send: jest.fn(),
+      },
     };
     (BrowserWindow.fromWebContents as jest.Mock).mockReturnValue(mockWindow);
 
@@ -112,14 +112,14 @@ describe('FileHandlers', () => {
       const handler = handlers.get(IPC_CHANNELS.FILE_OPEN)!;
       const event = {
         sender: {
-          isDestroyed: jest.fn().mockReturnValue(false)
-        }
+          isDestroyed: jest.fn().mockReturnValue(false),
+        },
       } as unknown as IpcMainInvokeEvent;
 
       const result = await handler(event, filePath);
       expect(result).toMatchObject({
         success: false,
-        error: expect.any(String)
+        error: expect.any(String),
       });
     });
   });
@@ -147,14 +147,14 @@ describe('FileHandlers', () => {
       const handler = handlers.get(IPC_CHANNELS.FILE_SAVE)!;
       const event = {
         sender: {
-          isDestroyed: jest.fn().mockReturnValue(false)
-        }
+          isDestroyed: jest.fn().mockReturnValue(false),
+        },
       } as unknown as IpcMainInvokeEvent;
 
       const result = await handler(event, filePath, content);
       expect(result).toMatchObject({
         success: false,
-        error: expect.any(String)
+        error: expect.any(String),
       });
     });
   });
@@ -232,7 +232,7 @@ describe('FileHandlers', () => {
       const result = await handler(event, 'content');
       expect(result).toMatchObject({
         success: false,
-        error: expect.any(String)
+        error: expect.any(String),
       });
     });
   });
@@ -258,14 +258,14 @@ describe('FileHandlers', () => {
       const handler = handlers.get(IPC_CHANNELS.FOLDER_OPEN)!;
       const event = {
         sender: {
-          isDestroyed: jest.fn().mockReturnValue(false)
-        }
+          isDestroyed: jest.fn().mockReturnValue(false),
+        },
       } as unknown as IpcMainInvokeEvent;
 
       const result = await handler(event, folderPath);
       expect(result).toMatchObject({
         success: false,
-        error: expect.any(String)
+        error: expect.any(String),
       });
     });
   });
@@ -343,7 +343,7 @@ describe('FileHandlers', () => {
       const result = await handler(event);
       expect(result).toMatchObject({
         success: false,
-        error: expect.any(String)
+        error: expect.any(String),
       });
     });
   });
@@ -417,7 +417,7 @@ describe('FileHandlers', () => {
       const result = await handler(event, options);
       expect(result).toMatchObject({
         success: false,
-        error: expect.any(String)
+        error: expect.any(String),
       });
     });
   });

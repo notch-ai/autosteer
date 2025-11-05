@@ -6,7 +6,7 @@
 import { IpcMainInvokeEvent, ipcMain, BrowserWindow } from 'electron';
 import { ErrorHandler } from '../utils/errorHandler';
 
-type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any>;
+type IpcHandler = (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any;
 
 interface HandlerOptions {
   operationName?: string;

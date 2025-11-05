@@ -78,7 +78,6 @@ describe('GlobalErrorHandler', () => {
       expect(logger.error).toHaveBeenCalled();
     });
 
-
     it('should handle IPC errors as high severity', () => {
       const error = new Error('IPC channel error');
       globalErrorHandler.handle(error, {
@@ -140,7 +139,6 @@ describe('GlobalErrorHandler', () => {
   });
 
   describe('User-Friendly Messages', () => {
-
     it('should generate appropriate message for rate limit errors', () => {
       const error = new Error('429: Too Many Requests - Rate limit exceeded');
       globalErrorHandler.handle(error, {
@@ -255,7 +253,6 @@ describe('GlobalErrorHandler', () => {
   });
 
   describe('SDK Error Format', () => {
-
     it('should handle session terminated errors', () => {
       const error = new Error('Session terminated. Please restart the conversation.');
       globalErrorHandler.handle(error, {

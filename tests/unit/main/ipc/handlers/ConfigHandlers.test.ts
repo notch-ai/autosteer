@@ -34,8 +34,8 @@ jest.mock('electron', () => ({
     fromWebContents: jest.fn(() => ({
       webContents: {
         isDestroyed: jest.fn(() => false),
-        send: jest.fn()
-      }
+        send: jest.fn(),
+      },
     })),
   },
 }));
@@ -58,9 +58,11 @@ describe('ConfigHandlers', () => {
 
     // Set up handler storage
     handlers = new Map();
-    (ipcMain.handle as jest.Mock).mockImplementation((channel: string, handler: (...args: any[]) => any) => {
-      handlers.set(channel, handler);
-    });
+    (ipcMain.handle as jest.Mock).mockImplementation(
+      (channel: string, handler: (...args: any[]) => any) => {
+        handlers.set(channel, handler);
+      }
+    );
 
     // Create mock FileDataStoreService
     mockFileDataStore = {

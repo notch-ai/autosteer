@@ -22,8 +22,23 @@ jest.mock('@/main/services/logger', () => ({
 import { ConfigHandlers } from '@/main/ipc/handlers/ConfigHandlers';
 import { FileDataStoreService } from '@/services/FileDataStoreService';
 import { ErrorHandler } from '@/main/utils/errorHandler';
-import { IpcMain, IpcMainInvokeEvent } from 'electron';
+import { IpcMainInvokeEvent, ipcMain } from 'electron';
 import { AutosteerConfig, CustomCommand } from '@/types/config.types';
+
+// Mock electron
+jest.mock('electron', () => ({
+  ipcMain: {
+    handle: jest.fn(),
+  },
+  BrowserWindow: {
+    fromWebContents: jest.fn(() => ({
+      webContents: {
+        isDestroyed: jest.fn(() => false),
+        send: jest.fn(),
+      },
+    })),
+  },
+}));
 
 // Mock FileDataStoreService
 jest.mock('@/services/FileDataStoreService');
@@ -33,21 +48,21 @@ jest.mock('@/main/utils/errorHandler');
 
 describe('ConfigHandlers', () => {
   let configHandlers: ConfigHandlers;
-  let mockIpcMain: jest.Mocked<IpcMain>;
   let mockFileDataStore: jest.Mocked<FileDataStoreService>;
   let handlers: Map<string, (...args: any[]) => any>;
+  let mockEvent: IpcMainInvokeEvent;
 
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
 
-    // Create mock IpcMain
+    // Set up handler storage
     handlers = new Map();
-    mockIpcMain = {
-      handle: jest.fn((channel: string, handler: (...args: any[]) => any) => {
+    (ipcMain.handle as jest.Mock).mockImplementation(
+      (channel: string, handler: (...args: any[]) => any) => {
         handlers.set(channel, handler);
-      }),
-    } as any;
+      }
+    );
 
     // Create mock FileDataStoreService
     mockFileDataStore = {
@@ -65,14 +80,22 @@ describe('ConfigHandlers', () => {
     // Mock ErrorHandler.log
     (ErrorHandler.log as jest.Mock).mockReturnValue('error message');
 
+    // Create mock event
+    mockEvent = {
+      sender: {
+        id: 1,
+        isDestroyed: () => false,
+      },
+    } as unknown as IpcMainInvokeEvent;
+
     // Create ConfigHandlers instance
-    configHandlers = new ConfigHandlers(mockIpcMain);
+    configHandlers = new ConfigHandlers();
     configHandlers.register();
   });
 
   describe('register', () => {
     it('should register all config handlers', () => {
-      expect(mockIpcMain.handle).toHaveBeenCalledTimes(15);
+      expect(ipcMain.handle).toHaveBeenCalledTimes(15);
       expect(handlers.has('config:read')).toBe(true);
       expect(handlers.has('config:updateSettings')).toBe(true);
       expect(handlers.has('config:setApiKey')).toBe(true);
@@ -106,20 +129,22 @@ describe('ConfigHandlers', () => {
       expect(mockFileDataStore.readConfig).toHaveBeenCalled();
     });
 
-    it('should return default config on error', async () => {
+    it('should return error object on failure', async () => {
       const error = new Error('Read failed');
       mockFileDataStore.readConfig.mockRejectedValue(error);
 
       const handler = handlers.get('config:read')!;
-      const result = await handler();
+      const result = await handler(mockEvent);
 
       expect(result).toEqual({
-        worktrees: [],
-        settings: { vimMode: false },
+        success: false,
+        error: 'error message',
+        message: undefined,
       });
       expect(ErrorHandler.log).toHaveBeenCalledWith({
         operation: 'read config',
         error,
+        context: { channel: 'config:read', args: [] },
       });
     });
   });
@@ -164,19 +189,24 @@ describe('ConfigHandlers', () => {
       });
     });
 
-    it('should throw and log error on failure', async () => {
+    it('should return error object on failure', async () => {
       const error = new Error('Write failed');
       mockFileDataStore.readConfig.mockRejectedValue(error);
 
       const handler = handlers.get('config:updateSettings')!;
-      const event = {} as IpcMainInvokeEvent;
       const updates = { vimMode: true };
 
-      await expect(handler(event, updates)).rejects.toThrow(error);
+      const result = await handler(mockEvent, updates);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'error message',
+        message: undefined,
+      });
       expect(ErrorHandler.log).toHaveBeenCalledWith({
         operation: 'update settings',
         error,
-        context: { updates },
+        context: { channel: 'config:updateSettings', args: [updates] },
       });
     });
   });
@@ -228,13 +258,18 @@ describe('ConfigHandlers', () => {
       mockFileDataStore.readConfig.mockRejectedValue(error);
 
       const handler = handlers.get('config:setApiKey')!;
-      const event = {} as IpcMainInvokeEvent;
 
-      await expect(handler(event, 'openai', 'secret-key')).rejects.toThrow(error);
+      const result = await handler(mockEvent, 'openai', 'secret-key');
+
+      expect(result).toEqual({
+        success: false,
+        error: 'error message',
+        message: undefined,
+      });
       expect(ErrorHandler.log).toHaveBeenCalledWith({
         operation: 'set api key',
         error,
-        context: { service: 'openai' }, // No key logged
+        context: { channel: 'config:setApiKey', args: ['openai', 'secret-key'] },
       });
     });
   });
@@ -412,7 +447,7 @@ describe('ConfigHandlers', () => {
       });
     });
 
-    it('should throw error if command not found', async () => {
+    it('should return error if command not found', async () => {
       const mockConfig: AutosteerConfig = {
         worktrees: [],
         settings: { vimMode: false },
@@ -429,14 +464,17 @@ describe('ConfigHandlers', () => {
       };
 
       const handler = handlers.get('config:updateCustomCommand')!;
-      const event = {} as IpcMainInvokeEvent;
 
-      await expect(handler(event, 'cmd1', updatedCommand)).rejects.toThrow(
-        'Custom command not found'
-      );
+      const result = await handler(mockEvent, 'cmd1', updatedCommand);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'error message',
+        message: undefined,
+      });
     });
 
-    it('should throw error if no custom commands exist', async () => {
+    it('should return error if no custom commands exist', async () => {
       const mockConfig: AutosteerConfig = {
         worktrees: [],
         settings: { vimMode: false },
@@ -452,11 +490,14 @@ describe('ConfigHandlers', () => {
       };
 
       const handler = handlers.get('config:updateCustomCommand')!;
-      const event = {} as IpcMainInvokeEvent;
 
-      await expect(handler(event, 'cmd1', updatedCommand)).rejects.toThrow(
-        'No custom commands exist'
-      );
+      const result = await handler(mockEvent, 'cmd1', updatedCommand);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'error message',
+        message: undefined,
+      });
     });
   });
 
@@ -566,18 +607,23 @@ describe('ConfigHandlers', () => {
       expect(result).toEqual({ vimMode: true });
     });
 
-    it('should throw and log error on failure', async () => {
+    it('should return error on failure', async () => {
       const error = new Error('Read failed');
       mockFileDataStore.readConfig.mockRejectedValue(error);
 
       const handler = handlers.get('config:getSection')!;
-      const event = {} as IpcMainInvokeEvent;
 
-      await expect(handler(event, 'settings')).rejects.toThrow(error);
+      const result = await handler(mockEvent, 'settings');
+
+      expect(result).toEqual({
+        success: false,
+        error: 'error message',
+        message: undefined,
+      });
       expect(ErrorHandler.log).toHaveBeenCalledWith({
         operation: 'get config section',
         error,
-        context: { section: 'settings' },
+        context: { channel: 'config:getSection', args: ['settings'] },
       });
     });
   });
@@ -603,18 +649,23 @@ describe('ConfigHandlers', () => {
       });
     });
 
-    it('should throw and log error on failure', async () => {
+    it('should return error on failure', async () => {
       const error = new Error('Write failed');
       mockFileDataStore.readConfig.mockRejectedValue(error);
 
       const handler = handlers.get('config:setSection')!;
-      const event = {} as IpcMainInvokeEvent;
 
-      await expect(handler(event, 'settings', {})).rejects.toThrow(error);
+      const result = await handler(mockEvent, 'settings', {});
+
+      expect(result).toEqual({
+        success: false,
+        error: 'error message',
+        message: undefined,
+      });
       expect(ErrorHandler.log).toHaveBeenCalledWith({
         operation: 'set config section',
         error,
-        context: { section: 'settings' },
+        context: { channel: 'config:setSection', args: ['settings', {}] },
       });
     });
   });

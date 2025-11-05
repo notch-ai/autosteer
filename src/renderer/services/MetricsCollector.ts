@@ -3,7 +3,7 @@
  * Tracks velocity metrics and performance improvements
  */
 
-import { logger } from '@/commons/utils/logger';
+import { BaseService } from './BaseService';
 
 export interface MetricsData {
   timestamp: number;
@@ -24,24 +24,39 @@ const METRICS_KEY = 'notch-metrics';
 const HISTORY_KEY = 'notch-metrics-history';
 const MAX_HISTORY_ENTRIES = 100;
 
-export class MetricsCollector {
+export class MetricsCollector extends BaseService {
+  private static instance: MetricsCollector;
+
+  constructor() {
+    super('MetricsCollector');
+  }
+
+  static getInstance(): MetricsCollector {
+    if (!this.instance) {
+      this.instance = new MetricsCollector();
+    }
+    return this.instance;
+  }
   /**
    * Record metrics data to localStorage
    */
   static async recordMetrics(metrics: MetricsData): Promise<void> {
-    try {
+    const instance = this.getInstance();
+    await instance.execute(async () => {
       // Use localStorage for renderer process persistence
       localStorage.setItem(METRICS_KEY, JSON.stringify(metrics));
 
       // Append to history
       let history: MetricsData[] = [];
+
+      // Keep the try-catch for JSON.parse - this is expected behavior
       try {
         const historyJson = localStorage.getItem(HISTORY_KEY);
         if (historyJson) {
           history = JSON.parse(historyJson);
         }
       } catch (e) {
-        // Invalid JSON, start fresh
+        // Invalid JSON is expected, start fresh
         history = [];
       }
 
@@ -53,23 +68,23 @@ export class MetricsCollector {
       }
 
       localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-    } catch (error) {
-      logger.error('Failed to record metrics:', error);
-    }
+    }, 'recordMetrics');
   }
 
   /**
    * Get latest metrics from localStorage
    */
   static async getLatestMetrics(): Promise<MetricsData | null> {
+    const metricsJson = localStorage.getItem(METRICS_KEY);
+    if (!metricsJson) {
+      return null;
+    }
+
+    // Keep try-catch for JSON.parse - expected behavior
     try {
-      const metricsJson = localStorage.getItem(METRICS_KEY);
-      if (!metricsJson) {
-        return null;
-      }
       return JSON.parse(metricsJson);
-    } catch (error) {
-      logger.error('Failed to load latest metrics:', error);
+    } catch {
+      // Invalid JSON is expected, return null
       return null;
     }
   }
@@ -78,36 +93,37 @@ export class MetricsCollector {
    * Calculate velocity trend from metrics history
    */
   static async calculateVelocityTrend(): Promise<VelocityTrend> {
-    try {
-      const historyJson = localStorage.getItem(HISTORY_KEY);
-      if (!historyJson) {
-        return { improvement: 0, buildTimeReduction: 0, bundleSizeReduction: 0 };
-      }
-
-      const history: MetricsData[] = JSON.parse(historyJson);
-
-      if (history.length < 2) {
-        return { improvement: 0, buildTimeReduction: 0, bundleSizeReduction: 0 };
-      }
-
-      const latest = history[history.length - 1];
-      const baseline = history[0];
-
-      const improvement = ((latest.velocity - baseline.velocity) / baseline.velocity) * 100;
-      const buildTimeReduction =
-        ((baseline.buildTime - latest.buildTime) / baseline.buildTime) * 100;
-      const bundleSizeReduction =
-        ((baseline.bundleSize - latest.bundleSize) / baseline.bundleSize) * 100;
-
-      return {
-        improvement,
-        buildTimeReduction,
-        bundleSizeReduction,
-      };
-    } catch (error) {
-      logger.error('Failed to calculate velocity trend:', error);
+    const historyJson = localStorage.getItem(HISTORY_KEY);
+    if (!historyJson) {
       return { improvement: 0, buildTimeReduction: 0, bundleSizeReduction: 0 };
     }
+
+    // Keep try-catch for JSON.parse - expected behavior
+    let history: MetricsData[];
+    try {
+      history = JSON.parse(historyJson);
+    } catch {
+      // Invalid JSON is expected
+      return { improvement: 0, buildTimeReduction: 0, bundleSizeReduction: 0 };
+    }
+
+    if (history.length < 2) {
+      return { improvement: 0, buildTimeReduction: 0, bundleSizeReduction: 0 };
+    }
+
+    const latest = history[history.length - 1];
+    const baseline = history[0];
+
+    const improvement = ((latest.velocity - baseline.velocity) / baseline.velocity) * 100;
+    const buildTimeReduction = ((baseline.buildTime - latest.buildTime) / baseline.buildTime) * 100;
+    const bundleSizeReduction =
+      ((baseline.bundleSize - latest.bundleSize) / baseline.bundleSize) * 100;
+
+    return {
+      improvement,
+      buildTimeReduction,
+      bundleSizeReduction,
+    };
   }
 
   /**

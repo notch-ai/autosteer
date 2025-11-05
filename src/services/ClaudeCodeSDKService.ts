@@ -147,35 +147,26 @@ export class ClaudeCodeSDKService {
       // Load additional directories from session manifest
       let additionalDirectories: string[] = [];
       if (sessionId && options.cwd) {
-        try {
-          // Import SessionManifestService
-          const { SessionManifestService } = await import('./SessionManifestService');
-          const sessionManifestService = SessionManifestService.getInstance();
+        // Import SessionManifestService
+        const { SessionManifestService } = await import('./SessionManifestService');
+        const sessionManifestService = SessionManifestService.getInstance();
 
-          // Get the worktree ID from options.cwd (extract folder name)
-          const worktreeId = path.basename(options.cwd);
-          if (worktreeId) {
-            additionalDirectories = await sessionManifestService.getAdditionalDirectories(
-              worktreeId,
-              sessionId
-            );
-          }
-        } catch (error) {
-          // Failed to load additional directories
+        // Get the worktree ID from options.cwd (extract folder name)
+        const worktreeId = path.basename(options.cwd);
+        if (worktreeId) {
+          additionalDirectories = await sessionManifestService.getAdditionalDirectories(
+            worktreeId,
+            sessionId
+          );
         }
       }
 
       // Load MCP servers from scoped configuration
-      let mcpServers: Record<string, any> | undefined;
-      try {
-        const scopedConfig = await getScopedMcpConfig({
-          cwd: options.cwd || process.cwd(),
-          debug: true, // Enable debug logging for manual testing
-        });
-        mcpServers = scopedConfig.mcpServers;
-      } catch (error) {
-        // Failed to load scoped MCP config
-      }
+      const scopedConfig = await getScopedMcpConfig({
+        cwd: options.cwd || process.cwd(),
+        debug: true, // Enable debug logging for manual testing
+      });
+      const mcpServers = scopedConfig.mcpServers;
 
       // Build SDK options
       // The SDK includes a bundled CLI at node_modules/@anthropic-ai/claude-agent-sdk/cli.js
@@ -501,35 +492,30 @@ export class ClaudeCodeSDKService {
       content: string;
     }>;
   }): Promise<{ input_tokens: number }> {
-    try {
-      this.initializeAnthropicClient();
+    this.initializeAnthropicClient();
 
-      if (!this.anthropicClient) {
-        throw new Error('Failed to initialize Anthropic client');
-      }
-
-      // Call the token counting endpoint
-      // Only include system if it's defined (exactOptionalPropertyTypes requirement)
-      const countParams: {
-        model: string;
-        system?: string;
-        messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-      } = {
-        model: params.model,
-        messages: params.messages,
-      };
-
-      if (params.system) {
-        countParams.system = params.system;
-      }
-
-      const response = await this.anthropicClient.messages.countTokens(countParams);
-
-      return response;
-    } catch (error) {
-      log.error('[SDK Service] Failed to count tokens:', error);
-      throw error;
+    if (!this.anthropicClient) {
+      throw new Error('Failed to initialize Anthropic client');
     }
+
+    // Call the token counting endpoint
+    // Only include system if it's defined (exactOptionalPropertyTypes requirement)
+    const countParams: {
+      model: string;
+      system?: string;
+      messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    } = {
+      model: params.model,
+      messages: params.messages,
+    };
+
+    if (params.system) {
+      countParams.system = params.system;
+    }
+
+    const response = await this.anthropicClient.messages.countTokens(countParams);
+
+    return response;
   }
 
   /**

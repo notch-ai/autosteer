@@ -18,6 +18,14 @@ jest.mock('electron', () => ({
   app: {
     getPath: jest.fn(() => '/mock/path'),
   },
+  BrowserWindow: {
+    fromWebContents: jest.fn(() => ({
+      webContents: {
+        isDestroyed: jest.fn(() => false),
+        send: jest.fn(),
+      },
+    })),
+  },
 }));
 
 jest.mock('electron-log', () => ({
@@ -144,7 +152,7 @@ describe('AgentHandlers', () => {
       console.log('[AgentHandlers Test] Successfully loaded all agents');
     });
 
-    it('should handle errors when loading agents fails', async () => {
+    it('should return error object when loading agents fails', async () => {
       const error = new Error('Failed to load agents');
       mockFileDataStore.getAgents.mockRejectedValue(error);
 
@@ -154,7 +162,18 @@ describe('AgentHandlers', () => {
       );
       const handler = handleCall[1];
 
-      await expect(handler()).rejects.toThrow('Failed to load agents');
+      // Create a mock event
+      const mockEvent = {
+        sender: {
+          id: 1,
+          isDestroyed: () => false,
+        },
+      };
+
+      const result = await handler(mockEvent);
+
+      expect(result).toHaveProperty('success', false);
+      expect(result).toHaveProperty('error');
       console.error('[AgentHandlers Test] Error handled correctly:', error.message);
     });
   });

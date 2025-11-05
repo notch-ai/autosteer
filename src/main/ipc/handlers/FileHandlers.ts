@@ -7,12 +7,13 @@ import {
   WorkspaceSearchRequest,
   WorkspaceSearchResponse,
 } from '@/types/ipc.types';
-import { BrowserWindow, IpcMainInvokeEvent, dialog, ipcMain, shell } from 'electron';
+import { BrowserWindow, IpcMainInvokeEvent, dialog, shell } from 'electron';
 import log from 'electron-log';
 import fg from 'fast-glob';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
+import { registerSafeHandler } from '../safeHandlerWrapper';
 
 /**
  * FileHandlers class
@@ -394,204 +395,176 @@ export class FileHandlers {
    */
   registerHandlers(): void {
     // Open file
-    ipcMain.handle(IPC_CHANNELS.FILE_OPEN, async (_event: IpcMainInvokeEvent, filePath: string) => {
-      try {
+    registerSafeHandler(
+      IPC_CHANNELS.FILE_OPEN,
+      async (_event: IpcMainInvokeEvent, filePath: string) => {
         const content = await fs.readFile(filePath, 'utf-8');
         log.info(`Opened file: ${filePath}`);
         return content;
-      } catch (error) {
-        log.error('Failed to open file:', error);
-        throw error;
-      }
-    });
+      },
+      { operationName: 'open file' }
+    );
 
     // Save file
-    ipcMain.handle(
+    registerSafeHandler(
       IPC_CHANNELS.FILE_SAVE,
       async (_event: IpcMainInvokeEvent, filePath: string, content: string) => {
-        try {
-          await fs.writeFile(filePath, content, 'utf-8');
-          log.info(`Saved file: ${filePath}`);
-        } catch (error) {
-          log.error('Failed to save file:', error);
-          throw error;
-        }
-      }
+        await fs.writeFile(filePath, content, 'utf-8');
+        log.info(`Saved file: ${filePath}`);
+      },
+      { operationName: 'save file' }
     );
 
     // Save file as
-    ipcMain.handle(
+    registerSafeHandler(
       IPC_CHANNELS.FILE_SAVE_AS,
       async (event: IpcMainInvokeEvent, content: string, defaultPath?: string) => {
-        try {
-          const window = BrowserWindow.fromWebContents(event.sender);
-          if (!window) {
-            throw new Error('No window found');
-          }
-
-          const options: Electron.SaveDialogOptions = {
-            filters: [
-              { name: 'Text Files', extensions: ['txt', 'md'] },
-              { name: 'All Files', extensions: ['*'] },
-            ],
-          };
-
-          if (defaultPath) {
-            options.defaultPath = defaultPath;
-          }
-
-          const result = await dialog.showSaveDialog(window, options);
-
-          if (!result.canceled && result.filePath) {
-            await fs.writeFile(result.filePath, content, 'utf-8');
-            log.info(`Saved file as: ${result.filePath}`);
-            return result.filePath;
-          }
-
-          return null;
-        } catch (error) {
-          log.error('Failed to save file as:', error);
-          throw error;
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (!window) {
+          throw new Error('No window found');
         }
-      }
+
+        const options: Electron.SaveDialogOptions = {
+          filters: [
+            { name: 'Text Files', extensions: ['txt', 'md'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        };
+
+        if (defaultPath) {
+          options.defaultPath = defaultPath;
+        }
+
+        const result = await dialog.showSaveDialog(window, options);
+
+        if (!result.canceled && result.filePath) {
+          await fs.writeFile(result.filePath, content, 'utf-8');
+          log.info(`Saved file as: ${result.filePath}`);
+          return result.filePath;
+        }
+
+        return null;
+      },
+      { operationName: 'save file as' }
     );
 
     // Open folder
-    ipcMain.handle(
+    registerSafeHandler(
       IPC_CHANNELS.FOLDER_OPEN,
       async (_event: IpcMainInvokeEvent, folderPath: string) => {
-        try {
-          await shell.openPath(folderPath);
-          log.info(`Opened folder: ${folderPath}`);
-        } catch (error) {
-          log.error('Failed to open folder:', error);
-          throw error;
-        }
-      }
+        await shell.openPath(folderPath);
+        log.info(`Opened folder: ${folderPath}`);
+      },
+      { operationName: 'open folder' }
     );
 
     // Dialog: Open file
-    ipcMain.handle(
+    registerSafeHandler(
       IPC_CHANNELS.DIALOG_OPEN_FILE,
       async (event: IpcMainInvokeEvent, options?: Electron.OpenDialogOptions) => {
-        try {
-          const window = BrowserWindow.fromWebContents(event.sender);
-          if (!window) {
-            throw new Error('No window found');
-          }
-
-          const defaultOptions: Electron.OpenDialogOptions = {
-            properties: ['openFile'],
-            filters: [
-              {
-                name: 'All Supported',
-                extensions: [
-                  'txt',
-                  'md',
-                  'json',
-                  'jpg',
-                  'jpeg',
-                  'png',
-                  'gif',
-                  'pdf',
-                  'doc',
-                  'docx',
-                ],
-              },
-              { name: 'Documents', extensions: ['txt', 'md', 'pdf', 'doc', 'docx'] },
-              { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'] },
-              { name: 'All Files', extensions: ['*'] },
-            ],
-          };
-
-          const result = await dialog.showOpenDialog(window, { ...defaultOptions, ...options });
-
-          if (!result.canceled && result.filePaths.length > 0) {
-            log.info(`Selected files: ${result.filePaths.join(', ')}`);
-            return result.filePaths;
-          }
-
-          return null;
-        } catch (error) {
-          log.error('Failed to show open dialog:', error);
-          throw error;
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (!window) {
+          throw new Error('No window found');
         }
-      }
+
+        const defaultOptions: Electron.OpenDialogOptions = {
+          properties: ['openFile'],
+          filters: [
+            {
+              name: 'All Supported',
+              extensions: ['txt', 'md', 'json', 'jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx'],
+            },
+            { name: 'Documents', extensions: ['txt', 'md', 'pdf', 'doc', 'docx'] },
+            { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        };
+
+        const result = await dialog.showOpenDialog(window, { ...defaultOptions, ...options });
+
+        if (!result.canceled && result.filePaths.length > 0) {
+          log.info(`Selected files: ${result.filePaths.join(', ')}`);
+          return result.filePaths;
+        }
+
+        return null;
+      },
+      { operationName: 'show open file dialog' }
     );
 
     // Dialog: Save file
-    ipcMain.handle(
+    registerSafeHandler(
       IPC_CHANNELS.DIALOG_SAVE_FILE,
       async (event: IpcMainInvokeEvent, options?: Electron.SaveDialogOptions) => {
-        try {
-          const window = BrowserWindow.fromWebContents(event.sender);
-          if (!window) {
-            throw new Error('No window found');
-          }
-
-          const defaultOptions: Electron.SaveDialogOptions = {
-            filters: [
-              { name: 'Text Files', extensions: ['txt', 'md'] },
-              { name: 'JSON Files', extensions: ['json'] },
-              { name: 'All Files', extensions: ['*'] },
-            ],
-          };
-
-          const result = await dialog.showSaveDialog(window, { ...defaultOptions, ...options });
-
-          if (!result.canceled && result.filePath) {
-            log.info(`Save path selected: ${result.filePath}`);
-            return result.filePath;
-          }
-
-          return null;
-        } catch (error) {
-          log.error('Failed to show save dialog:', error);
-          throw error;
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (!window) {
+          throw new Error('No window found');
         }
-      }
+
+        const defaultOptions: Electron.SaveDialogOptions = {
+          filters: [
+            { name: 'Text Files', extensions: ['txt', 'md'] },
+            { name: 'JSON Files', extensions: ['json'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        };
+
+        const result = await dialog.showSaveDialog(window, { ...defaultOptions, ...options });
+
+        if (!result.canceled && result.filePath) {
+          log.info(`Save path selected: ${result.filePath}`);
+          return result.filePath;
+        }
+
+        return null;
+      },
+      { operationName: 'show save file dialog' }
     );
 
     // Dialog: Message box
-    ipcMain.handle(
+    registerSafeHandler(
       IPC_CHANNELS.DIALOG_MESSAGE,
       async (event: IpcMainInvokeEvent, options: Electron.MessageBoxOptions) => {
-        try {
-          const window = BrowserWindow.fromWebContents(event.sender);
-          if (!window) {
-            throw new Error('No window found');
-          }
-
-          const result = await dialog.showMessageBox(window, options);
-          log.info(`Message box response: ${result.response}`);
-          return result;
-        } catch (error) {
-          log.error('Failed to show message box:', error);
-          throw error;
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (!window) {
+          throw new Error('No window found');
         }
-      }
+
+        const result = await dialog.showMessageBox(window, options);
+        log.info(`Message box response: ${result.response}`);
+        return result;
+      },
+      { operationName: 'show message dialog' }
     );
 
     // List directory contents
-    ipcMain.handle(IpcChannelNames.FILE_LIST_DIRECTORY, this.listDirectory.bind(this));
+    registerSafeHandler(IpcChannelNames.FILE_LIST_DIRECTORY, this.listDirectory.bind(this), {
+      operationName: 'list directory',
+    });
 
     // Search workspace
-    ipcMain.handle(IpcChannelNames.FILE_SEARCH_WORKSPACE, this.searchWorkspace.bind(this));
+    registerSafeHandler(IpcChannelNames.FILE_SEARCH_WORKSPACE, this.searchWorkspace.bind(this), {
+      operationName: 'search workspace',
+    });
 
     // Check if path exists
-    ipcMain.handle('file:pathExists', async (_event: IpcMainInvokeEvent, filePath: string) => {
-      try {
-        // Expand ~ to home directory
-        let expandedPath = filePath;
-        if (filePath.startsWith('~')) {
-          expandedPath = path.join(os.homedir(), filePath.slice(1));
-        }
+    registerSafeHandler(
+      'file:pathExists',
+      async (_event: IpcMainInvokeEvent, filePath: string) => {
+        try {
+          // Expand ~ to home directory
+          let expandedPath = filePath;
+          if (filePath.startsWith('~')) {
+            expandedPath = path.join(os.homedir(), filePath.slice(1));
+          }
 
-        await fs.access(expandedPath);
-        return true;
-      } catch (error) {
-        return false;
-      }
-    });
+          await fs.access(expandedPath);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      },
+      { operationName: 'check if path exists' }
+    );
   }
 }

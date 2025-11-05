@@ -42,37 +42,32 @@ export class SessionManifestService {
   }
 
   async updateAgentSession(worktreeId: string, agentId: string, sessionId: string): Promise<void> {
+    await this.ensureSessionsDirectory();
+
+    const manifestPath = this.getManifestPath(worktreeId);
+    let manifest: SessionManifest;
+
     try {
-      await this.ensureSessionsDirectory();
-
-      const manifestPath = this.getManifestPath(worktreeId);
-      let manifest: SessionManifest;
-
-      try {
-        const content = await fsPromises.readFile(manifestPath, 'utf-8');
-        manifest = JSON.parse(content);
-      } catch (error) {
-        // File doesn't exist or is corrupted, create new manifest
-        manifest = {
-          agents: {},
-          lastUpdated: new Date().toISOString(),
-        };
-      }
-
-      // Update the session for this agent
-      manifest.agents[agentId] = sessionId;
-      manifest.lastUpdated = new Date().toISOString();
-
-      // Write atomically using temp file + rename
-      const tempPath = `${manifestPath}.tmp.${Date.now()}`;
-      await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
-      await fsPromises.rename(tempPath, manifestPath);
-
-      logger.debug(`Updated session manifest for ${worktreeId}/${agentId}: ${sessionId}`);
+      const content = await fsPromises.readFile(manifestPath, 'utf-8');
+      manifest = JSON.parse(content);
     } catch (error) {
-      logger.error('Failed to update session manifest:', error);
-      throw error;
+      // File doesn't exist or is corrupted, create new manifest
+      manifest = {
+        agents: {},
+        lastUpdated: new Date().toISOString(),
+      };
     }
+
+    // Update the session for this agent
+    manifest.agents[agentId] = sessionId;
+    manifest.lastUpdated = new Date().toISOString();
+
+    // Write atomically using temp file + rename
+    const tempPath = `${manifestPath}.tmp.${Date.now()}`;
+    await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
+    await fsPromises.rename(tempPath, manifestPath);
+
+    logger.debug(`Updated session manifest for ${worktreeId}/${agentId}: ${sessionId}`);
   }
 
   async getAgentSession(worktreeId: string, agentId: string): Promise<string | undefined> {
@@ -197,38 +192,33 @@ export class SessionManifestService {
     agentId: string,
     directories: string[]
   ): Promise<void> {
+    await this.ensureSessionsDirectory();
+    const manifestPath = this.getManifestPath(worktreeId);
+    let manifest: SessionManifest;
+
     try {
-      await this.ensureSessionsDirectory();
-      const manifestPath = this.getManifestPath(worktreeId);
-      let manifest: SessionManifest;
-
-      try {
-        const content = await fsPromises.readFile(manifestPath, 'utf-8');
-        manifest = JSON.parse(content);
-      } catch (error) {
-        manifest = {
-          agents: {},
-          additionalDirectories: {},
-          lastUpdated: new Date().toISOString(),
-        };
-      }
-
-      if (!manifest.additionalDirectories) {
-        manifest.additionalDirectories = {};
-      }
-
-      manifest.additionalDirectories[agentId] = directories;
-      manifest.lastUpdated = new Date().toISOString();
-
-      const tempPath = `${manifestPath}.tmp.${Date.now()}`;
-      await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
-      await fsPromises.rename(tempPath, manifestPath);
-
-      logger.debug(`Updated additional directories for ${worktreeId}/${agentId}:`, directories);
+      const content = await fsPromises.readFile(manifestPath, 'utf-8');
+      manifest = JSON.parse(content);
     } catch (error) {
-      logger.error('Failed to update additional directories:', error);
-      throw error;
+      manifest = {
+        agents: {},
+        additionalDirectories: {},
+        lastUpdated: new Date().toISOString(),
+      };
     }
+
+    if (!manifest.additionalDirectories) {
+      manifest.additionalDirectories = {};
+    }
+
+    manifest.additionalDirectories[agentId] = directories;
+    manifest.lastUpdated = new Date().toISOString();
+
+    const tempPath = `${manifestPath}.tmp.${Date.now()}`;
+    await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
+    await fsPromises.rename(tempPath, manifestPath);
+
+    logger.debug(`Updated additional directories for ${worktreeId}/${agentId}:`, directories);
   }
 
   /**

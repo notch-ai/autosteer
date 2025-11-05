@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import * as os from 'os';
 import * as path from 'path';
 import { ErrorHandler } from '../utils/errorHandler';
+import { registerSafeHandler } from './safeHandlerWrapper';
 
 const fsPromises = {
   access: promisify(fs.access),
@@ -53,7 +54,7 @@ export class IpcRegistrar {
     this.slashCommandHandlers = new SlashCommandHandlers();
     this.fileHandlers = new FileHandlers();
     this.resourceHandlers = new ResourceHandlers();
-    this.configHandlers = new ConfigHandlers(ipcMain);
+    this.configHandlers = new ConfigHandlers();
     this.badgeHandlers = new BadgeHandlers();
     this.terminalHandlers = new TerminalHandlers();
     this.mcpHandlers = new McpHandlers();
@@ -88,120 +89,146 @@ export class IpcRegistrar {
 
   private registerHandlers(): void {
     // App info handlers
-    ipcMain.handle('app:getVersion', () => {
-      return this.applicationContainer.getAppVersion();
-    });
-
-    ipcMain.handle('app:getPlatform', () => {
-      return process.platform;
-    });
-
-    // Settings handlers
-    ipcMain.handle('settings:get', (_event: IpcMainInvokeEvent, key: string) => {
-      try {
-        return this.applicationContainer.getSettingsService().get(key);
-      } catch (error) {
-        log.error('Failed to get setting:', error);
-        throw error;
-      }
-    });
-
-    ipcMain.handle('settings:set', (_event: IpcMainInvokeEvent, key: string, value: unknown) => {
-      try {
-        this.applicationContainer.getSettingsService().set(key, value);
-      } catch (error) {
-        log.error('Failed to set setting:', error);
-        throw error;
-      }
-    });
-
-    ipcMain.handle('settings:getAll', () => {
-      try {
-        return this.applicationContainer.getSettingsService().getAll();
-      } catch (error) {
-        log.error('Failed to get all settings:', error);
-        throw error;
-      }
-    });
-
-    // Window handlers
-    ipcMain.handle('window:minimize', (event: IpcMainInvokeEvent) => {
-      const window = BrowserWindow.fromWebContents(event.sender);
-      if (window) {
-        window.minimize();
-      }
-    });
-
-    ipcMain.handle('window:maximize', (event: IpcMainInvokeEvent) => {
-      const window = BrowserWindow.fromWebContents(event.sender);
-      if (window) {
-        if (window.isMaximized()) {
-          window.unmaximize();
-        } else {
-          window.maximize();
-        }
-      }
-    });
-
-    ipcMain.handle('window:close', (event: IpcMainInvokeEvent) => {
-      const window = BrowserWindow.fromWebContents(event.sender);
-      if (window) {
-        window.close();
-      }
-    });
-
-    // Shell handlers
-    ipcMain.handle('shell:openExternal', async (_event: IpcMainInvokeEvent, url: string) => {
-      try {
-        await shell.openExternal(url);
-        return { success: true };
-      } catch (error) {
-        log.error('Failed to open external URL:', error);
-        throw error;
-      }
-    });
-
-    // Theme handlers
-    ipcMain.handle('theme:get', () => {
-      try {
-        return this.applicationContainer.getSettingsService().get('theme') || 'system';
-      } catch (error) {
-        log.error('Failed to get theme:', error);
-        return 'system';
-      }
-    });
-
-    ipcMain.handle(
-      'theme:set',
-      (_event: IpcMainInvokeEvent, theme: 'light' | 'dark' | 'system') => {
-        try {
-          this.applicationContainer.getSettingsService().set('theme', theme);
-        } catch (error) {
-          log.error('Failed to set theme:', error);
-          throw error;
-        }
-      }
+    registerSafeHandler(
+      'app:getVersion',
+      () => {
+        return this.applicationContainer.getAppVersion();
+      },
+      { operationName: 'get app version' }
     );
 
-    ipcMain.handle('theme:getSystemPreference', () => {
-      try {
-        return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
-      } catch (error) {
-        log.error('Failed to get system theme preference:', error);
-        return 'light';
-      }
-    });
+    registerSafeHandler(
+      'app:getPlatform',
+      () => {
+        return process.platform;
+      },
+      { operationName: 'get platform' }
+    );
+
+    // Settings handlers
+    registerSafeHandler(
+      'settings:get',
+      (_event: IpcMainInvokeEvent, key: string) => {
+        return this.applicationContainer.getSettingsService().get(key);
+      },
+      { operationName: 'get setting' }
+    );
+
+    registerSafeHandler(
+      'settings:set',
+      (_event: IpcMainInvokeEvent, key: string, value: unknown) => {
+        this.applicationContainer.getSettingsService().set(key, value);
+      },
+      { operationName: 'set setting' }
+    );
+
+    registerSafeHandler(
+      'settings:getAll',
+      () => {
+        return this.applicationContainer.getSettingsService().getAll();
+      },
+      { operationName: 'get all settings' }
+    );
+
+    // Window handlers
+    registerSafeHandler(
+      'window:minimize',
+      (event: IpcMainInvokeEvent) => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (window) {
+          window.minimize();
+        }
+      },
+      { operationName: 'minimize window' }
+    );
+
+    registerSafeHandler(
+      'window:maximize',
+      (event: IpcMainInvokeEvent) => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (window) {
+          if (window.isMaximized()) {
+            window.unmaximize();
+          } else {
+            window.maximize();
+          }
+        }
+      },
+      { operationName: 'maximize window' }
+    );
+
+    registerSafeHandler(
+      'window:close',
+      (event: IpcMainInvokeEvent) => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (window) {
+          window.close();
+        }
+      },
+      { operationName: 'close window' }
+    );
+
+    // Shell handlers
+    registerSafeHandler(
+      'shell:openExternal',
+      async (_event: IpcMainInvokeEvent, url: string) => {
+        await shell.openExternal(url);
+        return { success: true };
+      },
+      { operationName: 'open external URL' }
+    );
+
+    // Theme handlers
+    // Note: This handler has special error handling - returns 'system' instead of throwing
+    registerSafeHandler(
+      'theme:get',
+      () => {
+        try {
+          return this.applicationContainer.getSettingsService().get('theme') || 'system';
+        } catch (error) {
+          log.error('Failed to get theme:', error);
+          return 'system';
+        }
+      },
+      { operationName: 'get theme', suppressNotification: true }
+    );
+
+    registerSafeHandler(
+      'theme:set',
+      (_event: IpcMainInvokeEvent, theme: 'light' | 'dark' | 'system') => {
+        this.applicationContainer.getSettingsService().set('theme', theme);
+      },
+      { operationName: 'set theme' }
+    );
+
+    // Note: This handler has special error handling - returns 'light' instead of throwing
+    registerSafeHandler(
+      'theme:getSystemPreference',
+      () => {
+        try {
+          return nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+        } catch (error) {
+          log.error('Failed to get system theme preference:', error);
+          return 'light';
+        }
+      },
+      { operationName: 'get system theme preference', suppressNotification: true }
+    );
 
     // Config handlers are now handled by ConfigHandlers.register()
     // Removed duplicate config:getDevMode and config:setDevMode handlers
 
     // Worktree handlers
-    ipcMain.handle('worktree:getDataDirectory', async () => {
-      await this.fileDataStore.ensureDirectories();
-      return this.fileDataStore.getDataDirectory();
-    });
+    registerSafeHandler(
+      'worktree:getDataDirectory',
+      async () => {
+        await this.fileDataStore.ensureDirectories();
+        return this.fileDataStore.getDataDirectory();
+      },
+      { operationName: 'get data directory' }
+    );
 
-    ipcMain.handle(
+    registerSafeHandler(
       'worktree:getCurrentDirectory',
       async (_event: IpcMainInvokeEvent, cwd?: string) => {
         if (cwd) {
@@ -237,10 +264,12 @@ export class IpcRegistrar {
         }
 
         return process.cwd();
-      }
+      },
+      { operationName: 'get current directory' }
     );
 
-    ipcMain.handle(
+    // Note: This handler has special error handling - returns structured error responses
+    registerSafeHandler(
       'worktree:create',
       async (_event: IpcMainInvokeEvent, options: { githubRepo: string; branchName: string }) => {
         log.info('[worktree:create] Starting worktree creation:', {
@@ -392,142 +421,169 @@ export class IpcRegistrar {
             error: errorMessage,
           };
         }
-      }
+      },
+      { operationName: 'create worktree', suppressNotification: true }
     );
 
-    ipcMain.handle('worktree:delete', async (_event: IpcMainInvokeEvent, folderName: string) => {
-      try {
-        const config = await this.fileDataStore.readConfig();
-        const worktree = config.worktrees.find((w) => w.folder_name === folderName);
-
-        if (!worktree) {
-          throw new Error('Worktree not found in config');
-        }
-
-        const worktreePath = this.fileDataStore.getWorktreePath(folderName);
-        const mainRepoPath = this.fileDataStore.getMainRepoPath(worktree.git_repo);
-
-        const removeResult = await this.gitService.removeWorktree({
-          mainRepoPath,
-          worktreePath,
-          branchName: worktree.branch_name,
-        });
-
-        if (!removeResult.success) {
-          log.warn('Git worktree remove failed:', removeResult.error);
-        }
-
-        // Delete session manifest for this worktree
+    // Note: This handler has special error handling - returns structured error responses
+    registerSafeHandler(
+      'worktree:delete',
+      async (_event: IpcMainInvokeEvent, folderName: string) => {
         try {
-          const { SessionManifestService } = await import('@/services/SessionManifestService');
-          const sessionManifest = SessionManifestService.getInstance();
-          await sessionManifest.deleteWorktreeManifest(folderName);
-        } catch (error) {
-          log.warn('Failed to delete session manifest:', error);
-          // Don't fail the entire deletion if session cleanup fails
-        }
+          const config = await this.fileDataStore.readConfig();
+          const worktree = config.worktrees.find((w) => w.folder_name === folderName);
 
-        // Delete Claude Code chat history (JSONL files) for this worktree
-        try {
-          const os = await import('os');
-          const homedir = os.homedir();
-          const homedirFormatted = homedir.substring(1).replace(/[^a-zA-Z0-9]/g, '-');
-          const projectDirName = `-${homedirFormatted}--autosteer-worktrees-${folderName}`;
-          const claudeProjectsDir = path.join(homedir, '.claude', 'projects', projectDirName);
-
-          // Check if directory exists before attempting to delete
-          try {
-            await fsPromises.access(claudeProjectsDir, fs.constants.F_OK);
-            await fsPromises.rm(claudeProjectsDir, { recursive: true, force: true });
-            log.info(`Deleted Claude Code chat history for worktree: ${folderName}`);
-          } catch (err) {
-            log.debug(`No Claude Code chat history to delete for worktree: ${folderName}`);
+          if (!worktree) {
+            throw new Error('Worktree not found in config');
           }
+
+          const worktreePath = this.fileDataStore.getWorktreePath(folderName);
+          const mainRepoPath = this.fileDataStore.getMainRepoPath(worktree.git_repo);
+
+          const removeResult = await this.gitService.removeWorktree({
+            mainRepoPath,
+            worktreePath,
+            branchName: worktree.branch_name,
+          });
+
+          if (!removeResult.success) {
+            log.warn('Git worktree remove failed:', removeResult.error);
+          }
+
+          // Delete session manifest for this worktree
+          try {
+            const { SessionManifestService } = await import('@/services/SessionManifestService');
+            const sessionManifest = SessionManifestService.getInstance();
+            await sessionManifest.deleteWorktreeManifest(folderName);
+          } catch (error) {
+            log.warn('Failed to delete session manifest:', error);
+            // Don't fail the entire deletion if session cleanup fails
+          }
+
+          // Delete Claude Code chat history (JSONL files) for this worktree
+          try {
+            const os = await import('os');
+            const homedir = os.homedir();
+            const homedirFormatted = homedir.substring(1).replace(/[^a-zA-Z0-9]/g, '-');
+            const projectDirName = `-${homedirFormatted}--autosteer-worktrees-${folderName}`;
+            const claudeProjectsDir = path.join(homedir, '.claude', 'projects', projectDirName);
+
+            // Check if directory exists before attempting to delete
+            try {
+              await fsPromises.access(claudeProjectsDir, fs.constants.F_OK);
+              await fsPromises.rm(claudeProjectsDir, { recursive: true, force: true });
+              log.info(`Deleted Claude Code chat history for worktree: ${folderName}`);
+            } catch (err) {
+              log.debug(`No Claude Code chat history to delete for worktree: ${folderName}`);
+            }
+          } catch (error) {
+            log.warn('Failed to delete Claude Code chat history:', error);
+            // Don't fail the entire deletion if chat history cleanup fails
+          }
+
+          await this.fileDataStore.removeWorktree(folderName);
+
+          return {
+            success: true,
+            message: 'Successfully removed worktree',
+          };
         } catch (error) {
-          log.warn('Failed to delete Claude Code chat history:', error);
-          // Don't fail the entire deletion if chat history cleanup fails
+          const errorMessage = ErrorHandler.log({
+            operation: 'delete worktree',
+            error,
+            context: { folderName },
+          });
+
+          return {
+            success: false,
+            message: ErrorHandler.formatUserMessage('delete worktree', error),
+            error: errorMessage,
+          };
         }
+      },
+      { operationName: 'delete worktree', suppressNotification: true }
+    );
 
-        await this.fileDataStore.removeWorktree(folderName);
-
-        return {
-          success: true,
-          message: 'Successfully removed worktree',
-        };
-      } catch (error) {
-        const errorMessage = ErrorHandler.log({
-          operation: 'delete worktree',
-          error,
-          context: { folderName },
-        });
-
-        return {
-          success: false,
-          message: ErrorHandler.formatUserMessage('delete worktree', error),
-          error: errorMessage,
-        };
-      }
-    });
-
-    ipcMain.handle('worktree:getAll', async () => {
-      try {
-        const config = await this.fileDataStore.readConfig();
-        return config.worktrees;
-      } catch (error) {
-        ErrorHandler.log({
-          operation: 'get all worktrees',
-          error,
-        });
-        return [];
-      }
-    });
-
-    ipcMain.handle('worktree:getRepoUrls', async () => {
-      try {
-        const config = await this.fileDataStore.readConfig();
-        const repoUrls = [...new Set(config.worktrees.map((w) => w.git_repo))];
-        return repoUrls;
-      } catch (error) {
-        ErrorHandler.log({
-          operation: 'get repo urls',
-          error,
-        });
-        return [];
-      }
-    });
-
-    ipcMain.handle('worktree:getVimMode', async () => {
-      try {
-        const config = await this.fileDataStore.readConfig();
-        return config.settings?.vimMode ?? false;
-      } catch (error) {
-        ErrorHandler.log({
-          operation: 'get vim mode',
-          error,
-        });
-        return false;
-      }
-    });
-
-    ipcMain.handle('worktree:setVimMode', async (_event: IpcMainInvokeEvent, enabled: boolean) => {
-      try {
-        const config = await this.fileDataStore.readConfig();
-        if (!config.settings) {
-          config.settings = {};
+    // Note: This handler has special error handling - returns empty array instead of throwing
+    registerSafeHandler(
+      'worktree:getAll',
+      async () => {
+        try {
+          const config = await this.fileDataStore.readConfig();
+          return config.worktrees;
+        } catch (error) {
+          ErrorHandler.log({
+            operation: 'get all worktrees',
+            error,
+          });
+          return [];
         }
-        config.settings.vimMode = enabled;
-        await this.fileDataStore.writeConfig(config);
-        return { success: true };
-      } catch (error) {
-        const errorMessage = ErrorHandler.log({
-          operation: 'set vim mode',
-          error,
-        });
-        return { success: false, error: errorMessage };
-      }
-    });
+      },
+      { operationName: 'get all worktrees', suppressNotification: true }
+    );
 
-    ipcMain.handle(
+    // Note: This handler has special error handling - returns empty array instead of throwing
+    registerSafeHandler(
+      'worktree:getRepoUrls',
+      async () => {
+        try {
+          const config = await this.fileDataStore.readConfig();
+          const repoUrls = [...new Set(config.worktrees.map((w) => w.git_repo))];
+          return repoUrls;
+        } catch (error) {
+          ErrorHandler.log({
+            operation: 'get repo urls',
+            error,
+          });
+          return [];
+        }
+      },
+      { operationName: 'get repo URLs', suppressNotification: true }
+    );
+
+    // Note: This handler has special error handling - returns false instead of throwing
+    registerSafeHandler(
+      'worktree:getVimMode',
+      async () => {
+        try {
+          const config = await this.fileDataStore.readConfig();
+          return config.settings?.vimMode ?? false;
+        } catch (error) {
+          ErrorHandler.log({
+            operation: 'get vim mode',
+            error,
+          });
+          return false;
+        }
+      },
+      { operationName: 'get vim mode', suppressNotification: true }
+    );
+
+    // Note: This handler has special error handling - returns structured error response
+    registerSafeHandler(
+      'worktree:setVimMode',
+      async (_event: IpcMainInvokeEvent, enabled: boolean) => {
+        try {
+          const config = await this.fileDataStore.readConfig();
+          if (!config.settings) {
+            config.settings = {};
+          }
+          config.settings.vimMode = enabled;
+          await this.fileDataStore.writeConfig(config);
+          return { success: true };
+        } catch (error) {
+          const errorMessage = ErrorHandler.log({
+            operation: 'set vim mode',
+            error,
+          });
+          return { success: false, error: errorMessage };
+        }
+      },
+      { operationName: 'set vim mode', suppressNotification: true }
+    );
+
+    // Note: This handler has special error handling - returns structured error response
+    registerSafeHandler(
       'worktree:setActiveTab',
       async (_event: IpcMainInvokeEvent, projectId: string, tabId: string) => {
         try {
@@ -552,10 +608,12 @@ export class IpcRegistrar {
           });
           return { success: false, error: errorMessage };
         }
-      }
+      },
+      { operationName: 'set active tab', suppressNotification: true }
     );
 
-    ipcMain.handle(
+    // Note: This handler has special error handling - returns null instead of throwing
+    registerSafeHandler(
       'worktree:getActiveTab',
       async (_event: IpcMainInvokeEvent, projectId: string) => {
         try {
@@ -573,18 +631,23 @@ export class IpcRegistrar {
           });
           return null;
         }
-      }
+      },
+      { operationName: 'get active tab', suppressNotification: true }
     );
 
     // Test mode handlers - provide fallback when test mode is not active
-    ipcMain.handle('test-mode:getState', () => {
-      return {
-        isActive: false,
-        currentComponent: null,
-        componentProps: {},
-        themeVariant: 'day',
-      };
-    });
+    registerSafeHandler(
+      'test-mode:getState',
+      () => {
+        return {
+          isActive: false,
+          currentComponent: null,
+          componentProps: {},
+          themeVariant: 'day',
+        };
+      },
+      { operationName: 'get test mode state' }
+    );
 
     // Dialog handlers are registered in FileHandlers
   }

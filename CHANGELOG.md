@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.17](https://github.com/notch-ai/autosteer/compare/v0.1.16...v0.1.17) (2025-11-05)
+
+
+### Bug Fixes
+
+* Implement comprehensive error handling infrastructure ([dce56b0](https://github.com/notch-ai/autosteer/commit/dce56b04c165adb8b3fc31e586e4d0f09f2e16c7))
+* resolve typecheck errors in IpcRegistrar and safeHandlerWrapper ([af227fe](https://github.com/notch-ai/autosteer/commit/af227fe56438b523564c9422349328d8e0bf1ab8))
+
 ## [0.1.16](https://github.com/notch-ai/autosteer/compare/v0.1.15...v0.1.16) (2025-11-03)
 
 

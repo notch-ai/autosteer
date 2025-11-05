@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/notch-ai/autosteer/compare/v0.1.17...v0.1.18) (2025-11-05)
+
+
+### Code Refactoring
+
+* Consolidate IPC handlers with comprehensive error handling ([848177b](https://github.com/notch-ai/autosteer/commit/848177bc8b17a896c1c89837f713d6264707ad4e))
+
 ## [0.1.17](https://github.com/notch-ai/autosteer/compare/v0.1.16...v0.1.17) (2025-11-05)
 
 

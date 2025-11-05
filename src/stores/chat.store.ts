@@ -22,6 +22,7 @@ import {
   claudeCodeService,
   type Attachment as ClaudeAttachment,
 } from '@/renderer/services/ClaudeCodeService';
+import { globalErrorHandler } from '@/renderer/services/GlobalErrorHandler';
 import { getTodoMonitor } from '@/renderer/services/TodoActivityMonitorManager';
 import { MessageConverter } from '@/services/MessageConverter';
 import { PermissionMode } from '@/types/permission.types';
@@ -871,6 +872,37 @@ export const useChatStore = create<ChatStore>()(
                   }
                 });
 
+                // Handle API errors that come through as "success" with error flag
+                if (result.is_error && result.subtype === 'success' && result.error?.message) {
+                  const apiError = new Error(result.error.message);
+                  globalErrorHandler.handle(apiError, {
+                    subsystem: 'service',
+                    operation: 'api_response',
+                    metadata: {
+                      sessionId: streamingChatId,
+                      isApiError: true,
+                      errorType: result.error.type,
+                      totalCost: result.total_cost_usd,
+                      numTurns: result.num_turns,
+                    },
+                  });
+
+                  // Show error in chat UI
+                  set((state) => {
+                    const messages = state.messages.get(streamingChatId) || [];
+                    const errorMessage: ChatMessage = {
+                      id: nanoid(),
+                      role: 'assistant',
+                      content: result.error.message,
+                      timestamp: new Date(),
+                    };
+                    state.messages.set(streamingChatId, [...messages, errorMessage]);
+                  });
+
+                  // Don't process further for API errors
+                  return;
+                }
+
                 // Handle session termination errors
                 if (
                   result.subtype === 'error_max_turns' ||
@@ -971,6 +1003,17 @@ export const useChatStore = create<ChatStore>()(
                 }
               },
               onError: (error) => {
+                // Show toast notification for user awareness
+                globalErrorHandler.handle(error, {
+                  subsystem: 'service',
+                  operation: 'streamResponse',
+                  metadata: {
+                    sessionId: streamingChatId,
+                    isStreamingError: true,
+                  },
+                });
+
+                // Still set state for UI display
                 set((state) => {
                   if (streamingChatId) {
                     state.streamingStates = new Map(state.streamingStates).set(
@@ -1146,6 +1189,16 @@ export const useChatStore = create<ChatStore>()(
           }
 
           // Handle actual errors
+          // Show toast notification (before rethrowing)
+          globalErrorHandler.handle(error as Error, {
+            subsystem: 'service',
+            operation: 'sendMessage',
+            metadata: {
+              agentId: streamingChatId,
+              hasAttachments: !!(_attachments && _attachments.length > 0),
+            },
+          });
+
           set((state) => {
             state.chatError = error instanceof Error ? error.message : 'Failed to send message';
             if (streamingChatId) {
@@ -1155,7 +1208,7 @@ export const useChatStore = create<ChatStore>()(
             newStreamingMessages.delete(streamingChatId);
             state.streamingMessages = newStreamingMessages;
           });
-          throw error;
+          throw error; // Still rethrow for upstream handling
         }
       },
 
@@ -1352,6 +1405,20 @@ export const useChatStore = create<ChatStore>()(
                   }
                   break;
                 case 'error':
+                  // Create error object for GlobalErrorHandler
+                  const streamError = new Error(chunk.toolResult || 'Streaming error occurred');
+
+                  // Show toast notification
+                  globalErrorHandler.handle(streamError, {
+                    subsystem: 'service',
+                    operation: 'processChunk',
+                    metadata: {
+                      chunkType: 'error',
+                      activeChat: state.activeChat,
+                    },
+                  });
+
+                  // Still set state for UI display
                   state.chatError = chunk.toolResult || 'Streaming error occurred';
                   break;
               }
@@ -1395,6 +1462,16 @@ export const useChatStore = create<ChatStore>()(
             }
           });
         } catch (error) {
+          // Show toast notification
+          globalErrorHandler.handle(error as Error, {
+            subsystem: 'service',
+            operation: 'streamResponse',
+            metadata: {
+              activeChat: get().activeChat,
+              isLegacyStream: true,
+            },
+          });
+
           set((state) => {
             state.chatError = error instanceof Error ? error.message : 'Streaming failed';
             if (state.activeChat) {
@@ -1404,6 +1481,9 @@ export const useChatStore = create<ChatStore>()(
               state.streamingMessages = newStreamingMessages;
             }
           });
+
+          // Add throw for consistency with other error handlers
+          throw error;
         }
       },
 

@@ -105,8 +105,56 @@ class ElectronApp {
     this.setupEventHandlers();
   }
 
+  private setupGlobalErrorHandlers(): void {
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      log.error('[Main] Uncaught exception:', error);
+
+      // Notify user if main window exists
+      const mainWindow = this.windowManager.getMainWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('main-process-error', {
+          type: 'uncaughtException',
+          error: {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          },
+        });
+      }
+
+      // Don't exit immediately - try to recover
+      // Only exit if error is truly fatal
+      if (error.message.includes('Cannot find module') || error.message.includes('ENOENT')) {
+        app.quit();
+      }
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, _promise) => {
+      log.error('[Main] Unhandled promise rejection:', reason);
+
+      const mainWindow = this.windowManager.getMainWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('main-process-error', {
+          type: 'unhandledRejection',
+          error: {
+            name: 'UnhandledPromiseRejection',
+            message: reason instanceof Error ? reason.message : String(reason),
+            stack: reason instanceof Error ? reason.stack : undefined,
+          },
+        });
+      }
+    });
+
+    log.info('[Main] Global error handlers initialized');
+  }
+
   private setupEventHandlers(): void {
     log.info('[SETUP] Setting up Electron event handlers');
+
+    // Set up global error handlers first
+    this.setupGlobalErrorHandlers();
 
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.

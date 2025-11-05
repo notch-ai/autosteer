@@ -59,7 +59,13 @@ describe('FileHandlers', () => {
     );
 
     // Create mock window
-    mockWindow = { id: 1 };
+    mockWindow = {
+      id: 1,
+      webContents: {
+        isDestroyed: jest.fn().mockReturnValue(false),
+        send: jest.fn()
+      }
+    };
     (BrowserWindow.fromWebContents as jest.Mock).mockReturnValue(mockWindow);
 
     // Create FileHandlers instance and register handlers
@@ -98,16 +104,23 @@ describe('FileHandlers', () => {
       expect(result).toBe(content);
     });
 
-    it('should throw error on read failure', async () => {
+    it('should return error response on read failure', async () => {
       const filePath = '/path/to/file.txt';
       const error = new Error('Read failed');
       (fs.readFile as jest.Mock).mockRejectedValue(error);
 
       const handler = handlers.get(IPC_CHANNELS.FILE_OPEN)!;
-      const event = {} as IpcMainInvokeEvent;
+      const event = {
+        sender: {
+          isDestroyed: jest.fn().mockReturnValue(false)
+        }
+      } as unknown as IpcMainInvokeEvent;
 
-      await expect(handler(event, filePath)).rejects.toThrow(error);
-      expect(log.error).toHaveBeenCalledWith('Failed to open file:', error);
+      const result = await handler(event, filePath);
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.any(String)
+      });
     });
   });
 
@@ -125,17 +138,24 @@ describe('FileHandlers', () => {
       expect(log.info).toHaveBeenCalledWith(`Saved file: ${filePath}`);
     });
 
-    it('should throw error on save failure', async () => {
+    it('should return error response on save failure', async () => {
       const filePath = '/path/to/file.txt';
       const content = 'New content';
       const error = new Error('Write failed');
       (fs.writeFile as jest.Mock).mockRejectedValue(error);
 
       const handler = handlers.get(IPC_CHANNELS.FILE_SAVE)!;
-      const event = {} as IpcMainInvokeEvent;
+      const event = {
+        sender: {
+          isDestroyed: jest.fn().mockReturnValue(false)
+        }
+      } as unknown as IpcMainInvokeEvent;
 
-      await expect(handler(event, filePath, content)).rejects.toThrow(error);
-      expect(log.error).toHaveBeenCalledWith('Failed to save file:', error);
+      const result = await handler(event, filePath, content);
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.any(String)
+      });
     });
   });
 
@@ -203,14 +223,17 @@ describe('FileHandlers', () => {
       expect(result).toBeNull();
     });
 
-    it('should throw error if no window found', async () => {
+    it('should return error if no window found', async () => {
       (BrowserWindow.fromWebContents as jest.Mock).mockReturnValue(null);
 
       const handler = handlers.get(IPC_CHANNELS.FILE_SAVE_AS)!;
       const event = { sender: {} } as IpcMainInvokeEvent;
 
-      await expect(handler(event, 'content')).rejects.toThrow('No window found');
-      expect(log.error).toHaveBeenCalledWith('Failed to save file as:', expect.any(Error));
+      const result = await handler(event, 'content');
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.any(String)
+      });
     });
   });
 
@@ -227,16 +250,23 @@ describe('FileHandlers', () => {
       expect(log.info).toHaveBeenCalledWith(`Opened folder: ${folderPath}`);
     });
 
-    it('should throw error on open failure', async () => {
+    it('should return error on open failure', async () => {
       const folderPath = '/path/to/folder';
       const error = new Error('Open failed');
       (shell.openPath as jest.Mock).mockRejectedValue(error);
 
       const handler = handlers.get(IPC_CHANNELS.FOLDER_OPEN)!;
-      const event = {} as IpcMainInvokeEvent;
+      const event = {
+        sender: {
+          isDestroyed: jest.fn().mockReturnValue(false)
+        }
+      } as unknown as IpcMainInvokeEvent;
 
-      await expect(handler(event, folderPath)).rejects.toThrow(error);
-      expect(log.error).toHaveBeenCalledWith('Failed to open folder:', error);
+      const result = await handler(event, folderPath);
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.any(String)
+      });
     });
   });
 
@@ -304,14 +334,17 @@ describe('FileHandlers', () => {
       expect(result).toBeNull();
     });
 
-    it('should throw error if no window found', async () => {
+    it('should return error if no window found', async () => {
       (BrowserWindow.fromWebContents as jest.Mock).mockReturnValue(null);
 
       const handler = handlers.get(IPC_CHANNELS.DIALOG_OPEN_FILE)!;
       const event = { sender: {} } as IpcMainInvokeEvent;
 
-      await expect(handler(event)).rejects.toThrow('No window found');
-      expect(log.error).toHaveBeenCalledWith('Failed to show open dialog:', expect.any(Error));
+      const result = await handler(event);
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.any(String)
+      });
     });
   });
 
@@ -374,15 +407,18 @@ describe('FileHandlers', () => {
       expect(result).toEqual(response);
     });
 
-    it('should throw error if no window found', async () => {
+    it('should return error if no window found', async () => {
       (BrowserWindow.fromWebContents as jest.Mock).mockReturnValue(null);
 
       const handler = handlers.get(IPC_CHANNELS.DIALOG_MESSAGE)!;
       const event = { sender: {} } as IpcMainInvokeEvent;
       const options = { message: 'Test' };
 
-      await expect(handler(event, options)).rejects.toThrow('No window found');
-      expect(log.error).toHaveBeenCalledWith('Failed to show message box:', expect.any(Error));
+      const result = await handler(event, options);
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.any(String)
+      });
     });
   });
 

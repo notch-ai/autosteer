@@ -1,39 +1,51 @@
-import { logger } from '@/commons/utils/logger';
 import { LLMConfig } from './LLMService';
+import { BaseService } from './BaseService';
 
 const CONFIG_KEY = 'notch-llm-config';
 
-export class ConfigService {
+export class ConfigService extends BaseService {
+  private static instance: ConfigService;
+
+  constructor() {
+    super('ConfigService');
+  }
+
+  static getInstance(): ConfigService {
+    if (!this.instance) {
+      this.instance = new ConfigService();
+    }
+    return this.instance;
+  }
   /**
    * Save LLM configuration to localStorage
    */
   static saveLLMConfig(config: LLMConfig): void {
-    try {
+    const instance = this.getInstance();
+    instance.executeSync(() => {
       const configToSave = {
         ...config,
         apiKey: config.apiKey ? this.obfuscateKey(config.apiKey) : '',
       };
       localStorage.setItem(CONFIG_KEY, JSON.stringify(configToSave));
-    } catch (error) {
-      logger.error('Failed to save LLM config:', error);
-    }
+    }, 'saveLLMConfig');
   }
 
   /**
    * Load LLM configuration from localStorage
    */
   static loadLLMConfig(): LLMConfig | null {
-    try {
-      const stored = localStorage.getItem(CONFIG_KEY);
-      if (!stored) return null;
+    const stored = localStorage.getItem(CONFIG_KEY);
+    if (!stored) return null;
 
+    // JSON.parse can fail - this is expected behavior, so we keep try-catch
+    try {
       const config = JSON.parse(stored);
       return {
         ...config,
         apiKey: config.apiKey ? this.deobfuscateKey(config.apiKey) : '',
       };
-    } catch (error) {
-      logger.error('Failed to load LLM config:', error);
+    } catch {
+      // Invalid JSON is expected - return null
       return null;
     }
   }

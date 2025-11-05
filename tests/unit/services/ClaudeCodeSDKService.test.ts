@@ -1,12 +1,29 @@
+// Mock @anthropic-ai/claude-agent-sdk
+jest.mock('@anthropic-ai/claude-agent-sdk');
+
+// Mock getScopedMcpConfig
+jest.mock('@/utils/scopedConfig', () => ({
+  getScopedMcpConfig: jest.fn().mockResolvedValue({
+    mcpServers: {},
+  }),
+}));
+
+// Mock SessionManifestService
+jest.mock('@/services/SessionManifestService', () => ({
+  SessionManifestService: {
+    getInstance: jest.fn().mockReturnValue({
+      getAdditionalDirectories: jest.fn().mockResolvedValue([]),
+    }),
+  },
+}));
+
 import { ClaudeCodeSDKService } from '@/services/ClaudeCodeSDKService';
 import type { ClaudeCodeQueryOptions, Attachment } from '@/types/claudeCode.types';
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import * as fs from 'fs/promises';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 
-// Mock @anthropic-ai/claude-agent-sdk
-jest.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: jest.fn(),
-}));
+// Get the mocked query function
+const mockQuery = query as jest.MockedFunction<typeof query>;
 
 // Mock fs/promises
 jest.mock('fs/promises', () => ({
@@ -55,7 +72,6 @@ jest.mock('uuid', () => ({
   v4: jest.fn(() => 'mock-uuid-1234'),
 }));
 
-const mockQuery = query as jest.MockedFunction<typeof query>;
 const mockMkdtemp = fs.mkdtemp as jest.MockedFunction<typeof fs.mkdtemp>;
 const mockWriteFile = fs.writeFile as jest.MockedFunction<typeof fs.writeFile>;
 const mockRm = fs.rm as jest.MockedFunction<typeof fs.rm>;
@@ -85,14 +101,17 @@ describe('ClaudeCodeSDKService', () => {
       ];
 
       // Mock query to return an async generator
-      mockQuery.mockReturnValue({
-        [Symbol.asyncIterator]: async function* () {
-          for (const message of mockMessages) {
-            yield message;
-          }
-        },
-        interrupt: jest.fn(),
-      } as any);
+      mockQuery.mockImplementation((args) => {
+        console.log('Mock query called with:', args);
+        return {
+          [Symbol.asyncIterator]: async function* () {
+            for (const message of mockMessages) {
+              yield message;
+            }
+          },
+          interrupt: jest.fn(),
+        } as any;
+      });
 
       const sessionId = await ClaudeCodeSDKService.initializeSession();
 
@@ -114,14 +133,14 @@ describe('ClaudeCodeSDKService', () => {
         { type: 'result', subtype: 'success' },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const sessionId = await ClaudeCodeSDKService.initializeSession(customDir);
 
@@ -141,14 +160,14 @@ describe('ClaudeCodeSDKService', () => {
       // This test would need to be adjusted if we want strict SDK session ID validation
       const mockMessages = [{ type: 'result', subtype: 'success' }];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       await expect(ClaudeCodeSDKService.initializeSession()).rejects.toThrow(
         'Failed to initialize Claude Code session'
@@ -183,14 +202,14 @@ describe('ClaudeCodeSDKService', () => {
         { type: 'result', subtype: 'success' },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const queryOptions: ClaudeCodeQueryOptions = {
         prompt: 'Hello',
@@ -231,14 +250,14 @@ describe('ClaudeCodeSDKService', () => {
         { type: 'result', subtype: 'success' },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const queryOptions: ClaudeCodeQueryOptions = {
         prompt: 'Analyze this image',
@@ -278,14 +297,14 @@ describe('ClaudeCodeSDKService', () => {
         { type: 'result', subtype: 'success' },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const queryOptions: ClaudeCodeQueryOptions = {
         prompt: 'Continue conversation',
@@ -313,14 +332,14 @@ describe('ClaudeCodeSDKService', () => {
         { type: 'result', subtype: 'success' },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const queryOptions: ClaudeCodeQueryOptions = {
         prompt: 'Test prompt',
@@ -359,14 +378,14 @@ describe('ClaudeCodeSDKService', () => {
         { type: 'result', subtype: 'success' },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const results = [];
       for await (const message of service.queryClaudeCode('query-5', {
@@ -428,14 +447,14 @@ describe('ClaudeCodeSDKService', () => {
         { type: 'result', subtype: 'success' },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const results = [];
       for await (const message of service.queryClaudeCode('query-8', {
@@ -589,14 +608,14 @@ describe('ClaudeCodeSDKService', () => {
         },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const results = [];
       for await (const message of service.queryClaudeCode('query-1', { prompt: 'Test' })) {
@@ -622,14 +641,14 @@ describe('ClaudeCodeSDKService', () => {
         },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const results = [];
       for await (const message of service.queryClaudeCode('query-2', { prompt: 'Test' })) {
@@ -651,14 +670,14 @@ describe('ClaudeCodeSDKService', () => {
         },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const results = [];
       for await (const message of service.queryClaudeCode('query-3', { prompt: 'Test' })) {
@@ -682,14 +701,14 @@ describe('ClaudeCodeSDKService', () => {
         },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const results = [];
       for await (const message of service.queryClaudeCode('query-4', { prompt: 'Test' })) {
@@ -713,14 +732,14 @@ describe('ClaudeCodeSDKService', () => {
         },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const results = [];
       for await (const message of service.queryClaudeCode('query-5', { prompt: 'Test' })) {
@@ -800,14 +819,14 @@ describe('ClaudeCodeSDKService', () => {
         { type: 'result', subtype: 'success' },
       ];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const results = [];
       for await (const message of service.queryClaudeCode('query-1', {
@@ -826,14 +845,14 @@ describe('ClaudeCodeSDKService', () => {
     it('should handle empty session ID gracefully', async () => {
       const mockMessages = [{ type: 'message', content: 'Test' }];
 
-      mockQuery.mockReturnValue({
+      mockQuery.mockImplementation(() => ({
         [Symbol.asyncIterator]: async function* () {
           for (const message of mockMessages) {
             yield message;
           }
         },
         interrupt: jest.fn(),
-      } as any);
+      } as any));
 
       const results = [];
       for await (const message of service.queryClaudeCode('query-2', {

@@ -185,10 +185,8 @@ describe('FileDataStoreService', () => {
       });
 
       await expect(service.ensureDirectories()).rejects.toThrow('mkdir failed');
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Failed to create autosteer directories:',
-        error
-      );
+      // With new error handling, errors bubble up instead of being logged locally
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -525,7 +523,8 @@ describe('FileDataStoreService', () => {
       await expect(service.deleteWorktreeDirectory('test-worktree')).rejects.toThrow(
         'Delete failed'
       );
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to delete worktree directory:', error);
+      // With new error handling, errors bubble up instead of being logged locally
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
     });
   });
 

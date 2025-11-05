@@ -1,6 +1,6 @@
-import { ipcMain } from 'electron';
 import { DiffHunk, DiffOptions, FileDiff, GitDiffService } from '../../services/GitDiffService';
 import { log as logger } from '../../services/logger';
+import { registerSafeHandler } from '../safeHandlerWrapper';
 
 interface GetDiffParams {
   repoPath: string;
@@ -25,93 +25,77 @@ export function registerGitDiffHandlers(): void {
   /**
    * Get diff between commits/branches
    */
-  ipcMain.handle(
+  registerSafeHandler(
     'git-diff:get-diff',
     async (_event, params: GetDiffParams): Promise<FileDiff[]> => {
-      try {
-        const service = new GitDiffService(params.repoPath);
-        const options: DiffOptions = {
-          repoPath: params.repoPath,
-          ...(params.from && { from: params.from }),
-          ...(params.to && { to: params.to }),
-          ...(params.filePath && { filePath: params.filePath }),
-          ...(params.contextLines !== undefined && { contextLines: params.contextLines }),
-        };
+      const service = new GitDiffService(params.repoPath);
+      const options: DiffOptions = {
+        repoPath: params.repoPath,
+        ...(params.from && { from: params.from }),
+        ...(params.to && { to: params.to }),
+        ...(params.filePath && { filePath: params.filePath }),
+        ...(params.contextLines !== undefined && { contextLines: params.contextLines }),
+      };
 
-        return await service.getDiff(options);
-      } catch (error) {
-        logger.error('git-diff:get-diff failed:', error);
-        throw error;
-      }
-    }
+      return await service.getDiff(options);
+    },
+    { operationName: 'Get Git Diff' }
   );
 
   /**
    * Get uncommitted changes (working directory)
    */
-  ipcMain.handle(
+  registerSafeHandler(
     'git-diff:get-uncommitted',
     async (_event, params: { repoPath: string; filePath?: string }): Promise<FileDiff[]> => {
-      try {
-        const service = new GitDiffService(params.repoPath);
-        return await service.getUncommittedDiff(params.filePath);
-      } catch (error) {
-        logger.error('git-diff:get-uncommitted failed:', error);
-        throw error;
-      }
-    }
+      const service = new GitDiffService(params.repoPath);
+      return await service.getUncommittedDiff(params.filePath);
+    },
+    { operationName: 'Get Uncommitted Changes' }
   );
 
   /**
    * Get staged changes
    */
-  ipcMain.handle(
+  registerSafeHandler(
     'git-diff:get-staged',
     async (_event, params: { repoPath: string; filePath?: string }): Promise<FileDiff[]> => {
-      try {
-        const service = new GitDiffService(params.repoPath);
-        return await service.getStagedDiff(params.filePath);
-      } catch (error) {
-        logger.error('git-diff:get-staged failed:', error);
-        throw error;
-      }
-    }
+      const service = new GitDiffService(params.repoPath);
+      return await service.getStagedDiff(params.filePath);
+    },
+    { operationName: 'Get Staged Changes' }
   );
 
   /**
    * Get list of conflicted files
    */
-  ipcMain.handle('git-diff:get-conflicts', async (_event, repoPath: string): Promise<string[]> => {
-    try {
+  registerSafeHandler(
+    'git-diff:get-conflicts',
+    async (_event, repoPath: string): Promise<string[]> => {
       const service = new GitDiffService(repoPath);
       return await service.getConflictedFiles();
-    } catch (error) {
-      logger.error('git-diff:get-conflicts failed:', error);
-      throw error;
-    }
-  });
+    },
+    { operationName: 'Get Conflicted Files' }
+  );
 
   /**
    * Get file content at specific ref
    */
-  ipcMain.handle(
+  registerSafeHandler(
     'git-diff:get-file-content',
     async (_event, params: GetFileContentParams): Promise<string> => {
-      try {
-        const service = new GitDiffService(params.repoPath);
-        return await service.getFileContent(params.filePath, params.ref);
-      } catch (error) {
-        logger.error('git-diff:get-file-content failed:', error);
-        throw error;
-      }
-    }
+      const service = new GitDiffService(params.repoPath);
+      return await service.getFileContent(params.filePath, params.ref);
+    },
+    { operationName: 'Get File Content' }
   );
 
   /**
    * Start watching for git changes
    */
-  ipcMain.handle('git-diff:start-watching', async (event, repoPath: string): Promise<void> => {
-    try {
+  registerSafeHandler(
+    'git-diff:start-watching',
+    async (event, repoPath: string): Promise<void> => {
       logger.info('[GitDiffHandlers] git-diff:start-watching called', {
         repoPath,
         timestamp: new Date().toISOString(),
@@ -148,17 +132,16 @@ export function registerGitDiffHandlers(): void {
       logger.info(`[GitDiffHandlers] Started watching git changes for: ${repoPath}`, {
         activeWatchersCount: activeWatchers.size,
       });
-    } catch (error) {
-      logger.error('[GitDiffHandlers] git-diff:start-watching failed:', error);
-      throw error;
-    }
-  });
+    },
+    { operationName: 'Start Watching Git Changes' }
+  );
 
   /**
    * Stop watching for git changes
    */
-  ipcMain.handle('git-diff:stop-watching', async (_event, repoPath: string): Promise<void> => {
-    try {
+  registerSafeHandler(
+    'git-diff:stop-watching',
+    async (_event, repoPath: string): Promise<void> => {
       logger.info('[GitDiffHandlers] git-diff:stop-watching called', {
         repoPath,
         timestamp: new Date().toISOString(),
@@ -174,32 +157,26 @@ export function registerGitDiffHandlers(): void {
       } else {
         logger.warn('[GitDiffHandlers] No watcher found for:', repoPath);
       }
-    } catch (error) {
-      logger.error('[GitDiffHandlers] git-diff:stop-watching failed:', error);
-      throw error;
-    }
-  });
+    },
+    { operationName: 'Stop Watching Git Changes' }
+  );
 
   /**
    * Discard all changes in a file
    */
-  ipcMain.handle(
+  registerSafeHandler(
     'git-diff:discard-file',
     async (_event, params: { repoPath: string; filePath: string }): Promise<void> => {
-      try {
-        const service = new GitDiffService(params.repoPath);
-        await service.discardFileChanges(params.filePath);
-      } catch (error) {
-        logger.error('git-diff:discard-file failed:', error);
-        throw error;
-      }
-    }
+      const service = new GitDiffService(params.repoPath);
+      await service.discardFileChanges(params.filePath);
+    },
+    { operationName: 'Discard File Changes' }
   );
 
   /**
    * Discard changes in a specific hunk
    */
-  ipcMain.handle(
+  registerSafeHandler(
     'git-diff:discard-hunk',
     async (
       _event,
@@ -215,21 +192,17 @@ export function registerGitDiffHandlers(): void {
         oldStart: params.hunk.oldStart,
         newStart: params.hunk.newStart,
       });
-      try {
-        const service = new GitDiffService(params.repoPath);
-        await service.discardHunkChanges(params.filePath, params.hunk);
-        logger.info('[GitDiffHandlers] git-diff:discard-hunk completed successfully');
-      } catch (error) {
-        logger.error('[GitDiffHandlers] git-diff:discard-hunk failed:', error);
-        throw error;
-      }
-    }
+      const service = new GitDiffService(params.repoPath);
+      await service.discardHunkChanges(params.filePath, params.hunk);
+      logger.info('[GitDiffHandlers] git-diff:discard-hunk completed successfully');
+    },
+    { operationName: 'Discard Hunk Changes' }
   );
 
   /**
    * Discard specific lines within a file
    */
-  ipcMain.handle(
+  registerSafeHandler(
     'git-diff:discard-lines',
     async (
       _event,
@@ -244,31 +217,23 @@ export function registerGitDiffHandlers(): void {
         filePath: params.filePath,
         lineCount: params.lines.length,
       });
-      try {
-        const service = new GitDiffService(params.repoPath);
-        await service.discardLineChanges(params.filePath, params.lines);
-        logger.info('[GitDiffHandlers] git-diff:discard-lines completed successfully');
-      } catch (error) {
-        logger.error('[GitDiffHandlers] git-diff:discard-lines failed:', error);
-        throw error;
-      }
-    }
+      const service = new GitDiffService(params.repoPath);
+      await service.discardLineChanges(params.filePath, params.lines);
+      logger.info('[GitDiffHandlers] git-diff:discard-lines completed successfully');
+    },
+    { operationName: 'Discard Line Changes' }
   );
 
   /**
    * Restore a deleted file from HEAD
    */
-  ipcMain.handle(
+  registerSafeHandler(
     'git-diff:restore-file',
     async (_event, params: { repoPath: string; filePath: string }): Promise<void> => {
-      try {
-        const service = new GitDiffService(params.repoPath);
-        await service.restoreDeletedFile(params.filePath);
-      } catch (error) {
-        logger.error('git-diff:restore-file failed:', error);
-        throw error;
-      }
-    }
+      const service = new GitDiffService(params.repoPath);
+      await service.restoreDeletedFile(params.filePath);
+    },
+    { operationName: 'Restore Deleted File' }
   );
 
   logger.info('Git diff IPC handlers registered');

@@ -33,9 +33,12 @@ export default defineConfig({
 
   server: {
     port: 5173,
-    hmr: {
-      overlay: true,
-    },
+    hmr:
+      process.env.DISABLE_HMR === 'true'
+        ? false
+        : {
+            overlay: true,
+          },
   },
 
   build: {

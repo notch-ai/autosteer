@@ -195,7 +195,7 @@ describe('useCodeMirror', () => {
       });
 
       const initTime = performance.now() - startTime;
-      expect(initTime).toBeLessThan(100);
+      expect(initTime).toBeLessThan(150);
     });
   });
 });

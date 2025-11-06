@@ -20,7 +20,6 @@ import { registerGitHandlers } from './gitHandlers';
 import { registerAttachmentHandlers } from './attachmentHandlers';
 import { UpdateService } from '@/services/UpdateService';
 
-// Phase 4 - IPC Simplification (NOTCH-1465) - COMPLETE
 // Migrated from 13 specialized handlers to 4 domain handlers:
 // - ClaudeHandlers (Agent, MCP, SlashCommand)
 // - ProjectHandlers (File, Resource)

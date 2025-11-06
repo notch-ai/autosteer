@@ -23,7 +23,7 @@ export interface UseCodeMirrorReturn {
   view: EditorView | null;
   content: string;
   setContent: (content: string) => void;
-  focus: () => void;
+  focus: (cursorPosition?: number) => void;
   destroy: () => void;
 }
 
@@ -61,8 +61,6 @@ export function useCodeMirror(options: UseCodeMirrorOptions = {}): UseCodeMirror
       if (editorInstanceRef.current) {
         return;
       }
-
-      console.log('[useCodeMirror] Creating new editor instance');
 
       const config: EditorConfig = {
         doc: initialDoc,
@@ -110,9 +108,9 @@ export function useCodeMirror(options: UseCodeMirrorOptions = {}): UseCodeMirror
     }
   }, []);
 
-  const focus = useCallback(() => {
+  const focus = useCallback((cursorPosition?: number) => {
     if (editorInstanceRef.current && !editorInstanceRef.current.view.hasFocus) {
-      focusEditor(editorInstanceRef.current);
+      focusEditor(editorInstanceRef.current, cursorPosition);
     }
   }, []);
 

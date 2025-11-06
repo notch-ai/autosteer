@@ -2,6 +2,7 @@ import { useTheme } from '@/commons/contexts/ThemeContext';
 import { cn } from '@/commons/utils';
 import { logger } from '@/commons/utils/logger';
 import { useFileDragDrop } from '@/hooks/useFileDragDrop';
+import { useChatInputFocus } from '@/hooks/useChatInputFocus';
 import {
   Circle,
   CircleCheck,
@@ -40,18 +41,18 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
+import { useAgentsStore, useChatStore, useProjectsStore } from '@/stores';
 import { useResourcesStore } from '@/stores/resources.store';
-import { useChatStore, useAgentsStore, useProjectsStore } from '@/stores';
 
-import { ChatInput } from './ChatInput';
-import { ClaudeErrorDisplay } from '@/features/shared';
+import {
+  RequestTiming,
+  StreamingEventDisplay,
+  ToolPairDisplay,
+  ToolUsageDisplay,
+} from '@/features/monitoring';
+import { ClaudeErrorDisplay, PermissionActionDisplay, TodoDisplay } from '@/features/shared';
+import { ChatInput, ChatInputHandle } from './ChatInput';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { PermissionActionDisplay } from '@/features/shared';
-import { RequestTiming } from '@/features/monitoring';
-import { StreamingEventDisplay } from '@/features/monitoring';
-import { TodoDisplay } from '@/features/shared';
-import { ToolPairDisplay } from '@/features/monitoring';
-import { ToolUsageDisplay } from '@/features/monitoring';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
@@ -168,14 +169,14 @@ const MessageItem = memo<MessageItemProps>(
     return (
       <div
         className={cn(
-          'mb-1 group min-w-0 max-w-full',
+          'mb-1 group min-w-0 max-w-full select-text',
           message.role === 'user'
             ? 'text-text-muted bg-background rounded px-1 py-1'
             : 'text-text bg-muted rounded px-1 py-1 pb-2'
         )}
       >
         {/* Message Content */}
-        <div className="pl-2 text-sm min-w-0 max-w-full break-words">
+        <div className="pl-2 text-sm min-w-0 max-w-full break-words select-text">
           {renderAttachedResources(message.attachedResources || [])}
 
           {isStreamingMessage ? (
@@ -554,6 +555,8 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const [showPermissionDialog, setShowPermissionDialog] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const chatInputRef = useRef<ChatInputHandle>(null);
 
     // Store subscriptions
     const resources = useResourcesStore((state) => state.resources);
@@ -573,6 +576,11 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     });
 
     const selectedAgentId = useAgentsStore((state) => state.selectedAgentId);
+
+    // Auto-focus chat input when agent changes
+    useChatInputFocus(() => {
+      chatInputRef.current?.focus();
+    });
     const sendMessage = useChatStore((state) => state.sendMessage);
 
     // Get current project for auto-focus and path stripping
@@ -597,10 +605,14 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     useEffect(() => {
       // Use setTimeout to ensure DOM has fully updated with new content
       const scrollTimer = setTimeout(() => {
-        const viewport = document.querySelector('[data-radix-scroll-area-viewport]');
+        const scrollAreaRoot = scrollAreaRef.current;
+        const viewport = scrollAreaRoot?.querySelector('[data-radix-scroll-area-viewport]');
+
         if (viewport) {
           // Force scroll to absolute bottom
           viewport.scrollTop = viewport.scrollHeight;
+        } else {
+          logger.warn('[ChatInterface] ScrollArea viewport not found');
         }
       }, 150);
 
@@ -784,7 +796,6 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
           if (resourceIds.length > 0) {
             onAttachResources(resourceIds);
-            logger.info('[ChatInterface] Successfully attached dropped files:', resourceIds);
           }
         } catch (error) {
           logger.error('[ChatInterface] Failed to process dropped files:', error);
@@ -802,7 +813,7 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       <div
         role="main"
         aria-label="Chat interface"
-        className="flex flex-col flex-1 min-h-0 bg-background min-w-0 overflow-hidden"
+        className="flex flex-col flex-1 min-h-0 bg-background min-w-0"
         data-chat-interface
       >
         {/* Clear Chat Confirmation Dialog */}
@@ -833,29 +844,6 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           onDragOver={dragHandlers.onDragOver}
           onDragLeave={dragHandlers.onDragLeave}
           onDrop={dragHandlers.onDrop}
-          onClick={() => {
-            // Focus the chat input if clicking in the messages area
-            // and the current focus is not already in chat messages or chat input
-            const chatContainer = document.querySelector('[data-chat-interface]');
-            const activeElement = document.activeElement;
-            const isFocusedInChat = activeElement && chatContainer?.contains(activeElement);
-
-            // Check if there's an active text selection - preserve it
-            const selection = window.getSelection();
-            const hasSelection =
-              selection && !selection.isCollapsed && selection.toString().length > 0;
-
-            // Only focus editor if:
-            // 1. Focus is not already in chat
-            // 2. There's no active text selection (preserve selection for copy operations)
-            if (!isFocusedInChat && !hasSelection) {
-              // Find the CodeMirror editor and focus it
-              const cmEditor = document.querySelector('.cm-editor .cm-content') as HTMLElement;
-              if (cmEditor) {
-                cmEditor.focus();
-              }
-            }
-          }}
         >
           {/* Drag overlay */}
           {isDragging && (
@@ -867,8 +855,8 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
             </div>
           )}
 
-          <ScrollArea className="flex-1 px-2 py-1.5">
-            <div role="log" aria-live="polite" aria-label="Chat messages" className="mr-2">
+          <ScrollArea ref={scrollAreaRef} className="flex-1 overflow-hidden">
+            <div role="log" aria-live="polite" aria-label="Chat messages" className="px-2 py-1.5">
               {messages.map((message, index) => (
                 <MessageItem
                   key={message.id}
@@ -1069,6 +1057,8 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         {/* Input Area - Hidden when terminal tab is active */}
         {selectedAgentId !== 'terminal-tab' && (
           <ChatInput
+            ref={chatInputRef}
+            key={selectedAgentId}
             onSendMessage={onSendMessage}
             isLoading={isLoading}
             attachedResourceIds={attachedResourceIds}

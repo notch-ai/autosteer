@@ -54,8 +54,8 @@ export const FileChangesList: React.FC<FileChangesListProps> = ({
         <h3 className="text-sm font-medium">{getSummary() || 'No changes'}</h3>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
+      <ScrollArea className="flex-1 overflow-hidden">
+        <div className="p-2 space-y-1 max-w-full">
           {files.map((stat, index) => {
             const isSelected = stat.file === selectedFile;
             const renamed = getRenamedFileDisplay(stat);
@@ -63,14 +63,14 @@ export const FileChangesList: React.FC<FileChangesListProps> = ({
             return (
               <div
                 key={`${stat.file}-${index}`}
-                className={`flex items-center justify-between px-2 py-1.5 text-sm rounded-sm group transition-colors min-h-8 cursor-pointer ${
+                className={`flex items-center justify-between px-2 py-1.5 text-sm rounded-sm group transition-colors min-h-8 cursor-pointer max-w-full ${
                   isSelected ? 'bg-surface-active' : 'hover:bg-surface-hover text-foreground'
                 }`}
                 onClick={() => onSelect(stat.file)}
                 onMouseEnter={() => setHoveredFile(stat.file)}
                 onMouseLeave={() => setHoveredFile(null)}
               >
-                <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
                   {stat.binary ? (
                     <Binary className="h-3 w-3 flex-shrink-0" />
                   ) : stat.status === 'untracked' ? (
@@ -84,7 +84,11 @@ export const FileChangesList: React.FC<FileChangesListProps> = ({
                   ) : (
                     <FilePenLine className="h-3 w-3 flex-shrink-0 text-warning" />
                   )}
-                  <div className="truncate text-sm min-w-0 flex-1" title={stat.file}>
+                  <div
+                    className="truncate text-sm min-w-0"
+                    style={{ direction: 'rtl', textAlign: 'left' }}
+                    title={stat.file}
+                  >
                     {renamed ? `${renamed.from} → ${renamed.to}` : stat.file}
                   </div>
                 </div>

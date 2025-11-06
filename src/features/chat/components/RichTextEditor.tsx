@@ -48,6 +48,8 @@ export interface RichTextEditorProps {
   model?: ModelOption;
   onModelChange?: (model: ModelOption) => void;
   resources?: Map<string, unknown>;
+  initialCursorPosition?: number | null;
+  onCursorPositionChange?: (position: number) => void;
 }
 
 /**
@@ -71,6 +73,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   model,
   onModelChange,
   resources,
+  initialCursorPosition,
+  onCursorPositionChange,
 }) => {
   // Vim mode state - managed locally and by vim extension
   const [vimMode, setVimMode] = useState<'NORMAL' | 'INSERT'>('INSERT');
@@ -84,14 +88,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [showFileMentions, setShowFileMentions] = useState(false);
   const [fileMentionQuery, setFileMentionQuery] = useState('');
 
-  // Wrap state setters with logging (no dependencies to avoid re-renders)
+  // Wrap state setters (no dependencies to avoid re-renders)
   const setShowSlashCommands = useCallback((value: boolean) => {
-    console.log('[RichTextEditor] setShowSlashCommands', { value });
     setShowSlashCommandsState(value);
   }, []);
 
   const setSlashQuery = useCallback((value: string) => {
-    console.log('[RichTextEditor] setSlashQuery', { value });
     setSlashQueryState(value);
   }, []);
   const [pickerPosition, setPickerPosition] = useState<{
@@ -218,7 +220,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   // Memoize extensions to prevent ref callback from being called on every render
   const extensions = useMemo(() => {
-    console.log('[RichTextEditor] Rebuilding extensions - vimEnabled:', vimEnabled);
     return [
       // Line wrapping - enable text wrapping
       EditorView.lineWrapping,
@@ -248,7 +249,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     changes: { from: 0, to: view.state.doc.length, insert: '' },
                   });
                 } catch (error) {
-                  logger.error('[RichTextEditor] Error calling onSend:', error);
+                  logger.error('Error calling onSend:', error);
                 }
                 return true;
               }
@@ -410,6 +411,45 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     onUpdate: onChange,
     extensions,
   });
+
+  // Track cursor position changes using a ref to avoid adding listeners dynamically
+  const onCursorPositionChangeRef = useRef(onCursorPositionChange);
+  useEffect(() => {
+    onCursorPositionChangeRef.current = onCursorPositionChange;
+  }, [onCursorPositionChange]);
+
+  // Track cursor position changes via document selection
+  useEffect(() => {
+    if (!view) return;
+
+    const handleSelectionChange = () => {
+      if (!view.hasFocus) return;
+      const position = view.state.selection.main.anchor;
+      onCursorPositionChangeRef.current?.(position);
+    };
+
+    // Listen to selection changes
+    const interval = setInterval(handleSelectionChange, 100);
+
+    return () => clearInterval(interval);
+  }, [view]);
+
+  // Restore cursor position on mount if provided
+  const initialCursorAppliedRef = useRef(false);
+  useEffect(() => {
+    if (
+      view &&
+      initialCursorPosition !== null &&
+      initialCursorPosition !== undefined &&
+      !initialCursorAppliedRef.current
+    ) {
+      initialCursorAppliedRef.current = true;
+      // Apply cursor position after a short delay to ensure editor is ready
+      requestAnimationFrame(() => {
+        focus(initialCursorPosition);
+      });
+    }
+  }, [view, initialCursorPosition, focus]);
 
   // Note: Vim mode changes require extensions to be recreated
   // The extensions are memoized and will update when vimEnabled changes

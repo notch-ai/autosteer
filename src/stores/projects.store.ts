@@ -278,24 +278,6 @@ export const useProjectsStore = create<ProjectsStore>()(
         // Backend terminal processes remain alive and can be reconnected
         // This allows seamless switching between projects without losing terminal state
 
-        // Log terminal count when selecting a project
-        try {
-          const response = await window.electron.terminal.list();
-          // Handle both direct array and TerminalResponse format
-          let terminalCount = 0;
-          if (Array.isArray(response)) {
-            terminalCount = response.length;
-          } else if (response && typeof response === 'object' && 'data' in response) {
-            const responseWithData = response as { data?: unknown };
-            terminalCount = Array.isArray(responseWithData.data) ? responseWithData.data.length : 0;
-          }
-          logger.info(
-            `[ProjectsStore] Selecting project ${id}. Active terminals: ${terminalCount}/10`
-          );
-        } catch (error) {
-          logger.error('[ProjectsStore] Failed to fetch terminal count:', error);
-        }
-
         // Clear streaming messages when switching projects (import chat store)
         if (previousProjectId && previousProjectId !== id) {
           const { useChatStore } = await import('./chat.store');
@@ -366,16 +348,11 @@ export const useProjectsStore = create<ProjectsStore>()(
 
               if (isValidAgent || isSystemTab) {
                 agentToSelect = savedTabId!;
-                logger.info('[ProjectsStore] Restoring saved active tab:', savedTabId);
-              } else if (savedTabId) {
-                logger.warn('[ProjectsStore] Saved tab not found, using first agent:', savedTabId);
               }
             } catch (error) {
-              logger.warn('[ProjectsStore] Failed to load saved tab, using first agent:', error);
+              // Silently fall back to first agent
             }
-            logger.info('[ProjectsStore] About to call selectAgent with:', agentToSelect);
             await agentsStore.selectAgent(agentToSelect);
-            logger.info('[ProjectsStore] selectAgent completed');
           }
         } else {
           // No agent exists - this shouldn't happen if worktree was created properly
@@ -386,7 +363,6 @@ export const useProjectsStore = create<ProjectsStore>()(
               .map((agent) => agent.title)
           );
           const sessionName = generateSessionName(existingNames);
-          logger.info('[ProjectsStore] Generated session name for project fallback:', sessionName);
 
           const newAgent = await agentsStore.createAgent({
             title: sessionName,

@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { TerminalPoolManager } from '@/renderer/services/TerminalPoolManager';
 import { Terminal, TerminalBufferState } from '@/types/terminal.types';
+import { logger } from '@/commons/utils/logger';
+
+/**
+ * Pool statistics interface
+ */
+export interface TerminalPoolStats {
+  size: number;
+  maxSize: number;
+  terminalIds: string[];
+  availableSlots: number;
+}
 
 /**
  * useTerminalPool Hook - Phase 2 Instance Pooling
@@ -12,6 +23,9 @@ import { Terminal, TerminalBufferState } from '@/types/terminal.types';
  * - Terminal instance lifecycle management
  * - Attach/detach operations for DOM lifecycle
  * - Buffer state capture/restore
+ * - Pool size monitoring and stats
+ * - Graceful error handling with user-friendly messages
+ * - Application logging for debugging
  * - Cleanup on unmount
  *
  * Architecture:
@@ -22,10 +36,14 @@ import { Terminal, TerminalBufferState } from '@/types/terminal.types';
  *
  * Usage:
  * ```tsx
- * const { createTerminal, attachTerminal, detachTerminal, destroyTerminal, captureBufferState } = useTerminalPool();
+ * const { createTerminal, attachTerminal, detachTerminal, destroyTerminal, getPoolStats } = useTerminalPool();
  *
  * // Create terminal
  * const adapter = createTerminal(terminal, element);
+ *
+ * // Check pool status
+ * const stats = getPoolStats();
+ * console.log(`Pool: ${stats.size}/${stats.maxSize} terminals`);
  *
  * // Detach when component unmounts
  * detachTerminal(terminalId);
@@ -43,7 +61,7 @@ export const useTerminalPool = () => {
   // Initialize pool manager on first render
   if (!poolManagerRef.current) {
     poolManagerRef.current = new TerminalPoolManager();
-    console.log('[useTerminalPool] Pool manager initialized');
+    logger.debug('[useTerminalPool] Pool manager initialized');
   }
 
   const poolManager = poolManagerRef.current;
@@ -53,8 +71,17 @@ export const useTerminalPool = () => {
    */
   const createTerminal = useCallback(
     (terminal: Terminal, element: HTMLElement) => {
-      console.log('[useTerminalPool] Creating terminal', { terminalId: terminal.id });
-      return poolManager.createTerminal(terminal, element);
+      try {
+        logger.debug('[useTerminalPool] Creating terminal', { terminalId: terminal.id });
+        return poolManager.createTerminal(terminal, element);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('[useTerminalPool] Failed to create terminal', {
+          terminalId: terminal.id,
+          error: errorMessage,
+        });
+        throw error;
+      }
     },
     [poolManager]
   );
@@ -84,8 +111,17 @@ export const useTerminalPool = () => {
    */
   const attachTerminal = useCallback(
     (terminalId: string, element: HTMLElement) => {
-      console.log('[useTerminalPool] Attaching terminal', { terminalId });
-      poolManager.attachTerminal(terminalId, element);
+      try {
+        logger.debug('[useTerminalPool] Attaching terminal', { terminalId });
+        poolManager.attachTerminal(terminalId, element);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('[useTerminalPool] Failed to attach terminal', {
+          terminalId,
+          error: errorMessage,
+        });
+        throw error;
+      }
     },
     [poolManager]
   );
@@ -95,8 +131,17 @@ export const useTerminalPool = () => {
    */
   const detachTerminal = useCallback(
     (terminalId: string) => {
-      console.log('[useTerminalPool] Detaching terminal', { terminalId });
-      poolManager.detachTerminal(terminalId);
+      try {
+        logger.debug('[useTerminalPool] Detaching terminal', { terminalId });
+        poolManager.detachTerminal(terminalId);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('[useTerminalPool] Failed to detach terminal', {
+          terminalId,
+          error: errorMessage,
+        });
+        throw error;
+      }
     },
     [poolManager]
   );
@@ -146,7 +191,7 @@ export const useTerminalPool = () => {
    */
   const captureBufferState = useCallback(
     (terminalId: string): TerminalBufferState => {
-      console.log('[useTerminalPool] Capturing buffer state', { terminalId });
+      logger.debug('[useTerminalPool] Capturing buffer state', { terminalId });
       return poolManager.captureBufferState(terminalId);
     },
     [poolManager]
@@ -157,7 +202,7 @@ export const useTerminalPool = () => {
    */
   const restoreBufferState = useCallback(
     (terminalId: string, bufferState: TerminalBufferState) => {
-      console.log('[useTerminalPool] Restoring buffer state', { terminalId });
+      logger.debug('[useTerminalPool] Restoring buffer state', { terminalId });
       poolManager.restoreBufferState(terminalId, bufferState);
     },
     [poolManager]
@@ -168,8 +213,17 @@ export const useTerminalPool = () => {
    */
   const destroyTerminal = useCallback(
     (terminalId: string) => {
-      console.log('[useTerminalPool] Destroying terminal', { terminalId });
-      poolManager.destroyTerminal(terminalId);
+      try {
+        logger.debug('[useTerminalPool] Destroying terminal', { terminalId });
+        poolManager.destroyTerminal(terminalId);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error('[useTerminalPool] Failed to destroy terminal', {
+          terminalId,
+          error: errorMessage,
+        });
+        throw error;
+      }
     },
     [poolManager]
   );
@@ -182,10 +236,33 @@ export const useTerminalPool = () => {
   }, [poolManager]);
 
   /**
+   * Get maximum pool size
+   */
+  const getMaxPoolSize = useCallback(() => {
+    return poolManager.getMaxPoolSize();
+  }, [poolManager]);
+
+  /**
    * Get all terminal IDs
    */
   const getAllTerminalIds = useCallback(() => {
     return poolManager.getAllTerminalIds();
+  }, [poolManager]);
+
+  /**
+   * Get pool statistics
+   */
+  const getPoolStats = useCallback((): TerminalPoolStats => {
+    const size = poolManager.getPoolSize();
+    const maxSize = poolManager.getMaxPoolSize();
+    const terminalIds = poolManager.getAllTerminalIds();
+
+    return {
+      size,
+      maxSize,
+      terminalIds,
+      availableSlots: maxSize - size,
+    };
   }, [poolManager]);
 
   /**
@@ -215,7 +292,7 @@ export const useTerminalPool = () => {
     return () => {
       // Note: We don't clear the pool on unmount to support terminal persistence
       // Terminals will be destroyed explicitly when needed
-      console.log('[useTerminalPool] Hook unmounting (pool persists)');
+      logger.debug('[useTerminalPool] Hook unmounting (pool persists)');
     };
   }, []);
 
@@ -242,8 +319,10 @@ export const useTerminalPool = () => {
 
     // Pool info
     getPoolSize,
+    getMaxPoolSize,
     getAllTerminalIds,
     getTerminalMetadata,
     isTerminalAttached,
+    getPoolStats,
   };
 };

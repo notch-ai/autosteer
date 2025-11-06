@@ -6,7 +6,7 @@ import { useSessionTabs } from '@/hooks/useSessionTabs';
 import { useAgentsStore, useChatStore } from '@/stores';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { toastError, toastSuccess } from '@/components/ui/sonner';
+import { toastError } from '@/components/ui/sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/features/shared/components/ui/ConfirmDialog';
 import { Icon } from '@/features/shared/components/ui/Icon';
@@ -25,7 +25,7 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
   onNewSession,
   maxTabs = MAX_TABS,
 }) => {
-  const { tabs, activeTab, switchToTab, createNewTab, closeTab, deleteAgent, isTabsEnabled } =
+  const { tabs, activeTab, switchToTab, createNewTab, deleteAgent, isTabsEnabled } =
     useSessionTabs();
   const updateAgent = useAgentsStore((state) => state.updateAgent);
   const streamingStates = useChatStore((state) => state.streamingStates);
@@ -95,9 +95,6 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
         // If this was the last agent tab, create a new session
         if (isLastAgentTab) {
           await createNewTab();
-          toastSuccess('Session deleted and new session created');
-        } else {
-          toastSuccess('Session deleted successfully');
         }
 
         setDeleteConfirm({ isOpen: false, tabId: null, agentName: null });
@@ -149,7 +146,6 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
         // Update the agent title (skip for terminal tabs)
         if (tab?.tabType !== 'terminal') {
           await updateAgent(tabId, { title: trimmedName });
-          toastSuccess('Tab renamed successfully');
         }
         handleCancelEdit();
       } catch (error) {
@@ -235,11 +231,36 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
   useKeyboardShortcut(
     [KeyboardShortcuts.CLOSE_TAB, KeyboardShortcuts.CLOSE_TAB_ALT],
     () => {
-      if (activeTab && tabs.length > 1) {
-        closeTab(activeTab.id);
+      if (
+        activeTab &&
+        tabs.length > 1 &&
+        activeTab.tabType !== 'terminal' &&
+        activeTab.tabType !== 'changes'
+      ) {
+        setDeleteConfirm({
+          isOpen: true,
+          tabId: activeTab.id,
+          agentName: activeTab.agentName,
+        });
       }
     },
     { enabled: isTabsEnabled && tabs.length > 1 }
+  );
+
+  useKeyboardShortcut(
+    [KeyboardShortcuts.RENAME_TAB, KeyboardShortcuts.RENAME_TAB_ALT],
+    () => {
+      if (
+        activeTab &&
+        activeTab.tabType !== 'terminal' &&
+        activeTab.tabType !== 'changes' &&
+        !editingTabId
+      ) {
+        setEditingTabId(activeTab.id);
+        setEditingTabName(activeTab.agentName);
+      }
+    },
+    { enabled: isTabsEnabled && !editingTabId }
   );
 
   // Tab cycling shortcuts - Next tab (Cmd+Opt+Right)

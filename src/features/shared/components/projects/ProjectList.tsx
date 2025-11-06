@@ -1,22 +1,22 @@
-import { ConfirmDialog } from '@/features/shared/components/ui/ConfirmDialog';
-import { Icon } from '@/features/shared/components/ui/Icon';
+import { generateSessionName } from '@/commons/utils/sessionNameGenerator';
 import { Button } from '@/components/ui/button';
 import { toastError, toastSuccess } from '@/components/ui/sonner';
-import { generateSessionName } from '@/commons/utils/sessionNameGenerator';
 import { AgentStatus, AgentType } from '@/entities/Agent';
+import { ConfirmDialog } from '@/features/shared/components/ui/ConfirmDialog';
+import { Icon } from '@/features/shared/components/ui/Icon';
+import { useProjects } from '@/hooks/useProjects';
 import {
-  useUIStore,
   useAgentsStore,
-  useProjectsStore,
   useChatStore,
+  useProjectsStore,
+  useUIStore,
   useWorktreeStatsStore,
 } from '@/stores';
 import React, { useEffect, useMemo, useState } from 'react';
 
 export const ProjectList: React.FC = () => {
-  // Use domain-specific stores instead of deprecated core.ts methods
-  const projectsMap = useProjectsStore((state) => state.projects);
-  const selectedProjectId = useProjectsStore((state) => state.selectedProjectId);
+  // Use hooks with auto-load
+  const { projectsMap, selectedProjectId } = useProjects({ autoLoad: true });
   const agentsMap = useAgentsStore((state) => state.agents);
   const streamingStates = useChatStore((state) => state.streamingStates);
 
@@ -35,7 +35,6 @@ export const ProjectList: React.FC = () => {
   const createAgent = useAgentsStore((state) => state.createAgent);
   const deleteAgent = useAgentsStore((state) => state.deleteAgent);
   const deleteProject = useProjectsStore((state) => state.deleteProject);
-  const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadAgents = useAgentsStore((state) => state.loadAgents);
 
   // Worktree stats from WorktreeStatsStore
@@ -57,11 +56,10 @@ export const ProjectList: React.FC = () => {
     agentId: null,
   });
 
-  // Load initial data on component mount
+  // Load agents on component mount (projects loaded by useProjects hook)
   useEffect(() => {
-    void loadProjects();
     void loadAgents();
-  }, []); // Empty dependency array - only run once on mount
+  }, [loadAgents]);
 
   // Auto-select first project when data is loaded
   useEffect(() => {
@@ -416,7 +414,7 @@ export const ProjectList: React.FC = () => {
             const isRepoExpanded = expandedRepos.has(repoName);
 
             return (
-              <div key={repoName} className="mb-2">
+              <div key={repoName} className="mb-2 mr-2">
                 {/* Repository header */}
                 <div
                   className="group px-3 py-1.5 cursor-pointer hover:bg-surface-hover transition-colors flex items-center gap-2"

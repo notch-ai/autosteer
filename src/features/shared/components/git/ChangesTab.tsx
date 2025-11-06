@@ -277,7 +277,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
   return (
     <div className={`flex h-full ${className || ''}`}>
       {/* Left Panel - File List */}
-      <div className="flex-shrink-0" style={{ width: `${panelSizes.fileList}%` }}>
+      <div className="flex-shrink-0 h-full" style={{ width: `${panelSizes.fileList}%` }}>
         <FileChangesList
           files={stats}
           selectedFile={selectedFile}
@@ -319,7 +319,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
       />
 
       {/* Right Panel - Diff Viewer */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden h-full">
         {loadingDiff ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

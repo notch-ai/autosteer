@@ -19,6 +19,7 @@ module.exports = {
     'src/services/**/*.{ts,tsx}',
     'src/commons/**/*.{ts,tsx}',
     'src/entities/**/*.{ts,tsx}',
+    'src/hooks/**/*Handler.{ts,tsx}', // Handler pattern hooks 
 
     // Exclude files that don't need testing
     '!src/**/*.d.ts',
@@ -37,7 +38,7 @@ module.exports = {
     '!src/entities/LoadedUsageEntry.ts', // Complex data structure with minimal logic
 
     // Keep only the truly problematic files excluded
-    // AgentHandlers.ts now covered by comprehensive test suite (NOTCH-1461)
+    // AgentHandlers.ts now covered by comprehensive test suite
     '!src/main/ipc/IpcMigrationManager.ts', // 388 lines, complex migration logic
     '!src/commons/types/config.ts', // 115 lines, type definitions only
   ],
@@ -76,7 +77,7 @@ module.exports = {
     'tests/performance/', // Vitest performance tests - run separately
     'tests/integration/terminal-memory\\.test\\.ts', // Vitest test - run separately
     'tests/integration/terminal-persistence\\.test\\.ts', // Integration test with issues
-    'tests/unit/main/ipc/handlers/project\\.handlers\\.test\\.ts', // TODO: Fix electron mock setup (NOTCH-1465)
+    'tests/unit/main/ipc/handlers/project\\.handlers\\.test\\.ts', // TODO: Fix electron mock setup
   ],
   transformIgnorePatterns: [
     'node_modules/(?!(react-markdown|remark-.*|micromark.*|unist-.*|unified|bail|is-plain-obj|trough|vfile|vfile-message|mdast-util-.*|ccount|escape-string-regexp|markdown-table|zwitch|longest-streak|hast-.*|property-information|space-separated-tokens|comma-separated-tokens|pretty-bytes|character-entities.*|decode-named-character-reference|parse-entities|stringify-entities|character-reference-invalid|is-decimal|is-hexadecimal|is-alphanumerical|is-alphabetical|trim-lines|estree-util-.*|periscopic|is-reference|html-void-elements|uuid|@anthropic-ai|zustand)/)',
@@ -86,10 +87,42 @@ module.exports = {
   },
   coverageThreshold: {
     global: {
-      branches: 8, // Temporarily lowered after restructuring
-      functions: 8, // Temporarily lowered after restructuring
-      lines: 11, // Temporarily lowered after restructuring
-      statements: 11, // Temporarily lowered after restructuring
+      branches: 35, // Raised to match actual coverage
+      functions: 50, // Raised to match actual coverage
+      lines: 45, // Raised to match actual coverage
+      statements: 45, // Raised to match actual coverage
+    },
+    // Handler-specific coverage requirements
+    // Set to current achieved levels, gradually increase as more tests added
+    'src/hooks/useChatInputHandler.ts': {
+      branches: 87,
+      functions: 100,
+      lines: 98,
+      statements: 99,
+    },
+    'src/hooks/useTerminalTabHandler.ts': {
+      branches: 75,
+      functions: 57,
+      lines: 84,
+      statements: 84,
+    },
+    'src/hooks/useDiffViewerHandler.ts': {
+      branches: 96,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
+    'src/hooks/useSidebarHandler.ts': {
+      branches: 75,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
+    'src/hooks/useTaskListHandler.ts': {
+      branches: 78,
+      functions: 100,
+      lines: 95,
+      statements: 96,
     },
   },
 };

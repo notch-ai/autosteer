@@ -34,7 +34,7 @@ export const FileDiffViewer: React.FC<FileDiffViewerProps> = ({
 
   return (
     <div className="h-full flex flex-col border-l border-border">
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 overflow-hidden">
         <GitDiffViewer
           files={files}
           repoPath={workingDirectory}

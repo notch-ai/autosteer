@@ -1,14 +1,8 @@
 import React from 'react';
 import { cn } from '@/commons/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
-interface StructuredPatch {
-  oldStart: number;
-  oldLines: number;
-  newStart: number;
-  newLines: number;
-  lines: string[];
-}
+import { useDiffViewerHandler } from '@/hooks/useDiffViewerHandler';
+import { type StructuredPatch } from '@/stores/git.store';
 
 interface DiffViewerProps {
   filePath: string;
@@ -17,21 +11,40 @@ interface DiffViewerProps {
   structuredPatch?: StructuredPatch[];
   type: 'create' | 'edit';
   className?: string;
+  commitHash?: string;
+  useFetchedDiff?: boolean;
 }
 
 /**
- * Feature component for DiffViewer
- * Uses UI components for consistent styling
- * Provides code diff visualization functionality
+ *
+ * Pure presentation component for diff visualization.
+ * Business logic handled by useDiffViewerHandler hook.
+ *
+ * Modes:
+ * - useFetchedDiff=true: Fetches diff from Git service (uses handler)
+ * - useFetchedDiff=false: Uses provided props (backwards compatible)
+ *
+ * @see useDiffViewerHandler for business logic
  */
 export const DiffViewer: React.FC<DiffViewerProps> = ({
   filePath,
   oldContent,
   newContent,
-  structuredPatch,
+  structuredPatch: propStructuredPatch,
   type,
   className,
+  commitHash,
+  useFetchedDiff = false,
 }) => {
+  // Handler integration (only used when useFetchedDiff=true)
+  const { diff } = useDiffViewerHandler({
+    filePath: useFetchedDiff ? filePath : '',
+    ...(commitHash && { commitHash }),
+    autoFetch: useFetchedDiff,
+  });
+
+  // Use fetched diff if available, otherwise use props
+  const structuredPatch = useFetchedDiff ? diff?.structuredPatch : propStructuredPatch;
   const renderDiff = () => {
     if (type === 'create' && newContent) {
       const lines = newContent.split('\n');

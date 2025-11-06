@@ -46,6 +46,8 @@ export const KeyboardShortcuts = {
   NEW_TAB_ALT: 'ctrl+t',
   CLOSE_TAB: 'cmd+w',
   CLOSE_TAB_ALT: 'ctrl+w',
+  RENAME_TAB: 'cmd+l',
+  RENAME_TAB_ALT: 'ctrl+l',
 
   // Tab cycling shortcuts
   PREV_TAB: 'cmd+alt+arrowleft',

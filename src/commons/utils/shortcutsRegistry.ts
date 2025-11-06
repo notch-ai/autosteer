@@ -27,6 +27,21 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     description: 'Navigate between tabs',
     shortcuts: [
       {
+        id: 'new-tab',
+        keys: ['cmd+t', 'ctrl+t'],
+        description: 'Open new session tab',
+      },
+      {
+        id: 'close-tab',
+        keys: ['cmd+w', 'ctrl+w'],
+        description: 'Close current session tab',
+      },
+      {
+        id: 'rename-tab',
+        keys: ['cmd+l', 'ctrl+l'],
+        description: 'Rename current session tab',
+      },
+      {
         id: 'next-tab',
         keys: ['cmd+alt+arrowright', 'ctrl+alt+arrowright'],
         description: 'Cycle to next tab',

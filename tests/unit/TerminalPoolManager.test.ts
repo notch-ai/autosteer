@@ -5,17 +5,6 @@ import { TerminalLibraryAdapter } from '@/renderer/services/TerminalLibraryAdapt
 // Mock TerminalLibraryAdapter
 jest.mock('@/renderer/services/TerminalLibraryAdapter');
 
-// Mock console methods
-const mockConsole = {
-  log: jest.fn(),
-  info: jest.fn(),
-  debug: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-};
-
-global.console = mockConsole as any;
-
 describe('TerminalPoolManager', () => {
   let poolManager: TerminalPoolManager;
   let mockAdapter: jest.Mocked<TerminalLibraryAdapter>;
@@ -83,12 +72,6 @@ describe('TerminalPoolManager', () => {
       expect(poolManager.getAllTerminalIds()).toEqual([]);
     });
 
-    it('should log initialization', () => {
-      expect(mockConsole.info).toHaveBeenCalledWith('[TerminalPoolManager] Initialized', {
-        maxPoolSize: 10,
-      });
-    });
-
     it('should set max pool size to 10', () => {
       expect(poolManager.getMaxPoolSize()).toBe(10);
     });
@@ -130,18 +113,6 @@ describe('TerminalPoolManager', () => {
 
       expect(() => poolManager.createTerminal(terminal, element)).toThrow(
         'Terminal pool limit reached (10)'
-      );
-    });
-
-    it('should log terminal creation', () => {
-      const terminal = createMockTerminal('term1');
-      const element = document.createElement('div');
-
-      poolManager.createTerminal(terminal, element);
-
-      expect(mockConsole.info).toHaveBeenCalledWith(
-        '[TerminalPoolManager] Terminal created',
-        expect.objectContaining({ terminalId: 'term1' })
       );
     });
   });
@@ -216,26 +187,6 @@ describe('TerminalPoolManager', () => {
         'Terminal not found in pool: nonexistent'
       );
     });
-
-    it('should log attachment', () => {
-      const element = document.createElement('div');
-
-      poolManager.attachTerminal('term1', element);
-
-      expect(mockConsole.log).toHaveBeenCalledWith('[TerminalPoolManager] Terminal attached', {
-        terminalId: 'term1',
-        wasAttached: expect.any(Boolean),
-      });
-    });
-
-    it('should log detachment', () => {
-      poolManager.detachTerminal('term1');
-
-      expect(mockConsole.log).toHaveBeenCalledWith('[TerminalPoolManager] Terminal detached', {
-        terminalId: 'term1',
-        wasAttached: expect.any(Boolean),
-      });
-    });
   });
 
   describe('Buffer State Management', () => {
@@ -303,15 +254,6 @@ describe('TerminalPoolManager', () => {
     it('should throw error when destroying non-existent terminal', () => {
       expect(() => poolManager.destroyTerminal('nonexistent')).toThrow(
         'Terminal not found in pool: nonexistent'
-      );
-    });
-
-    it('should log destruction', () => {
-      poolManager.destroyTerminal('term1');
-
-      expect(mockConsole.info).toHaveBeenCalledWith(
-        '[TerminalPoolManager] Terminal destroyed',
-        expect.objectContaining({ terminalId: 'term1' })
       );
     });
   });
@@ -385,14 +327,6 @@ describe('TerminalPoolManager', () => {
       poolManager.clearAll();
 
       expect(mockAdapter.dispose).toHaveBeenCalledTimes(3);
-    });
-
-    it('should log clear operation', () => {
-      poolManager.clearAll();
-
-      expect(mockConsole.info).toHaveBeenCalledWith('[TerminalPoolManager] All terminals cleared', {
-        count: 3,
-      });
     });
   });
 

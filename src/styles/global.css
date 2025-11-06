@@ -491,6 +491,14 @@ select:focus-visible {
   scrollbar-width: thin !important;
 }
 
+/* Radix ScrollArea viewport - enable scrolling */
+[data-radix-scroll-area-viewport] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: block !important;
+  max-height: 100% !important;
+}
+
 /* Command menu item selection styles - override cmdk defaults */
 [cmdk-item][aria-selected='true'],
 [cmdk-item]:hover {

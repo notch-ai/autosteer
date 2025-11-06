@@ -34,9 +34,26 @@ describe('TerminalLibraryAdapter', () => {
     // Reset all mocks
     jest.clearAllMocks();
 
+    // Mock requestAnimationFrame to execute callbacks synchronously for testing
+    global.requestAnimationFrame = jest.fn((cb) => {
+      cb(0);
+      return 0;
+    });
+
+    // Create mock DOM element for terminal
+    const mockTerminalElement = document.createElement('div');
+    const mockParentElement = document.createElement('div');
+    Object.defineProperty(mockParentElement, 'clientWidth', { value: 800 });
+    Object.defineProperty(mockParentElement, 'clientHeight', { value: 600 });
+
     // Create mock terminal instance
     mockTerminal = {
-      open: jest.fn(),
+      open: jest.fn((container: HTMLElement) => {
+        // Simulate XTerm's behavior: when opened, set the element property and append to container
+        (mockTerminal as any).element = mockTerminalElement;
+        container.appendChild(mockTerminalElement);
+        mockParentElement.appendChild(mockTerminalElement);
+      }),
       write: jest.fn(),
       writeln: jest.fn(),
       clear: jest.fn(),
@@ -52,6 +69,9 @@ describe('TerminalLibraryAdapter', () => {
       onBell: jest.fn(),
       onCursorMove: jest.fn(),
       onScroll: jest.fn(),
+      scrollToBottom: jest.fn(),
+      refresh: jest.fn(),
+      scrollLines: jest.fn(),
       cols: 80,
       rows: 24,
       buffer: {
@@ -59,11 +79,13 @@ describe('TerminalLibraryAdapter', () => {
           length: 100,
           cursorX: 10,
           cursorY: 20,
+          viewportY: 0,
           getLine: jest.fn((i: number) => ({
             translateToString: jest.fn(() => `Line ${i} content`),
           })),
         },
       },
+      element: undefined, // Will be set by open()
     } as unknown as jest.Mocked<XTermTerminal>;
 
     // Mock terminal constructor
@@ -299,6 +321,8 @@ describe('TerminalLibraryAdapter', () => {
   describe('fit', () => {
     it('should fit terminal to container', () => {
       const adapter = new TerminalLibraryAdapter();
+      adapter.attach(mockElement); // Attach first so element is set
+      jest.clearAllMocks(); // Clear attach's fit call
       adapter.fit();
 
       expect(mockFitAddon.fit).toHaveBeenCalled();
@@ -592,8 +616,10 @@ describe('TerminalLibraryAdapter', () => {
       // Reattach (simulating React component remount)
       const newElement = document.createElement('div');
       adapter.attach(newElement);
-      expect(mockTerminal.open).toHaveBeenCalledTimes(2);
-      expect(mockTerminal.open).toHaveBeenLastCalledWith(newElement);
+      // After detach/reattach, open() should NOT be called again (DOM manipulation is used instead)
+      expect(mockTerminal.open).toHaveBeenCalledTimes(1);
+      // Verify the terminal element was moved to the new container
+      expect(newElement.contains(mockTerminal.element as Node)).toBe(true);
 
       // Terminal should still be functional
       adapter.write('Still working!');

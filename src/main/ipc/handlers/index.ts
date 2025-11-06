@@ -12,7 +12,6 @@
  * @module handlers
  */
 
-// Phase 4 - IPC Simplification (NOTCH-1465)
 // Domain-based handlers consolidating specialized handlers
 
 // Domain handlers (All 4 completed ✅)

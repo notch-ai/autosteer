@@ -176,13 +176,98 @@ export class TerminalLibraryAdapter {
       throw new Error('Cannot attach disposed terminal');
     }
 
-    log.info('[TerminalLibraryAdapter] Attaching terminal to DOM element');
-    this.terminal.open(element);
-    this.fitAddon.fit();
-    log.info('[TerminalLibraryAdapter] Terminal attached and fitted', {
-      cols: this.terminal.cols,
-      rows: this.terminal.rows,
+    // XTerm.terminal.element is set after open() is called
+    const isAlreadyOpened = !!(this.terminal as any).element;
+    const terminalElement = (this.terminal as any).element;
+
+    log.info('[TerminalLibraryAdapter] Attaching terminal to DOM element', {
+      isAlreadyOpened,
+      hasElement: !!element,
+      currentCols: this.terminal.cols,
+      currentRows: this.terminal.rows,
+      // THEORY A: Terminal element state
+      terminalElementExists: !!terminalElement,
+      terminalElementTagName: terminalElement?.tagName,
+      terminalElementHasParent: !!terminalElement?.parentNode,
+      terminalElementParentTag: terminalElement?.parentNode?.nodeName,
+      // THEORY B: Container element state
+      containerTagName: element.tagName,
+      containerClassName: element.className,
+      containerHasParent: !!element.parentNode,
+      containerParentTag: element.parentNode?.nodeName,
+      containerChildCount: element.childNodes.length,
+      containerIsVisible: element.offsetParent !== null,
+      containerComputedDisplay:
+        typeof window !== 'undefined' ? window.getComputedStyle(element).display : 'unknown',
+      // THEORY C: Buffer state
+      bufferLineCount: this.terminal.buffer.active.length,
+      bufferCursorY: this.terminal.buffer.active.cursorY,
+      bufferCursorX: this.terminal.buffer.active.cursorX,
     });
+
+    if (isAlreadyOpened) {
+      // Terminal was previously opened - reattach to new element
+      log.info('[TerminalLibraryAdapter] Terminal already opened - performing DOM reattachment', {
+        bufferLines: this.terminal.buffer.active.length,
+        cursorY: this.terminal.buffer.active.cursorY,
+      });
+
+      // Move the terminal's DOM element to the new container
+      const terminalElement = (this.terminal as any).element;
+      if (terminalElement) {
+        // Clear the target container first
+        element.innerHTML = '';
+
+        // If terminal has a parent, remove it first (for safety)
+        if (terminalElement.parentNode) {
+          terminalElement.parentNode.removeChild(terminalElement);
+        }
+
+        // Append terminal element to new container
+        element.appendChild(terminalElement);
+      } else {
+        log.error('[TerminalLibraryAdapter] Terminal element not found - cannot reattach', {
+          hasTerminalElement: !!terminalElement,
+        });
+      }
+    } else {
+      // First time opening - use standard XTerm open()
+      log.info('[TerminalLibraryAdapter] First-time terminal open');
+      this.terminal.open(element);
+    }
+
+    // Always fit after attach (whether new or reattached)
+
+    this.fitAddon.fit();
+
+    // The buffer is preserved but viewport position may be wrong
+    if (isAlreadyOpened) {
+      // Scroll to the bottom of the buffer (where the cursor is)
+      this.terminal.scrollToBottom();
+
+      // Additional fix: Force a refresh of the terminal renderer
+      this.terminal.refresh(0, this.terminal.rows - 1);
+
+      // THEORY S: Scroll up by 1 line to ensure cursor line is fully visible
+      // Sometimes the cursor line gets cut off at the very bottom
+      if (this.terminal.buffer.active.viewportY > 0) {
+        this.terminal.scrollLines(-1);
+        log.info('[🔧 SCROLL-ADJUST] Scrolled up 1 line to prevent bottom cutoff', {
+          newViewportY: this.terminal.buffer.active.viewportY,
+        });
+      }
+
+      // Force focus to ensure terminal is interactive
+      try {
+        this.terminal.focus();
+        log.info('[🔧 FOCUS-FIX] Terminal focused after reattachment');
+      } catch (err) {
+        log.warn('[🔧 FOCUS-FIX] Failed to focus terminal', { error: err });
+      }
+
+      // Additional rendering diagnostics
+      setTimeout(() => {}, 100);
+    }
   }
 
   /**
@@ -191,8 +276,22 @@ export class TerminalLibraryAdapter {
    */
   detach(): void {
     log.info('[TerminalLibraryAdapter] Detaching terminal from DOM (instance preserved)');
-    // XTerm.js doesn't have explicit detach, but we can clear the element
-    // The terminal instance remains alive for reattachment
+
+    // Remove the terminal's DOM element from its parent container
+    // This hides the terminal while keeping the instance alive for reattachment
+    const terminalElement = (this.terminal as any).element;
+    if (terminalElement && terminalElement.parentNode) {
+      terminalElement.parentNode.removeChild(terminalElement);
+      log.info('[TerminalLibraryAdapter] Terminal DOM element removed from parent', {
+        hadParent: true,
+        elementStillExists: !!terminalElement,
+      });
+    } else {
+      log.warn('[TerminalLibraryAdapter] Terminal element has no parent - already detached?', {
+        hasElement: !!terminalElement,
+        hasParent: !!terminalElement?.parentNode,
+      });
+    }
   }
 
   /**
@@ -204,6 +303,7 @@ export class TerminalLibraryAdapter {
       log.warn('[TerminalLibraryAdapter] Attempted write to disposed terminal');
       return;
     }
+
     this.terminal.write(data);
   }
 
@@ -264,16 +364,56 @@ export class TerminalLibraryAdapter {
 
   /**
    * Fit terminal to container
+   * Uses requestAnimationFrame to ensure DOM layout is complete before fitting
    */
   fit(): void {
     if (this.isDisposed) {
       log.warn('[TerminalLibraryAdapter] Attempted fit on disposed terminal');
       return;
     }
-    this.fitAddon.fit();
-    log.debug('[TerminalLibraryAdapter] Terminal fitted', {
-      cols: this.terminal.cols,
-      rows: this.terminal.rows,
+
+    // This prevents intermittent cutoff when terminal content is long
+    // requestAnimationFrame ensures we measure container dimensions AFTER layout
+
+    // Get container dimensions BEFORE RAF
+    const containerElement = this.terminal.element?.parentElement;
+    const beforeWidth = containerElement?.clientWidth || 0;
+    const beforeHeight = containerElement?.clientHeight || 0;
+    // CRITICAL FIX: If container has 0 dimensions, wait for it to be sized
+    if (beforeWidth === 0 || beforeHeight === 0) {
+      // Use double RAF to ensure layout is fully complete
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (this.isDisposed) return;
+
+          const retryWidth = containerElement?.clientWidth || 0;
+          const retryHeight = containerElement?.clientHeight || 0;
+
+          if (retryWidth === 0 || retryHeight === 0) {
+            return;
+          }
+
+          this.fitAddon.fit();
+        });
+      });
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      if (this.isDisposed) {
+        return; // Terminal was disposed before RAF callback
+      }
+
+      // Get container dimensions AFTER RAF (post-layout)
+      const afterWidth = containerElement?.clientWidth || 0;
+      const afterHeight = containerElement?.clientHeight || 0;
+
+      // Double-check dimensions are still valid
+      if (afterWidth === 0 || afterHeight === 0) {
+        return;
+      }
+
+      this.fitAddon.fit();
     });
   }
 
@@ -437,6 +577,13 @@ export class TerminalLibraryAdapter {
       throw new Error('Cannot access disposed terminal instance');
     }
     return this.terminal;
+  }
+
+  /**
+   * Legacy alias for getXTermInstance (for backward compatibility)
+   */
+  getXtermInstance(): XTermTerminal {
+    return this.getXTermInstance();
   }
 
   /**

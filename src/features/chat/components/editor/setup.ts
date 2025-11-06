@@ -96,6 +96,15 @@ export function setEditorContent(instance: EditorInstance, content: string): voi
   });
 }
 
-export function focusEditor(instance: EditorInstance): void {
+export function focusEditor(instance: EditorInstance, cursorPosition?: number): void {
   instance.view.focus();
+
+  // Set cursor position if provided
+  if (cursorPosition !== undefined) {
+    const docLength = instance.view.state.doc.length;
+    const pos = Math.min(cursorPosition, docLength);
+    instance.view.dispatch({
+      selection: { anchor: pos },
+    });
+  }
 }

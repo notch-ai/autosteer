@@ -1,9 +1,10 @@
 import { cn } from '@/commons/utils/cn';
 import { Button } from '@/components/ui/button';
 import { ProjectList } from '@/features/shared/components/projects/ProjectList';
-import { useProjectsStore } from '@/stores';
+import { useSidebarHandler } from '@/hooks/useSidebarHandler';
+import { useProjects } from '@/hooks/useProjects';
 import { Keyboard, LogOut, Settings } from 'lucide-react';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { ThemeToggle } from '@/features/settings/components/ThemeToggle';
 
 interface SidebarProps {
@@ -43,17 +44,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenKeyboardShortcuts,
   onLogout,
 }) => {
-  // Core store actions with stable references
-  const loadProjects = useProjectsStore((state) => state.loadProjects);
+  // Auto-load projects on mount
+  useProjects({ autoLoad: true });
 
-  useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
+  // Use handler for sidebar business logic
+  const { activePanel, isCollapsed, error } = useSidebarHandler();
 
   return (
     <aside
       id="app-sidebar"
       data-component="Sidebar"
+      data-active-panel={activePanel}
+      data-collapsed={isCollapsed}
       className="h-full flex flex-col sidebar-container"
     >
       {!collapsed && (
@@ -61,10 +63,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div
             id="sidebar-content"
             data-section="sidebar-main"
-            className="flex-1 overflow-y-auto overflow-x-hidden sidebar-main-content"
+            className="flex-1 overflow-hidden sidebar-main-content"
           >
-            <ProjectList />
+            <div className="h-full overflow-y-auto overflow-x-hidden">
+              <ProjectList />
+            </div>
           </div>
+
+          {error && (
+            <div
+              className="px-3 py-2 text-xs text-red-500 bg-red-50 dark:bg-red-900/20"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
 
           <div
             id="sidebar-footer"

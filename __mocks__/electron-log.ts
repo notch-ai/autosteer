@@ -10,7 +10,20 @@ const mockTransports = {
   },
 };
 
-const mockLog = {
+interface MockLog {
+  info: jest.Mock;
+  error: jest.Mock;
+  warn: jest.Mock;
+  debug: jest.Mock;
+  verbose: jest.Mock;
+  silly: jest.Mock;
+  log: jest.Mock;
+  transports: typeof mockTransports;
+  initialize: jest.Mock;
+  scope: jest.Mock;
+}
+
+const mockLog: MockLog = {
   info: jest.fn(),
   error: jest.fn(),
   warn: jest.fn(),
@@ -20,7 +33,7 @@ const mockLog = {
   log: jest.fn(),
   transports: mockTransports,
   initialize: jest.fn(),
-  scope: jest.fn(() => mockLog),
+  scope: jest.fn((): MockLog => mockLog),
 };
 
 const log = mockLog;

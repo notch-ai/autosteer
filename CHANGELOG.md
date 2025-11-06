@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/notch-ai/autosteer/compare/v0.1.18...v0.1.19) (2025-11-06)
+
+
+### Bug Fixes
+
+* UI improvements and handler pattern ([a3b433e](https://github.com/notch-ai/autosteer/commit/a3b433e60f5881bd6d375266c272a16296593ff5))
+
 ## [0.1.18](https://github.com/notch-ai/autosteer/compare/v0.1.17...v0.1.18) (2025-11-05)
 
 

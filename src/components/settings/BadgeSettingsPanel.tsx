@@ -2,7 +2,6 @@
  * Badge Settings Panel Component
  *
  * Purpose: UI component for managing badge notification preferences
- * Phase 2: Integration & UI
  *
  * This component provides:
  * - Toggle for enabling/disabling badge notifications

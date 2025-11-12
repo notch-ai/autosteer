@@ -1,5 +1,5 @@
 /**
- * Phase 8: Build Optimization System
+ * Build Optimization System
  * Tracks and optimizes build performance
  */
 

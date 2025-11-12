@@ -300,7 +300,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   return (
     <div
       data-testid="markdown-renderer"
-      className={cn('markdown-content', 'max-w-full', className)}
+      className={cn('markdown-content', 'max-w-full', 'select-text', className)}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}

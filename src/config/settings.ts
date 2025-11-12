@@ -1,6 +1,5 @@
 /**
  * Application settings and configuration
- * Phase 1: Core API Integration - Claude Code mode configuration
  */
 
 export interface AppSettings {

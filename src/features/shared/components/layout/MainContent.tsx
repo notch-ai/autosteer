@@ -29,8 +29,6 @@ export const MainContent: React.FC = () => {
   const selectedProjectId = useProjectsStore((state) => state.selectedProjectId);
   const projects = useProjectsStore((state) => state.projects);
 
-  console.log('[MainContent] 🎨 RENDER - selectedAgentId:', selectedAgentId);
-
   // Subscribe to chat store for messages reactivity
   // Important: Subscribe to activeChat separately to avoid re-renders when other chats update
   const activeChat = useChatStore((state) => state.activeChat);
@@ -91,22 +89,6 @@ export const MainContent: React.FC = () => {
   const chatMessages = USE_MOCK_PERMISSION
     ? [...baseChatMessages, mockPermissionChatMessage]
     : baseChatMessages;
-
-  // Debug: Log comprehensive state when relevant values change
-  React.useEffect(() => {
-    logger.info('[MainContent] ========== STATE UPDATE ==========');
-    logger.info('[MainContent] selectedAgentId:', selectedAgentId);
-  }, [selectedAgentId, activeChat, baseChatMessages.length]);
-
-  // HYPOTHESIS LOGGING: Track TerminalTab visibility in MainContent
-  React.useEffect(() => {
-    logger.debug('[HYPO-MAINCONTENT] TerminalTab container visibility changed', {
-      selectedAgentId,
-      isTerminalVisible: selectedAgentId === 'terminal-tab',
-      isChangesVisible: selectedAgentId === 'changes-tab',
-      isChatVisible: selectedAgentId !== 'terminal-tab' && selectedAgentId !== 'changes-tab',
-    });
-  }, [selectedAgentId]);
 
   // Get current attachments (resource IDs) from chat store
   const attachments = useChatStore((state) => state.attachments);
@@ -392,7 +374,7 @@ export const MainContent: React.FC = () => {
 
                 {/* Keep ChangesTab mounted to preserve state across tab switches */}
                 <div
-                  className={cn('flex-1 flex flex-col', {
+                  className={cn('flex-1 flex flex-col min-h-0', {
                     hidden: selectedAgentId !== 'changes-tab',
                   })}
                 >
@@ -401,7 +383,7 @@ export const MainContent: React.FC = () => {
 
                 {/* Keep ChatInterface mounted to preserve state across tab switches */}
                 <div
-                  className={cn('flex-1 flex flex-col', {
+                  className={cn('flex-1 flex flex-col min-h-0', {
                     hidden: selectedAgentId === 'terminal-tab' || selectedAgentId === 'changes-tab',
                   })}
                 >

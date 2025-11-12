@@ -39,7 +39,7 @@ Download the latest version for your platform from the [Releases](https://github
 
 - **macOS**: Download `.zip` file and extract to Applications
 - **Linux**: Download `.deb` (Debian/Ubuntu) or `.rpm` (Fedora/RHEL)
-- **Windows**: Install via WSL2 (see below)
+- **Windows**: Install via WSL2
 
 ### Platform-Specific Instructions
 
@@ -64,12 +64,12 @@ AutoSteer stores configuration in `~/.autosteer/` on all platforms.
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v20 or higher)
-- [pnpm](https://pnpm.io/) (v8 or higher)
+- [pnpm](https://pnpm.io/) (v9 or higher)
 - [Git](https://git-scm.com/)
 - Platform-specific build tools:
   - **macOS**: Xcode Command Line Tools
   - **Linux**: `build-essential` package
-  - **Windows**: Use WSL with Linux build tools (see [INSTALLATION.md](INSTALLATION.md))
+  - **Windows**: Use WSL with Linux build tools
 
 ### Building from Source
 
@@ -133,27 +133,52 @@ pnpm make
 ```text
 autosteer/
 ├── src/
-│   ├── main/                    # Electron main process
-│   ├── components/
-│   │   ├── features/            # Feature modules (TraceTab, DetailPanel, etc.)
-│   │   ├── ui/                  # UI components (Table, Dialog, etc.)
-│   │   └── settings/            # Settings panels
-│   ├── services/                # Application services
-│   ├── stores/                  # State management (Zustand)
-│   ├── hooks/                   # React hooks (useCodeMirror, useRichTextEditor)
+│   ├── main/                           # Electron main process
+│   │   └── ipc/                        # Inter-process communication layer (Phase 4)
+│   │       ├── handlers/               # 4 consolidated domain handlers (~600 LoC total)
+│   │       │   ├── claude.handlers.ts  # Agent, MCP, SlashCommand operations
+│   │       │   ├── project.handlers.ts # File, Resource management
+│   │       │   ├── git.handlers.ts     # Git operations
+│   │       │   └── system.handlers.ts  # Terminal, Badge, Config, Log, Store, Update
+│   │       ├── utils/handlerFactory.ts # Reusable error handling, logging, validation
+│   │       └── IpcRegistrar.ts         # Centralized handler registration
+│   ├── features/                       # Domain-based feature organization (Phase 1)
+│   │   ├── chat/                       # Chat feature domain (15 components)
+│   │   ├── monitoring/                 # Monitoring feature domain (10 components)
+│   │   ├── settings/                   # Settings feature domain (4 components)
+│   │   └── shared/                     # Shared components across features (48 components)
+│   │       └── components/             # Organized by subdomain
+│   │           ├── agent/
+│   │           ├── git/
+│   │           ├── layout/
+│   │           ├── projects/
+│   │           ├── session/
+│   │           ├── tasks/
+│   │           ├── terminal/
+│   │           └── ui/
+│   ├── components/                     # Common UI layer (shadcn/ui primitives)
+│   ├── services/                       # Application services
+│   ├── stores/                         # State management (Zustand)
+│   ├── hooks/                          # React hooks (useTerminalPool - Phase 5)
 │   ├── commons/
-│   │   ├── utils/               # Utility functions (slashCommandUtils, SearchService)
-│   │   ├── contexts/            # React contexts (ElectronContext, ThemeContext)
-│   │   ├── constants/           # Constants and config
-│   │   └── config/              # Theme and styling configuration
-│   ├── entities/                # Data models (SessionBlock)
-│   └── types/                   # TypeScript types (terminal.types)
-├── assets/                      # App icons and images
+│   │   ├── utils/                      # Utility functions
+│   │   │   └── slash-commands/         # Slash command utilities
+│   │   ├── contexts/                   # React contexts
+│   │   ├── constants/                  # Constants and config
+│   │   └── config/                     # Theme and styling
+│   ├── entities/                       # Data models (Lite Clean Architecture)
+│   └── types/                          # TypeScript types
+├── assets/                             # App icons and images
 ├── tests/
-│   └── unit/                    # Unit tests organized by feature path
-├── scripts/                     # Build and release scripts
-└── .github/workflows/           # CI/CD configuration
+│   ├── unit/                           # Unit tests (80% coverage target)
+│   ├── integration/                    # Integration tests
+│   ├── component/                      # Playwright component tests
+│   └── factories/                      # Test data factories
+├── scripts/                            # Build and release scripts
+└── playwright-component.config.ts      # Component testing config
 ```
+
+**Import Pattern**: `@/features/[domain]/components/[Component]`
 
 ## 🤝 Contributing
 
@@ -182,7 +207,7 @@ pnpm typecheck
 
 ### Running Tests
 
-We use Jest for testing:
+We use Jest for unit/integration tests and Playwright for component/visual tests:
 
 ```bash
 # Run all tests
@@ -205,13 +230,194 @@ pnpm test:coverage
 
 Key test files covering critical functionality:
 
-- **Utilities**: `tests/unit/commons/utils/slashCommandUtils.test.ts` - Custom slash command formatting
-- **Components**: `tests/unit/components/codemirror/slash-command-extension.test.ts` - Editor extensions
-- **IPC Handlers**: `tests/unit/main/ipc/handlers/FileHandlers.test.ts` - File operation handlers
+- **Utilities**: `tests/unit/commons/utils/slash-commands/slash_command_utils.test.ts` - Custom slash command formatting
+- **Hooks**: `tests/unit/hooks/useTerminalPool.test.ts` - Terminal pool management (Phase 5)
+- **IPC Handlers**: `tests/unit/main/ipc/handlers/` - Consolidated domain handlers (Phase 4)
 - **Services**: `tests/unit/services/ClaudeCodeService.test.ts` - Core Claude Code integration
 - **Store**: `tests/unit/stores/core.test.ts` - State management
 - **Types**: `tests/unit/types/terminal.types.test.ts` - Terminal type safety
 - **Entities**: `tests/unit/entities/SessionBlock.test.ts` - Data model validation
+
+## 🔍 Trace File Format
+
+AutoSteer creates trace files for debugging SDK message flow. These files are stored in `~/.autosteer/traces/` and use JSONL format (one JSON object per line).
+
+### Trace File Location
+
+```
+~/.autosteer/traces/{sessionId}.trace.jsonl
+```
+
+### Trace Entry Format
+
+Each trace entry is a JSON object with the following structure:
+
+```typescript
+{
+  "timestamp": "2025-11-09T18:51:35.123Z",    // ISO 8601 timestamp
+  "sessionId": "session-abc123",              // Session identifier
+  "direction": "to-claude" | "from-claude",   // Message direction
+  "rawMessage": { /* SDK message object */ }, // Complete SDK message
+  "sdkVersion": "^0.1.0",                     // SDK version
+  "correlationId": "550e8400-e29b-41d4",      // Request/response correlation
+  "sequenceNumber": 42                         // Monotonic sequence per session
+}
+```
+
+### Trace File Lifecycle
+
+- **Creation**: Trace files are created automatically when SDK messages are logged
+- **Rotation**: Files are rotated when they exceed 100MB, with timestamp suffixes
+- **Cleanup**: Trace files are automatically deleted when their project is deleted
+- **Manual Cleanup**: Delete files in `~/.autosteer/traces/` to free disk space
+
+### Using Trace Files
+
+Trace files are useful for:
+- **Debugging**: Inspect exact SDK messages sent and received
+- **Performance Analysis**: Track message timing and sequence
+- **Error Investigation**: Review message flow leading to errors
+- **SDK Updates**: Verify message format changes across SDK versions
+
+### Example Trace Entry
+
+```json
+{
+  "timestamp": "2025-11-09T18:51:35.123Z",
+  "sessionId": "session-abc123",
+  "direction": "from-claude",
+  "rawMessage": {
+    "type": "assistant",
+    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+    "session_id": "session-abc123",
+    "message": {
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "Hello!" }]
+    }
+  },
+  "sdkVersion": "^0.1.0",
+  "correlationId": "550e8400-e29b-41d4",
+  "sequenceNumber": 42,
+  "messageType": "assistant",
+  "messageSubtype": null
+}
+```
+
+## 🔄 SDK Migration Guide
+
+### Overview
+
+This guide helps developers handle Anthropic Claude SDK updates and Pydantic model changes without breaking existing message validation.
+
+### SDK Version Updates
+
+When updating `@anthropic-ai/claude-agent-sdk`:
+
+1. **Check for Breaking Changes**
+   - Review SDK release notes for breaking changes
+   - Test validation with new SDK types
+   - Update Pydantic models if needed
+
+2. **Update Zod Schemas**
+   - Location: `src/services/MessageValidator.ts`
+   - Match schemas to new SDK types
+   - Maintain backward compatibility with relaxed validation
+
+3. **Test Validation**
+   ```bash
+   pnpm test:unit -- MessageValidator.test.ts
+   ```
+
+4. **Update Trace Documentation**
+   - Document new message types in README
+   - Update Pydantic models in `.sketchpad/claude_message_types.py`
+
+### Pydantic Model Changes
+
+#### Adding New Message Types
+
+1. **Update Python Models**
+   - Add new message type to `.sketchpad/claude_message_types.py`
+   - Follow existing BaseModel pattern
+   - Add to `SDKMessage` union type
+
+2. **Update TypeScript Schemas**
+   - Add corresponding Zod schema in `MessageValidator.ts`
+   - Add to discriminated union
+   - Update type guards
+
+3. **Add Tests**
+   - Add test cases for new message type
+   - Test strict and relaxed validation
+   - Test partial extraction
+
+Example:
+```typescript
+// Add to MessageValidator.ts
+const NewMessageTypeSchema = z.object({
+  type: z.literal('new_type'),
+  uuid: z.string().uuid(),
+  session_id: z.string(),
+  // ... other fields
+});
+```
+
+#### Handling Breaking SDK Changes
+
+If an SDK update breaks validation:
+
+1. **Identify Breaking Change**
+   - Check validation test failures
+   - Review trace logs for error patterns
+   - Compare old vs new message structure
+
+2. **Update Schemas Gradually**
+   ```typescript
+   // Old field (deprecated but still supported)
+   old_field: z.string().optional(),
+
+   // New field (preferred)
+   new_field: z.string().optional(),
+   ```
+
+3. **Add Migration Logic**
+   - Handle both old and new formats
+   - Log warnings for deprecated fields
+   - Gradually phase out old format
+
+4. **Version Compatibility**
+   - Track SDK version in trace logs
+   - Add version checks if needed
+   - Document version requirements
+
+### Testing Migration
+
+```bash
+# Run all validation tests
+pnpm test:unit -- MessageValidator
+
+# Test with fixtures
+pnpm test:integration -- message-validation
+
+# Check type coverage
+pnpm typecheck
+```
+
+### Rollback Strategy
+
+If validation breaks in production:
+
+1. **Immediate**: Revert to previous SDK version
+2. **Short-term**: Deploy hotfix with relaxed validation
+3. **Long-term**: Fix schemas and redeploy
+
+### Best Practices
+
+- **Always test with real message fixtures** before deploying
+- **Maintain backward compatibility** for at least 2 SDK versions
+- **Document breaking changes** in PR descriptions
+- **Use relaxed validation** as fallback to prevent crashes
+- **Monitor trace logs** for validation failures after updates
 
 ## 🔒 Security
 

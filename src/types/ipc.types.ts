@@ -110,7 +110,7 @@ export enum IpcChannelNames {
   FILE_LIST_DIRECTORY = 'file:list-directory',
   FILE_SEARCH_WORKSPACE = 'file:search-workspace',
 
-  // Badge Operations (Phase 1: Core Badge Implementation)
+  // Badge Operations
   BADGE_SHOW = 'badge:show',
   BADGE_HIDE = 'badge:hide',
   BADGE_IS_SUPPORTED = 'badge:isSupported',
@@ -123,7 +123,7 @@ export enum IpcChannelNames {
 }
 
 // ============================================================================
-// Badge IPC Types (Phase 1: Core Badge Implementation)
+// Badge IPC Types
 // ============================================================================
 
 export interface BadgeIpcChannels {

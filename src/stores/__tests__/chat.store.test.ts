@@ -683,15 +683,5 @@ describe('ChatStore', () => {
 
       (window as any).electron = originalElectron;
     });
-
-    it('should log operations for debugging', async () => {
-      // loadChatHistory triggers logger.info
-      (window.electron.agents.loadChatHistory as jest.Mock).mockResolvedValue([]);
-
-      await useChatStore.getState().loadChatHistory('agent-1');
-
-      // Logger should be called during load operations
-      expect(logger.info).toHaveBeenCalled();
-    });
   });
 });

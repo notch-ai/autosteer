@@ -2,7 +2,7 @@ import log from 'electron-log';
 import { TerminalBufferState, BufferTrimStats } from '@/types/terminal.types';
 
 /**
- * TerminalBufferService - Phase 4 Enhanced Memory Optimization
+ * TerminalBufferService
  *
  * Provides buffer state persistence with optimized FIFO trimming and memory monitoring.
  *
@@ -14,7 +14,6 @@ import { TerminalBufferState, BufferTrimStats } from '@/types/terminal.types';
  * - Real-time memory usage monitoring
  * - XTerm instance reuse support
  *
- * Phase 4 Enhancements:
  * - Optimized trimming algorithm for better performance
  * - Enhanced memory monitoring with detailed metrics
  * - Support for high-throughput buffer operations
@@ -45,7 +44,7 @@ export class TerminalBufferService {
   constructor() {
     this.bufferStates = new Map();
 
-    log.info('[TerminalBufferService] Service initialized (Phase 4 - Memory Optimization)', {
+    log.info('[TerminalBufferService] Service initialized', {
       maxScrollbackLines: TerminalBufferService.MAX_SCROLLBACK_LINES,
       maxBufferSizeBytes: TerminalBufferService.MAX_BUFFER_SIZE_BYTES,
       memoryWarningThreshold: TerminalBufferService.MEMORY_WARNING_THRESHOLD_BYTES,
@@ -68,7 +67,7 @@ export class TerminalBufferService {
   }
 
   /**
-   * Save buffer state with automatic trimming and memory monitoring (Phase 4 Enhanced)
+   * Save buffer state with automatic trimming and memory monitoring
    * @param bufferState The buffer state to save
    */
   saveBufferState(bufferState: TerminalBufferState): void {
@@ -80,7 +79,7 @@ export class TerminalBufferService {
       sizeBytes: bufferState.sizeBytes,
     });
 
-    // Auto-trim if needed (Phase 4: optimized algorithm)
+    // Auto-trim if needed
     let stateToSave = bufferState;
     if (this.needsTrimming(bufferState)) {
       log.info('[TerminalBufferService] Auto-trimming on save', {
@@ -102,7 +101,7 @@ export class TerminalBufferService {
       durationMs: duration,
     });
 
-    // Phase 4: Memory monitoring with warnings
+    // Memory monitoring with warnings
     this.checkMemoryPressure();
 
     // Performance logging for manual testing
@@ -194,7 +193,7 @@ export class TerminalBufferService {
   }
 
   /**
-   * Trim buffer if it exceeds limits using optimized FIFO strategy (Phase 4 Enhanced)
+   * Trim buffer if it exceeds limits using optimized FIFO strategy 
    * @param bufferState The buffer state to trim
    * @returns Trimmed buffer state
    */
@@ -209,7 +208,7 @@ export class TerminalBufferService {
 
     let trimmedScrollback = [...bufferState.scrollback];
 
-    // Phase 4 Optimization: Trim by line count first (more efficient)
+    //  Optimization: Trim by line count first (more efficient)
     if (trimmedScrollback.length > TerminalBufferService.MAX_SCROLLBACK_LINES) {
       const linesToRemove = trimmedScrollback.length - TerminalBufferService.MAX_SCROLLBACK_LINES;
       trimmedScrollback = trimmedScrollback.slice(linesToRemove);
@@ -220,13 +219,13 @@ export class TerminalBufferService {
       });
     }
 
-    // Phase 4 Optimization: Batch size calculation for better performance
+    //  Optimization: Batch size calculation for better performance
     let trimmedContent = trimmedScrollback.join('\n');
     let currentSize = trimmedContent.length;
 
     // Trim by size (FIFO - remove oldest lines until under limit)
     if (currentSize > TerminalBufferService.MAX_BUFFER_SIZE_BYTES) {
-      // Phase 4: Estimate lines to remove based on average line size
+      // : Estimate lines to remove based on average line size
       const avgLineSize = currentSize / trimmedScrollback.length;
       const bytesOverLimit = currentSize - TerminalBufferService.MAX_BUFFER_SIZE_BYTES;
       const estimatedLinesToRemove = Math.ceil(bytesOverLimit / avgLineSize);
@@ -259,7 +258,7 @@ export class TerminalBufferService {
     const bytesRemoved = bytesBefore - trimmedSizeBytes;
     const trimDuration = Date.now() - trimStartTime;
 
-    // Phase 4: Track trim statistics
+    // : Track trim statistics
     this.trimOperationCount++;
     this.totalBytesTrimmed += bytesRemoved;
 
@@ -323,7 +322,7 @@ export class TerminalBufferService {
   }
 
   /**
-   * Phase 4: Check memory pressure and log warnings
+   * : Check memory pressure and log warnings
    * Monitors total memory usage across all buffers
    */
   private checkMemoryPressure(): void {
@@ -348,7 +347,7 @@ export class TerminalBufferService {
   }
 
   /**
-   * Phase 4: Get memory monitoring statistics
+   * : Get memory monitoring statistics
    * @returns Detailed memory usage metrics
    */
   getMemoryStats(): {
@@ -407,7 +406,7 @@ export class TerminalBufferService {
   }
 
   /**
-   * Phase 4: Get individual buffer memory info
+   * : Get individual buffer memory info
    * @param terminalId The terminal ID
    * @returns Buffer memory details or null
    */
@@ -441,7 +440,7 @@ export class TerminalBufferService {
   }
 
   /**
-   * Phase 4: Reset trim statistics (useful for testing)
+   * : Reset trim statistics (useful for testing)
    */
   resetTrimStats(): void {
     this.trimOperationCount = 0;
@@ -450,7 +449,7 @@ export class TerminalBufferService {
   }
 
   /**
-   * Phase 4: Log comprehensive memory report (for manual testing/debugging)
+   * : Log comprehensive memory report (for manual testing/debugging)
    */
   logMemoryReport(): void {
     const stats = this.getMemoryStats();

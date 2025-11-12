@@ -10,6 +10,7 @@ export * from './useAgentActions';
 // Chat Management Hooks
 export * from './useChatMessages';
 export * from './useChatActions';
+export * from './useChatInput';
 
 // Project Management Hooks
 export * from './useProjects';

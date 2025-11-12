@@ -20,7 +20,6 @@ import { registerGitHandlers } from './gitHandlers';
 import { registerAttachmentHandlers } from './attachmentHandlers';
 import { UpdateService } from '@/services/UpdateService';
 
-// Phase 4 - IPC Simplification (NOTCH-1465) - COMPLETE
 // Migrated from 13 specialized handlers to 4 domain handlers:
 // - ClaudeHandlers (Agent, MCP, SlashCommand)
 // - ProjectHandlers (File, Resource)
@@ -50,13 +49,13 @@ export class IpcRegistrar {
 
   initialize(): void {
     try {
-      log.info('[IpcRegistrar] Starting IPC handler registration (Phase 4 architecture)');
+      log.info('[IpcRegistrar] Starting IPC handler registration');
 
       // Register base handlers (app, settings, window, shell, theme, worktree, test-mode)
       this.registerHandlers();
       log.debug('[IpcRegistrar] Base handlers registered');
 
-      // Phase 4: Register 4 consolidated domain handlers
+      // Register 4 consolidated domain handlers
       this.claudeHandlers.registerHandlers();
       log.debug('[IpcRegistrar] Claude handlers registered (Agent, MCP, SlashCommand)');
 

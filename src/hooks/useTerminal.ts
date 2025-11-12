@@ -1,16 +1,15 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { logger } from '@/commons/utils/logger';
 import {
   Terminal,
   TerminalCreateParams,
+  TerminalCreateResponse,
   TerminalData,
   TerminalResponse,
-  TerminalCreateResponse,
 } from '@/types/terminal.types';
+import { useCallback, useEffect, useRef } from 'react';
 import { useTerminalPool } from '../renderer/hooks/useTerminalPool';
-import { logger } from '@/commons/utils/logger';
 
 /**
- * useTerminal Hook - Phase 2 Refactored for Instance Pooling
  *
  * Provides terminal operations with integrated pooling support.
  *
@@ -30,7 +29,7 @@ import { logger } from '@/commons/utils/logger';
  * await writeToTerminal(terminalId, data);
  * ```
  *
- * @see docs/terminal-persistence-architecture.md Phase 2
+ * @see docs/terminal-persistence-architecture.md
  */
 export const useTerminal = () => {
   const listenersRef = useRef<Map<string, () => void>>(new Map()); // Store cleanup functions
@@ -52,10 +51,22 @@ export const useTerminal = () => {
    */
   const createTerminal = useCallback(
     async (params?: TerminalCreateParams): Promise<Terminal> => {
+      const currentPoolSize = getPoolSize();
+      const maxPoolSize = 10;
+
       logger.debug('[useTerminal] Creating terminal (pooling enabled)', {
-        poolSize: getPoolSize(),
-        maxPoolSize: 10,
+        poolSize: currentPoolSize,
+        maxPoolSize,
       });
+
+      // Warn if approaching pool limit (8+ terminals)
+      if (currentPoolSize >= 8) {
+        logger.warn('[useTerminal] Approaching terminal pool limit', {
+          currentSize: currentPoolSize,
+          maxSize: maxPoolSize,
+          availableSlots: maxPoolSize - currentPoolSize,
+        });
+      }
 
       const response: TerminalCreateResponse = await window.electron.ipc.invoke(
         'terminal:create',
@@ -68,10 +79,21 @@ export const useTerminal = () => {
 
       const terminal = convertTerminalData(response.data);
 
+      const newPoolSize = getPoolSize();
+
       logger.debug('[useTerminal] Terminal created', {
         terminalId: terminal.id,
-        poolSize: getPoolSize(),
+        poolSize: newPoolSize,
       });
+
+      // Warn if pool is nearly full (9+ terminals)
+      if (newPoolSize >= 9) {
+        logger.warn('[useTerminal] Terminal pool nearly full', {
+          poolSize: newPoolSize,
+          maxPoolSize,
+          availableSlots: maxPoolSize - newPoolSize,
+        });
+      }
 
       return terminal;
     },
@@ -175,17 +197,7 @@ export const useTerminal = () => {
       }
 
       // Set up data listener and store cleanup function
-      logger.debug('[useTerminal] Adding new data listener for:', dataChannel);
       const dataCleanup = window.electron.ipc.on(dataChannel, (_event, data) => {
-        // HYPOTHESIS LOGGING: Track frontend IPC listener invocations
-        logger.info(
-          `[DIAG-H1-IPC-RECV] channel=${dataChannel} terminalId=${terminalId.substring(0, 8)} dataLen=${(data as string).length} dataPreview=${(data as string).substring(0, 30).replace(/\n/g, '\\n')} activeListeners=${Array.from(
-            listenersRef.current.keys()
-          )
-            .map((ch) => ch.split(':')[2]?.substring(0, 8) || 'unknown')
-            .join(',')}`
-        );
-        logger.debug('[useTerminal] Data received on channel:', dataChannel, 'data:', data);
         onData(data as string);
       });
       listenersRef.current.set(dataChannel, dataCleanup);
@@ -212,15 +224,6 @@ export const useTerminal = () => {
     const dataCleanup = listenersRef.current.get(dataChannel);
     const exitCleanup = listenersRef.current.get(exitChannel);
 
-    // HYPOTHESIS LOGGING: Track listener removal to detect leaks
-    const listenersBefore = Array.from(listenersRef.current.keys())
-      .map((ch) => ch.split(':')[2]?.substring(0, 8) || 'unknown')
-      .join(',');
-
-    logger.info(
-      `[DIAG-H1-IPC-CLEANUP-BEFORE] terminalId=${terminalId.substring(0, 8)} dataChannel=${dataChannel} hadDataListener=${!!dataCleanup} hadExitListener=${!!exitCleanup} listenersBefore=${listenersBefore}`
-    );
-
     if (dataCleanup) {
       dataCleanup();
       listenersRef.current.delete(dataChannel);
@@ -229,15 +232,6 @@ export const useTerminal = () => {
       exitCleanup();
       listenersRef.current.delete(exitChannel);
     }
-
-    // Verify cleanup worked
-    const listenersAfter = Array.from(listenersRef.current.keys())
-      .map((ch) => ch.split(':')[2]?.substring(0, 8) || 'unknown')
-      .join(',');
-
-    logger.info(
-      `[DIAG-H1-IPC-CLEANUP-AFTER] terminalId=${terminalId.substring(0, 8)} listenersAfter=${listenersAfter} cleanupSuccessful=${!listenersAfter.includes(terminalId.substring(0, 8))}`
-    );
   }, []);
 
   /**
@@ -276,7 +270,7 @@ export const useTerminal = () => {
     setupTerminalListeners,
     removeTerminalListeners,
 
-    // Pool stats (Phase 2)
+    // Pool stats 
     getPoolStats,
   };
 };

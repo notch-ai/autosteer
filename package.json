@@ -11,6 +11,7 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "electron-forge start",
+    "dev-no-reload": "cross-env DISABLE_HMR=true electron-forge start",
     "dev:verbose": "electron-forge start",
     "dev:clean": "./scripts/dev-start.sh",
     "dev:vite": "electron-forge start",

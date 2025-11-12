@@ -2,7 +2,7 @@
  * @fileoverview IPC Handler Factory Utilities
  *
  * Provides reusable utilities for creating type-safe IPC handlers with built-in
- * error handling, logging, and input validation. Part of Phase 4 IPC Simplification (NOTCH-1465).
+ * error handling, logging, and input validation.
  *
  * @module autosteer/src/main/ipc/utils/handlerFactory
  *

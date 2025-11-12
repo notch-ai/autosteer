@@ -1,3 +1,4 @@
+import { useTaskListHandler } from '@/hooks/useTaskListHandler';
 import { Task } from '@/types/todo';
 import React from 'react';
 
@@ -9,10 +10,14 @@ interface TaskListProps {
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ tasks }) => {
+  const { filteredTasks } = useTaskListHandler();
+
+  const displayTasks = tasks.length > 0 ? tasks : filteredTasks;
+
   return (
     <div>
       <div>
-        {tasks.map((task) => (
+        {displayTasks.map((task) => (
           <div key={task.id}>
             <div>
               {task.status === 'in_progress' && '🔄'}

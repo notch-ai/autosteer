@@ -17,10 +17,13 @@ const fsPromises = {
   rename: promisify(fs.rename),
 };
 
+// Use unique directory to avoid parallel test conflicts
+const TEST_DIR = `/tmp/test-autosteer-session-${process.pid}-${Date.now()}`;
+
 // Mock electron app.getPath
 jest.mock('electron', () => ({
   app: {
-    getPath: jest.fn(() => '/tmp/test-autosteer'),
+    getPath: jest.fn(() => TEST_DIR),
   },
 }));
 
@@ -36,8 +39,17 @@ jest.mock('@/commons/utils/logger', () => ({
 
 describe('SessionManifestService', () => {
   let service: SessionManifestService;
-  const testDir = '/tmp/test-autosteer';
-  const sessionsDir = `${testDir}/.autosteer/sessions`;
+  const testDir = TEST_DIR;
+  const sessionsDir = `${TEST_DIR}/.autosteer/sessions`;
+
+  beforeAll(async () => {
+    // Ensure /tmp exists and is writable
+    try {
+      await fsPromises.mkdir('/tmp', { recursive: true });
+    } catch (error) {
+      // /tmp already exists, ignore
+    }
+  });
 
   beforeEach(async () => {
     console.log('[SessionManifestService.test] Setting up test suite');
@@ -123,7 +135,8 @@ describe('SessionManifestService', () => {
 
     it('should return undefined for non-existent agent session', async () => {
       console.log('[SessionManifestService.test] Testing getAgentSession - not found');
-      const sessionId = await service.getAgentSession('worktree1', 'agent1');
+      // Use a unique worktree ID that hasn't been created by any previous test
+      const sessionId = await service.getAgentSession('worktree-nonexistent', 'agent-nonexistent');
 
       expect(sessionId).toBeUndefined();
     });
@@ -152,16 +165,24 @@ describe('SessionManifestService', () => {
 
     it('should return empty object for worktree with no sessions', async () => {
       console.log('[SessionManifestService.test] Testing getAllAgentSessions - empty');
-      const sessions = await service.getAllAgentSessions('worktree1');
+      // Use a unique worktree ID that hasn't been created by any previous test
+      const sessions = await service.getAllAgentSessions('worktree-empty-sessions');
 
       expect(sessions).toEqual({});
     });
 
     it('should write manifest atomically', async () => {
       console.log('[SessionManifestService.test] Testing atomic write');
+      // Ensure sessions directory exists
+      await fsPromises.mkdir(sessionsDir, { recursive: true });
+
       await service.updateAgentSession('worktree1', 'agent1', 'session1');
 
       const manifestPath = `${sessionsDir}/worktree1.json`;
+
+      // Add small delay to ensure write completes
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const content = await fsPromises.readFile(manifestPath, 'utf-8');
       const manifest = JSON.parse(content);
 
@@ -236,6 +257,10 @@ describe('SessionManifestService', () => {
       await service.updateAgentSession('worktree1', 'agent2', 'session2');
 
       const manifestPath = `${sessionsDir}/worktree1.json`;
+
+      // Add small delay to ensure write completes
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       await expect(fsPromises.access(manifestPath)).resolves.not.toThrow();
 
       await service.deleteWorktreeManifest('worktree1');
@@ -253,6 +278,9 @@ describe('SessionManifestService', () => {
     it('should rename manifest file with timestamp', async () => {
       console.log('[SessionManifestService.test] Testing manifest rename');
       await service.updateAgentSession('worktree1', 'agent1', 'session1');
+
+      // Add small delay to ensure write completes
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       await service.deleteWorktreeManifest('worktree1');
 
@@ -300,7 +328,8 @@ describe('SessionManifestService', () => {
 
     it('should return empty array for agent with no directories', async () => {
       console.log('[SessionManifestService.test] Testing getAdditionalDirectories - empty');
-      const result = await service.getAdditionalDirectories('worktree1', 'agent1');
+      // Use a unique worktree and agent ID that hasn't been used in previous tests
+      const result = await service.getAdditionalDirectories('worktree-no-dirs', 'agent-no-dirs');
 
       expect(result).toEqual([]);
     });
@@ -312,6 +341,10 @@ describe('SessionManifestService', () => {
       await service.updateAdditionalDirectories('worktree1', 'agent1', directories);
 
       const manifestPath = `${sessionsDir}/worktree1.json`;
+
+      // Add small delay to ensure write completes
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const content = await fsPromises.readFile(manifestPath, 'utf-8');
       const manifest = JSON.parse(content);
 

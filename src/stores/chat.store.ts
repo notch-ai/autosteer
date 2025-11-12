@@ -109,6 +109,8 @@ export interface ChatStore {
   chatError: string | null;
   pendingToolUses: Map<string, PendingToolUse>;
   traceEntries: Map<string, TraceEntry[]>; // Per-chat trace entries
+  draftInputs: Map<string, string>; // Per-agent draft input text
+  draftCursorPositions: Map<string, number>; // Per-agent cursor positions
 
   // Background Sync State
   backgroundSyncInterval: NodeJS.Timeout | null;
@@ -122,6 +124,8 @@ export interface ChatStore {
   getAttachments: (agentId: string) => Attachment[];
   getSessionId: (agentId: string) => string | null;
   getTraceEntries: (agentId: string) => TraceEntry[];
+  getDraftInput: (agentId: string) => string;
+  getDraftCursorPosition: (agentId: string) => number | null;
 
   // ==================== ACTIONS ====================
 
@@ -152,6 +156,12 @@ export interface ChatStore {
   streamResponse: (response: AsyncIterable<StreamChunk>) => Promise<void>;
   stopStreaming: () => void;
 
+  // Draft Input Operations
+  setDraftInput: (agentId: string, text: string) => void;
+  clearDraftInput: (agentId: string) => void;
+  setDraftCursorPosition: (agentId: string, position: number) => void;
+  clearDraftCursorPosition: (agentId: string) => void;
+
   // Background Sync
   startBackgroundSync: () => NodeJS.Timeout;
   stopBackgroundSync: () => void;
@@ -180,6 +190,8 @@ export const useChatStore = create<ChatStore>()(
       chatError: null,
       pendingToolUses: new Map(),
       traceEntries: new Map(),
+      draftInputs: new Map(),
+      draftCursorPositions: new Map(),
       backgroundSyncInterval: null,
 
       // ==================== SELECTORS ====================
@@ -252,6 +264,26 @@ export const useChatStore = create<ChatStore>()(
       getTraceEntries: (agentId: string) => {
         const state = get();
         return state.traceEntries.get(agentId) || [];
+      },
+
+      /**
+       * Get draft input text for a specific agent
+       * @param agentId - Agent ID
+       * @returns Draft input text or empty string
+       */
+      getDraftInput: (agentId: string) => {
+        const state = get();
+        return state.draftInputs.get(agentId) || '';
+      },
+
+      /**
+       * Get draft cursor position for a specific agent
+       * @param agentId - Agent ID
+       * @returns Cursor position or null
+       */
+      getDraftCursorPosition: (agentId: string) => {
+        const state = get();
+        return state.draftCursorPositions.get(agentId) ?? null;
       },
 
       // ==================== ACTIONS ====================
@@ -379,10 +411,6 @@ export const useChatStore = create<ChatStore>()(
         set((state) => {
           state.traceEntries.set(chatId, traceEntries);
         });
-
-        logger.info(
-          `[ChatStore] Hydrated ${traceEntries.length} trace entries from ${messages.length} chat messages`
-        );
       },
 
       /**
@@ -406,15 +434,8 @@ export const useChatStore = create<ChatStore>()(
         if (!todos) return undefined;
         if (todos.length === 0) return [];
 
-        logger.info(
-          `[ChatStore] Normalizing todo statuses for ${todos.length} todos (session active: ${isSessionActive})`
-        );
-
         return todos.map((todo) => {
           if (todo.status === 'in_progress' && !isSessionActive) {
-            logger.debug(
-              `[ChatStore] Resetting in_progress todo to pending: ${todo.id} - ${todo.content}`
-            );
             return { ...todo, status: 'pending' as const };
           }
           return todo;
@@ -435,14 +456,12 @@ export const useChatStore = create<ChatStore>()(
         resourceIds?: string[],
         options?: { permissionMode?: PermissionMode; model?: string }
       ): Promise<void> => {
-        logger.debug('[ChatStore] sendMessage called:', { message, resourceIds, options });
-
         const state = get();
         const activeChat = state.activeChat;
         const selectedAgentId = useAgentsStore.getState().selectedAgentId;
 
         if (!activeChat || !selectedAgentId) {
-          logger.error('[ChatStore] Missing activeChat or selectedAgentId');
+          logger.error('Missing activeChat or selectedAgentId');
           throw new Error('No active chat or selected agent');
         }
 
@@ -531,7 +550,7 @@ export const useChatStore = create<ChatStore>()(
                     });
                   }
                 } catch (error) {
-                  logger.error(`[ChatStore] Failed to load resource ${resourceId}:`, error);
+                  logger.error(`Failed to load resource ${resourceId}:`, error);
                 }
               }
             }
@@ -557,8 +576,6 @@ export const useChatStore = create<ChatStore>()(
 
           const capturedStreamingMessageId = streamingMessageId;
 
-          logger.debug('[ChatStore] Calling claudeCodeService.queryWithStreaming');
-
           // Call Claude Code service with streaming callbacks
           await claudeCodeService.queryWithStreaming(
             message,
@@ -575,8 +592,6 @@ export const useChatStore = create<ChatStore>()(
                 get().addTraceEntry(streamingChatId, direction, message);
               },
               onChunk: (chunk) => {
-                logger.debug('[ChatStore] Received chunk:', chunk.type);
-
                 // Batch streaming updates to reduce re-render frequency
                 batchStreamingUpdate(() =>
                   set((state) => {
@@ -743,8 +758,6 @@ export const useChatStore = create<ChatStore>()(
 
                 // Handle compact_boundary message
                 if (message.subtype === 'compact_boundary' && message.compact_metadata) {
-                  logger.warn('[ChatStore] COMPACT_BOUNDARY MESSAGE RECEIVED');
-
                   const { useContextUsageStore } = await import('./contextusage.store');
                   useContextUsageStore.getState().resetAgentContextUsage(capturedSelectedAgentId);
 
@@ -876,8 +889,6 @@ export const useChatStore = create<ChatStore>()(
                   result.subtype === 'error_max_turns' ||
                   result.subtype === 'error_during_execution'
                 ) {
-                  logger.info('[ChatStore] Detected session termination:', result.subtype);
-
                   set((state) => {
                     const messages = state.messages.get(streamingChatId) || [];
                     let systemMessage: ChatMessage;
@@ -1129,11 +1140,10 @@ export const useChatStore = create<ChatStore>()(
             }
           );
         } catch (error) {
-          logger.error('[ChatStore] Error in sendMessage:', error);
+          logger.error('Error in sendMessage:', error);
 
           // Check if abort error
           if (error instanceof Error && error.message === 'Query aborted') {
-            logger.debug('[ChatStore] Query was aborted by user');
             set((state) => {
               if (streamingChatId) {
                 state.streamingStates = new Map(state.streamingStates).set(streamingChatId, false);
@@ -1166,18 +1176,14 @@ export const useChatStore = create<ChatStore>()(
        */
       loadChatHistory: async (chatId: string) => {
         try {
-          logger.info(`[ChatStore] Loading chat history for chatId: ${chatId}`);
           if (window.electron?.agents?.loadChatHistory) {
             const result = await window.electron.agents.loadChatHistory(chatId);
             const messages = Array.isArray(result) ? result : result.messages || [];
             const sessionId = !Array.isArray(result) ? result.sessionId : null;
 
-            logger.info(`[ChatStore] Parsed ${messages.length} messages from JSONL`);
-
             // Check for compaction reset
             const hasCompactionReset = messages.some((msg: ChatMessage) => msg.isCompactionReset);
             if (hasCompactionReset) {
-              logger.warn('[ChatStore] Detected compaction reset - resetting context usage');
               const { useContextUsageStore } = await import('./contextusage.store');
               useContextUsageStore.getState().resetAgentContextUsage(chatId);
             }
@@ -1198,12 +1204,6 @@ export const useChatStore = create<ChatStore>()(
 
               return false;
             })();
-
-            if (hasIncompleteSession) {
-              logger.warn(
-                `[ChatStore] Detected incomplete session for agent ${chatId} - resetting in_progress todos`
-              );
-            }
 
             const isSessionActive =
               !hasIncompleteSession &&
@@ -1256,9 +1256,6 @@ export const useChatStore = create<ChatStore>()(
               }
 
               if (lastTodoMessage && lastTodoMessage.latestTodos) {
-                logger.info(
-                  `[ChatStore] Loading ${lastTodoMessage.latestTodos.length} todos into monitor`
-                );
                 const messageWithToolCall = {
                   ...lastTodoMessage,
                   toolCalls: [
@@ -1278,7 +1275,7 @@ export const useChatStore = create<ChatStore>()(
           }
           return [];
         } catch (error) {
-          logger.error('[ChatStore] Failed to load chat history:', error);
+          logger.error('Failed to load chat history:', error);
           return [];
         }
       },
@@ -1455,6 +1452,49 @@ export const useChatStore = create<ChatStore>()(
       },
 
       /**
+       * Set draft input text for a specific agent
+       * @param agentId - Agent ID
+       * @param text - Draft input text
+       */
+      setDraftInput: (agentId: string, text: string) => {
+        set((state) => {
+          state.draftInputs.set(agentId, text);
+        });
+      },
+
+      /**
+       * Clear draft input text for a specific agent
+       * @param agentId - Agent ID
+       */
+      clearDraftInput: (agentId: string) => {
+        set((state) => {
+          state.draftInputs.delete(agentId);
+          state.draftCursorPositions.delete(agentId); // Also clear cursor position
+        });
+      },
+
+      /**
+       * Set draft cursor position for a specific agent
+       * @param agentId - Agent ID
+       * @param position - Cursor position (0-based index)
+       */
+      setDraftCursorPosition: (agentId: string, position: number) => {
+        set((state) => {
+          state.draftCursorPositions.set(agentId, position);
+        });
+      },
+
+      /**
+       * Clear draft cursor position for a specific agent
+       * @param agentId - Agent ID
+       */
+      clearDraftCursorPosition: (agentId: string) => {
+        set((state) => {
+          state.draftCursorPositions.delete(agentId);
+        });
+      },
+
+      /**
        * Start background sync interval
        * Syncs chat history every 5 seconds when not streaming
        * @returns Interval handle
@@ -1473,7 +1513,7 @@ export const useChatStore = create<ChatStore>()(
             try {
               await get().loadChatHistory(activeAgentId);
             } catch (error) {
-              logger.error('[ChatStore] Background sync failed:', error);
+              logger.error('Background sync failed:', error);
             }
           }
         }, 5000);

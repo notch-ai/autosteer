@@ -301,7 +301,7 @@ select:focus-visible {
   box-shadow: none;
 }
 
-/* Phase 2: Enhanced dropdown z-index layers with custom properties */
+/* Enhanced dropdown z-index layers with custom properties */
 :root {
   --z-index-dropdown-base: 40;
   --z-index-dropdown-overlay: 50;
@@ -336,7 +336,7 @@ select:focus-visible {
 .command-menu-dropdown {
   z-index: var(--z-index-dropdown-overlay) !important;
   position: fixed;
-  /* Phase 2: Enhanced shadow and border for better visibility */
+  /* Enhanced shadow and border for better visibility */
   box-shadow:
     0 4px 12px rgba(0, 0, 0, 0.15),
     0 0 0 1px rgba(0, 0, 0, 0.05);
@@ -351,7 +351,7 @@ select:focus-visible {
   position: relative;
 }
 
-/* Phase 2: Error boundary fallback styling */
+/* Error boundary fallback styling */
 .dropdown-error-fallback {
   z-index: var(--z-index-dropdown-critical);
   background: hsl(var(--background));
@@ -489,6 +489,14 @@ select:focus-visible {
 .cm-scroller,
 .cm-custom-scrollbar {
   scrollbar-width: thin !important;
+}
+
+/* Radix ScrollArea viewport - enable scrolling */
+[data-radix-scroll-area-viewport] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: block !important;
+  max-height: 100% !important;
 }
 
 /* Command menu item selection styles - override cmdk defaults */

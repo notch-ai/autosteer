@@ -1,5 +1,5 @@
 /**
- * Phase 4 Integration Tests - Memory Optimization
+ * Integration Tests - Memory Optimization
  *
  * Tests automatic buffer trimming, memory monitoring, and XTerm instance reuse
  * under memory constraints.

@@ -2,7 +2,6 @@
  * Badge Service
  *
  * Purpose: Wrapper around Electron's app.setBadge() API for native OS badge notifications
- * Phase 1: Core Badge Implementation
  *
  * This service provides:
  * - Platform-agnostic badge operations
@@ -37,7 +36,6 @@ export class BadgeService {
   }
 
   private initializeSettings(): void {
-    // This will be connected to settings store in Phase 2
     // For now, default to enabled
     this.isEnabled = true;
   }
@@ -109,7 +107,6 @@ export class BadgeService {
    */
   public isSupported(): boolean {
     // Badge is supported on macOS and Linux (with varying DE support)
-    // Windows support is planned for Phase 2
     const platform = process.platform;
     const supported = platform === 'darwin' || platform === 'linux';
 
@@ -122,7 +119,7 @@ export class BadgeService {
   }
 
   /**
-   * Set badge enabled state (will be connected to settings in Phase 2)
+   * Set badge enabled state 
    */
   public setEnabled(enabled: boolean): void {
     this.isEnabled = enabled;

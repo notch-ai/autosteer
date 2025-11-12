@@ -1,5 +1,5 @@
 /**
- * Agent Store Tests - Characterization Tests (TDD Phase 1)
+ * Agent Store Tests - Characterization Tests 
  *
  * Test-first approach for agents.store.ts extraction from core.ts
  *

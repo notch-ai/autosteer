@@ -1,6 +1,5 @@
 /**
  * Git Handlers - Consolidated IPC handlers for Git operations
- * Phase 4: IPC Simplification - Git Domain Handler
  *
  * Consolidates:
  * - GitDiffHandlers.ts → git.handlers.ts

@@ -28,6 +28,17 @@ export interface GitStatus {
 }
 
 /**
+ * Structured patch hunk for diff rendering
+ */
+export interface StructuredPatch {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: string[];
+}
+
+/**
  * Git diff for a file
  */
 export interface GitDiff {
@@ -36,6 +47,7 @@ export interface GitDiff {
   additions: number;
   deletions: number;
   timestamp: Date;
+  structuredPatch?: StructuredPatch[];
 }
 
 /**

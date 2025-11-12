@@ -17,10 +17,13 @@ const fsPromises = {
   access: promisify(fs.access),
 };
 
+// Use unique directory to avoid parallel test conflicts
+const TEST_DIR = `/tmp/test-autosteer-filedata-${process.pid}-${Date.now()}`;
+
 // Mock electron app.getPath
 jest.mock('electron', () => ({
   app: {
-    getPath: jest.fn(() => '/tmp/test-autosteer'),
+    getPath: jest.fn(() => TEST_DIR),
   },
 }));
 
@@ -36,7 +39,16 @@ jest.mock('@/commons/utils/logger', () => ({
 
 describe('FileDataStoreService', () => {
   let service: FileDataStoreService;
-  const testDir = '/tmp/test-autosteer';
+  const testDir = TEST_DIR;
+
+  beforeAll(async () => {
+    // Ensure /tmp exists and is writable
+    try {
+      await fsPromises.mkdir('/tmp', { recursive: true });
+    } catch (error) {
+      // /tmp already exists, ignore
+    }
+  });
 
   beforeEach(async () => {
     console.log('[FileDataStoreService.test] Setting up test suite');
@@ -97,9 +109,19 @@ describe('FileDataStoreService', () => {
 
     it('should return empty config when app.json does not exist', async () => {
       console.log('[FileDataStoreService.test] Testing readAppConfig - no file');
-      const result = await service.readAppConfig();
+      // Create a fresh service instance with a different test directory that doesn't have any existing data
+      const freshTestDir = `/tmp/test-autosteer-fresh-${Date.now()}`;
+      await fsPromises.mkdir(freshTestDir, { recursive: true });
+
+      const freshService = FileDataStoreService.getInstance();
+      freshService.setDataDirectory(freshTestDir);
+
+      const result = await freshService.readAppConfig();
 
       expect(result).toEqual({});
+
+      // Clean up
+      await fsPromises.rm(freshTestDir, { recursive: true, force: true });
     });
 
     it('should write app config', async () => {

@@ -12,7 +12,7 @@ export interface TerminalSession {
 }
 
 /**
- * TerminalSessionService - Phase 2 Instance Pooling
+ * TerminalSessionService -  Instance Pooling
  *
  * Manages terminal session lifecycle for instance pooling (max 10 sessions).
  *
@@ -35,7 +35,7 @@ export interface TerminalSession {
  * - <10ms session destruction
  * - O(1) session lookup
  *
- * @see docs/terminal-persistence-architecture.md Phase 2
+ * @see docs/terminal-persistence-architecture.md 
  */
 export class TerminalSessionService {
   private static readonly MAX_SESSIONS = 10;

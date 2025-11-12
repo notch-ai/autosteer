@@ -123,6 +123,25 @@ export function createMockElectronAPI() {
  */
 export function setupMockElectron(customAPI?: Partial<ReturnType<typeof createMockElectronAPI>>) {
   const mockAPI = { ...createMockElectronAPI(), ...customAPI };
+
+  // Check if electron property already exists
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'electron');
+
+  if (descriptor) {
+    // If it exists and is configurable, delete it first
+    if (descriptor.configurable) {
+      delete (window as unknown as { electron?: unknown }).electron;
+    } else {
+      // If not configurable, we can't redefine it - just update its value if writable
+      if (descriptor.writable) {
+        (window as unknown as { electron: unknown }).electron = mockAPI;
+        console.log('[Test Utils] Mock Electron API updated on window object');
+        return mockAPI;
+      }
+    }
+  }
+
+  // Define the property
   Object.defineProperty(window, 'electron', {
     value: mockAPI,
     writable: true,
@@ -136,8 +155,12 @@ export function setupMockElectron(customAPI?: Partial<ReturnType<typeof createMo
  * Cleanup mock window.electron after testing
  */
 export function cleanupMockElectron() {
-  delete (window as unknown as { electron?: unknown }).electron;
-  console.log('[Test Utils] Mock Electron API cleaned up');
+  try {
+    delete (window as unknown as { electron?: unknown }).electron;
+    console.log('[Test Utils] Mock Electron API cleaned up');
+  } catch (error) {
+    console.warn('[Test Utils] Failed to cleanup electron mock:', error);
+  }
 }
 
 /**

@@ -1,13 +1,12 @@
-import { create } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
-import { enableMapSet } from 'immer';
 import {
   Terminal,
-  TerminalState,
   TerminalBufferState,
   TerminalSessionState,
+  TerminalState,
 } from '@/types/terminal.types';
-import { logger } from '@/commons/utils/logger';
+import { enableMapSet } from 'immer';
+import { create } from 'zustand';
+import { immer } from 'zustand/middleware/immer';
 
 // Enable Map/Set support in Immer
 enableMapSet();
@@ -47,7 +46,7 @@ export interface TerminalStore extends TerminalState {
   getTerminalsForProject: (projectId: string) => TerminalSession[];
   getLastTerminalForProject: (projectId: string) => TerminalSession | undefined;
 
-  // Phase 1: Buffer state persistence actions
+  // Buffer state persistence actions
   saveBufferState: (bufferState: TerminalBufferState) => void;
   getBufferState: (terminalId: string) => TerminalBufferState | undefined;
   removeBufferState: (terminalId: string) => void;
@@ -69,7 +68,7 @@ export interface TerminalStore extends TerminalState {
 const terminalSessionsCache = new Map<string, TerminalSession>();
 const projectToTerminalMap = new Map<string, Set<string>>(); // projectId -> Set<terminalId>
 
-// Store buffer states outside of Zustand for Phase 1 buffer management
+// Store buffer states outside of Zustand for buffer management
 const bufferStatesCache = new Map<string, TerminalBufferState>();
 
 // Store session states (terminal + buffer) outside of Zustand
@@ -149,71 +148,21 @@ export const useTerminalStore = create<TerminalStore>()(
     // Session actions - use external cache to avoid Immer issues
     // CHANGED: Now keyed by terminalId instead of projectId
     saveTerminalSession: (terminalId: string, session: TerminalSession) => {
-      // 🔍 HYPOTHESIS A2: Track store-level save operation
-      logger.info('[HYPO-A2-STORE-SAVE] saveTerminalSession called', {
-        terminalId: terminalId.substring(0, 8),
-        ownerProjectId: session.ownerProjectId.substring(0, 8),
-        hasBufferContent: !!session.bufferContent,
-        bufferContentSize: session.bufferContent?.length || 0,
-        cacheSize: terminalSessionsCache.size,
-        timestamp: new Date().toISOString(),
-      });
-
-      console.error('[🔍 SAVE] Saving session:', {
-        terminalId: terminalId.substring(0, 8),
-        ownerProjectId: session.ownerProjectId,
-        cacheSize: terminalSessionsCache.size,
-      });
       terminalSessionsCache.set(terminalId, {
         ...session,
         lastActive: new Date(),
       });
-
-      // 🔍 HYPOTHESIS A2: Verify save was successful
-      const savedSession = terminalSessionsCache.get(terminalId);
-      logger.info('[HYPO-A2-STORE-SAVED] Session stored in cache', {
-        terminalId: terminalId.substring(0, 8),
-        savedSuccessfully: !!savedSession,
-        savedBufferSize: savedSession?.bufferContent?.length || 0,
-        bufferMatches: savedSession?.bufferContent === session.bufferContent,
-      });
-
       // Update project -> terminal mapping
       const projectId = session.ownerProjectId;
       if (!projectToTerminalMap.has(projectId)) {
         projectToTerminalMap.set(projectId, new Set());
       }
       projectToTerminalMap.get(projectId)!.add(terminalId);
-
-      console.error('[🔍 SAVE COMPLETE] Cache now has:', {
-        cacheSize: terminalSessionsCache.size,
-        projectMapSize: projectToTerminalMap.size,
-        terminalsForProject: Array.from(projectToTerminalMap.get(projectId) || []).map((id) =>
-          id.substring(0, 8)
-        ),
-      });
     },
 
     getTerminalSession: (terminalId: string) => {
       const session = terminalSessionsCache.get(terminalId);
 
-      // 🔍 HYPOTHESIS A2: Track store-level retrieve operation
-      logger.info('[HYPO-A2-STORE-GET] getTerminalSession called', {
-        terminalId: terminalId.substring(0, 8),
-        found: !!session,
-        hasBufferContent: !!session?.bufferContent,
-        bufferContentSize: session?.bufferContent?.length || 0,
-        ownerProjectId: session?.ownerProjectId?.substring(0, 8),
-        cacheSize: terminalSessionsCache.size,
-        timestamp: new Date().toISOString(),
-      });
-
-      logger.debug('[TerminalStore] Getting session:', {
-        terminalId,
-        found: !!session,
-        ownerProjectId: session?.ownerProjectId,
-        cacheSize: terminalSessionsCache.size,
-      });
       return session;
     },
 
@@ -253,27 +202,12 @@ export const useTerminalStore = create<TerminalStore>()(
 
     // NEW: Get the most recently used terminal for a project
     getLastTerminalForProject: (projectId: string) => {
-      logger.info('[🔍 TERMINAL-STORE] getLastTerminalForProject called', {
-        lookupProjectId: projectId,
-        projectIdType: typeof projectId,
-        projectIdLength: projectId?.length,
-        projectMapSize: projectToTerminalMap.size,
-        hasProject: projectToTerminalMap.has(projectId),
-        terminalIds: projectToTerminalMap.get(projectId)
-          ? Array.from(projectToTerminalMap.get(projectId)!).map((id) => id.substring(0, 8))
-          : [],
-        allProjectsInMap: Array.from(projectToTerminalMap.keys()),
-      });
       const sessions = get().getTerminalsForProject(projectId);
-      logger.info('[🔍 TERMINAL-STORE] getLastTerminalForProject result', {
-        sessionsCount: sessions.length,
-        terminalIds: sessions.map((s) => s.terminalId.substring(0, 8)),
-        sessionOwnerIds: sessions.map((s) => s.ownerProjectId),
-      });
+
       return sessions.length > 0 ? sessions[0] : undefined;
     },
 
-    // Phase 1: Buffer state persistence actions
+    // Buffer state persistence actions
     saveBufferState: (bufferState: TerminalBufferState) => {
       bufferStatesCache.set(bufferState.terminalId, bufferState);
     },

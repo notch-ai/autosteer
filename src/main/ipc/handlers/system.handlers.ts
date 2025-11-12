@@ -1,7 +1,5 @@
 /**
  * System Handlers - Consolidated IPC handlers for system operations
- * Phase 4: IPC Simplification - System Domain Handler
- *
  * Consolidates:
  * - TerminalHandlers.ts → system.handlers.ts (terminal operations)
  * - BadgeHandlers.ts → system.handlers.ts (badge notifications)

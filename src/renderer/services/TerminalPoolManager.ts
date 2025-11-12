@@ -12,7 +12,7 @@ interface TerminalPoolEntry {
 }
 
 /**
- * TerminalPoolManager - Phase 2 Instance Pooling (Renderer Process)
+ * TerminalPoolManager - Instance Pooling (Renderer Process)
  *
  * Manages terminal instance pooling in the renderer process.
  *
@@ -35,7 +35,7 @@ interface TerminalPoolEntry {
  * - <100ms terminal switch time
  * - O(1) instance lookup
  *
- * @see docs/terminal-persistence-architecture.md Phase 2
+ * @see docs/terminal-persistence-architecture.md
  */
 export class TerminalPoolManager {
   private static readonly MAX_POOL_SIZE = 10;
@@ -44,10 +44,6 @@ export class TerminalPoolManager {
 
   constructor() {
     this.pool = new Map();
-
-    console.info('[TerminalPoolManager] Initialized', {
-      maxPoolSize: TerminalPoolManager.MAX_POOL_SIZE,
-    });
   }
 
   /**
@@ -68,14 +64,9 @@ export class TerminalPoolManager {
       throw new Error(`Terminal pool limit reached (${TerminalPoolManager.MAX_POOL_SIZE})`);
     }
 
-    console.log('[TerminalPoolManager] Creating terminal', {
-      terminalId: terminal.id,
-      poolSize: this.pool.size,
-    });
-
     // Create new adapter instance
     const adapter = new TerminalLibraryAdapter({
-      scrollback: 10000, // 10k line scrollback from Phase 1
+      scrollback: 10000,
       fontSize: terminal.size.rows === 24 ? 14 : 13,
     });
 
@@ -91,11 +82,6 @@ export class TerminalPoolManager {
     };
 
     this.pool.set(terminal.id, entry);
-
-    console.info('[TerminalPoolManager] Terminal created', {
-      terminalId: terminal.id,
-      poolSize: this.pool.size,
-    });
 
     return adapter;
   }
@@ -149,11 +135,6 @@ export class TerminalPoolManager {
       throw new Error(`Terminal not found in pool: ${terminalId}`);
     }
 
-    console.log('[TerminalPoolManager] Terminal attached', {
-      terminalId,
-      wasAttached: entry.isAttached,
-    });
-
     entry.adapter.attach(element);
     entry.isAttached = true;
     entry.lastAccessed = new Date();
@@ -168,11 +149,6 @@ export class TerminalPoolManager {
     if (!entry) {
       throw new Error(`Terminal not found in pool: ${terminalId}`);
     }
-
-    console.log('[TerminalPoolManager] Terminal detached', {
-      terminalId,
-      wasAttached: entry.isAttached,
-    });
 
     entry.adapter.detach();
     entry.isAttached = false;
@@ -247,12 +223,6 @@ export class TerminalPoolManager {
 
     const bufferState = entry.adapter.getBufferState();
 
-    console.log('[TerminalPoolManager] Buffer state captured', {
-      terminalId,
-      lines: bufferState.scrollback.length,
-      sizeBytes: bufferState.content.length,
-    });
-
     return {
       ...bufferState,
       terminalId,
@@ -272,11 +242,6 @@ export class TerminalPoolManager {
       throw new Error(`Terminal not found in pool: ${terminalId}`);
     }
 
-    console.log('[TerminalPoolManager] Restoring buffer state', {
-      terminalId,
-      lines: bufferState.scrollback.length,
-    });
-
     entry.adapter.restoreBufferState(bufferState);
     entry.lastAccessed = new Date();
   }
@@ -291,35 +256,19 @@ export class TerminalPoolManager {
       throw new Error(`Terminal not found in pool: ${terminalId}`);
     }
 
-    console.log('[TerminalPoolManager] Destroying terminal', {
-      terminalId,
-      poolSize: this.pool.size,
-    });
-
     entry.adapter.dispose();
     this.pool.delete(terminalId);
-
-    console.info('[TerminalPoolManager] Terminal destroyed', {
-      terminalId,
-      remainingInPool: this.pool.size,
-    });
   }
 
   /**
    * Clear all terminals from pool
    */
   clearAll(): void {
-    const count = this.pool.size;
-
-    console.log('[TerminalPoolManager] Clearing all terminals', { count });
-
     for (const entry of this.pool.values()) {
       entry.adapter.dispose();
     }
 
     this.pool.clear();
-
-    console.info('[TerminalPoolManager] All terminals cleared', { count });
   }
 
   /**

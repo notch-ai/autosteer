@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.21](https://github.com/notch-ai/autosteer/compare/v0.1.20...v0.1.21) (2025-11-12)
+
+
+### Bug Fixes
+
+* file references ([ce1e3a1](https://github.com/notch-ai/autosteer/commit/ce1e3a1c4ee224b12f3ca0e946d6fdb0285c04e2))
+
 ## [0.1.20](https://github.com/notch-ai/autosteer/compare/v0.1.19...v0.1.20) (2025-11-12)
 
 

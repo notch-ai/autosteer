@@ -1,7 +1,7 @@
 import React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Input as UIInput, type InputProps as UIInputProps } from '@/components/ui/input';
-import { cn } from '@/commons/utils/cn';
+import { cn } from '@/commons/utils/ui/cn';
 
 // Legacy input variants for backward compatibility
 const inputVariants = cva(

@@ -1,8 +1,8 @@
 import { useTheme } from '@/commons/contexts/ThemeContext';
 import { cn } from '@/commons/utils';
 import { logger } from '@/commons/utils/logger';
+import { useMessageMetadata, usePermissionHandling } from '@/hooks';
 import { useFileDragDrop } from '@/hooks/useFileDragDrop';
-import { useChatInputFocus } from '@/hooks/useChatInputFocus';
 import {
   Circle,
   CircleCheck,
@@ -23,7 +23,7 @@ import {
 } from 'react';
 import { ThreeDots } from 'react-loader-spinner';
 
-import { ChatMessage } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 import { ModelOption } from '@/types/model.types';
 import { PermissionMode } from '@/types/permission.types';
 
@@ -41,6 +41,8 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
+import { useChatScroll } from '@/hooks/useChatScroll';
+import { MarkdownCacheService } from '@/renderer/services/MarkdownCacheService';
 import { useAgentsStore, useChatStore, useProjectsStore } from '@/stores';
 import { useResourcesStore } from '@/stores/resources.store';
 
@@ -51,11 +53,11 @@ import {
   ToolUsageDisplay,
 } from '@/features/monitoring';
 import { ClaudeErrorDisplay, PermissionActionDisplay, TodoDisplay } from '@/features/shared';
+import { CachedMarkdownRenderer } from './CachedMarkdownRenderer';
 import { ChatInput, ChatInputHandle } from './ChatInput';
-import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ChatInterfaceProps {
-  messages: ChatMessage[];
+  messages: ComputedMessage[];
   onSendMessage: (
     content: string,
     options?: { permissionMode?: PermissionMode; model?: ModelOption }
@@ -64,6 +66,7 @@ interface ChatInterfaceProps {
   attachedResourceIds: string[];
   onRemoveResource: (resourceId: string) => void;
   onAttachResources?: (resourceIds: string[]) => void;
+  isActive?: boolean; // Whether this chat tab is active
 }
 
 export interface ChatInterfaceRef {
@@ -71,13 +74,15 @@ export interface ChatInterfaceRef {
 }
 
 interface MessageItemProps {
-  message: ChatMessage;
+  message: ComputedMessage;
   streamingMessageId: string | null;
   resources: Map<string, any>;
   formatTimestamp: (date: Date) => string;
-  isLastMessage?: boolean;
-  onScrollToBottom?: () => void;
+  _isLastMessage?: boolean;
+  _onScrollToBottom?: () => void;
   isStreaming?: boolean;
+  activeMetadataTab: Map<string, 'tools' | 'tokens' | 'todos' | null>;
+  onMetadataToggle: (messageId: string, tab: 'tools' | 'tokens' | 'todos') => void;
 }
 
 // Helper function to format token counts
@@ -97,12 +102,15 @@ const formatCost = (cost: number): string => {
 
 // Memoized message component using UI components
 const MessageItem = memo<MessageItemProps>(
-  ({ message, streamingMessageId, resources, isLastMessage, onScrollToBottom, isStreaming }) => {
+  ({
+    message,
+    streamingMessageId,
+    resources,
+    isStreaming,
+    activeMetadataTab,
+    onMetadataToggle,
+  }) => {
     const { activeTheme } = useTheme();
-    const [activeMetadataTab, setActiveMetadataTab] = useState<'tools' | 'tokens' | 'todos' | null>(
-      null
-    );
-
     const [showSessionStats, setShowSessionStats] = useState(false);
 
     // Get current project path to strip from file paths
@@ -120,14 +128,8 @@ const MessageItem = memo<MessageItemProps>(
       return filePath;
     };
 
-    const handleMetadataToggle = (tab: 'tools' | 'tokens' | 'todos') => {
-      const newValue = activeMetadataTab === tab ? null : tab;
-      setActiveMetadataTab(newValue);
-      // Scroll to bottom if this is the last message and we're opening a tab
-      if (isLastMessage && newValue !== null && onScrollToBottom) {
-        setTimeout(onScrollToBottom, 100);
-      }
-    };
+    // Get current active tab for this message
+    const currentActiveTab = activeMetadataTab.get(message.id) || null;
     const streamingEvents: any[] = []; // TODO: Implement streaming events in CoreStore
     const worktreeStats: any = null; // TODO: Implement worktreeStats in CoreStore
 
@@ -189,7 +191,7 @@ const MessageItem = memo<MessageItemProps>(
               ) : (
                 content && (
                   <div className={cn(message.role === 'user' ? 'text-text-muted' : 'text-text')}>
-                    <MarkdownRenderer content={content} />
+                    <CachedMarkdownRenderer content={content} />
                   </div>
                 )
               )}
@@ -222,7 +224,7 @@ const MessageItem = memo<MessageItemProps>(
                         <div
                           className={cn(message.role === 'user' ? 'text-text-muted' : 'text-text')}
                         >
-                          <MarkdownRenderer content={content} />
+                          <CachedMarkdownRenderer content={content} />
                         </div>
                       )}
                       {message.role === 'assistant' &&
@@ -266,8 +268,8 @@ const MessageItem = memo<MessageItemProps>(
                   {message.latestTodos && message.latestTodos.length > 0 && (
                     <TodoDisplay
                       todos={message.latestTodos}
-                      isActive={activeMetadataTab === 'todos'}
-                      onToggle={() => handleMetadataToggle('todos')}
+                      isActive={currentActiveTab === 'todos'}
+                      onToggle={() => onMetadataToggle(message.id, 'todos')}
                     />
                   )}
 
@@ -280,24 +282,26 @@ const MessageItem = memo<MessageItemProps>(
                       size="sm"
                       className={cn(
                         'h-auto py-0.5 px-2 text-[11px]',
-                        activeMetadataTab === 'tools'
+                        currentActiveTab === 'tools'
                           ? 'bg-white border-border shadow-xs hover:bg-white hover:border-border hover:shadow-xs text-text [&.dark]:text-black [.dark_&]:text-black'
                           : 'bg-muted text-text-muted border-border hover:bg-white hover:text-text hover:border-border hover:shadow-xs [.dark_&:hover]:text-black'
                       )}
-                      onClick={() => handleMetadataToggle('tools')}
+                      onClick={() => onMetadataToggle(message.id, 'tools')}
                       style={
-                        activeMetadataTab === 'tools' && activeTheme === 'dark'
+                        currentActiveTab === 'tools' && activeTheme === 'dark'
                           ? { color: 'black' }
                           : undefined
                       }
                     >
                       {message.simplifiedToolCalls?.length ||
-                        message.toolCalls?.filter((tc) => tc.type === 'tool_use').length ||
+                        message.toolCalls?.filter((tc: { type: string }) => tc.type === 'tool_use')
+                          .length ||
                         message.toolUsages?.length ||
                         0}{' '}
                       tool call
                       {(message.simplifiedToolCalls?.length ||
-                        message.toolCalls?.filter((tc) => tc.type === 'tool_use').length ||
+                        message.toolCalls?.filter((tc: { type: string }) => tc.type === 'tool_use')
+                          .length ||
                         message.toolUsages?.length ||
                         0) !== 1
                         ? 's'
@@ -311,13 +315,13 @@ const MessageItem = memo<MessageItemProps>(
                       size="sm"
                       className={cn(
                         'h-auto py-0.5 px-2 text-[11px]',
-                        activeMetadataTab === 'tokens'
+                        currentActiveTab === 'tokens'
                           ? 'bg-white border-border shadow-xs hover:bg-white hover:border-border hover:shadow-xs text-text [&.dark]:text-black [.dark_&]:text-black'
                           : 'bg-muted text-text-muted border-border hover:bg-white hover:text-text hover:border-border hover:shadow-xs [.dark_&:hover]:text-black'
                       )}
-                      onClick={() => handleMetadataToggle('tokens')}
+                      onClick={() => onMetadataToggle(message.id, 'tokens')}
                       style={
-                        activeMetadataTab === 'tokens' && activeTheme === 'dark'
+                        currentActiveTab === 'tokens' && activeTheme === 'dark'
                           ? { color: 'black' }
                           : undefined
                       }
@@ -341,7 +345,7 @@ const MessageItem = memo<MessageItemProps>(
               )}
 
               {/* Tab Content */}
-              {activeMetadataTab === 'tools' && (
+              {currentActiveTab === 'tools' && (
                 <div className="ml-0 mt-3 space-y-2">
                   {(() => {
                     if (message.toolUsages && message.toolUsages.length > 0) {
@@ -376,8 +380,8 @@ const MessageItem = memo<MessageItemProps>(
 
                     if (message.simplifiedToolCalls && message.simplifiedToolCalls.length > 0) {
                       return message.simplifiedToolCalls
-                        .filter((tc) => tc.name !== 'TodoWrite')
-                        .map((toolCall, index) => (
+                        .filter((tc: { name: string }) => tc.name !== 'TodoWrite')
+                        .map((toolCall: any, index: number) => (
                           <div key={index} className="flex items-start gap-2">
                             <Wrench className="h-4 w-4 text-blue" />
                             <div className="flex-1 text-sm">
@@ -392,8 +396,8 @@ const MessageItem = memo<MessageItemProps>(
                         ));
                     } else if (message.toolCalls && message.toolCalls.length > 0) {
                       return message.toolCalls
-                        .filter((tc) => tc.type === 'tool_use')
-                        .map((toolCall, index) => {
+                        .filter((tc: { type: string }) => tc.type === 'tool_use')
+                        .map((toolCall: any, index: number) => {
                           const description = getToolDescription(
                             toolCall.name || '',
                             toolCall.input
@@ -416,7 +420,7 @@ const MessageItem = memo<MessageItemProps>(
                 </div>
               )}
 
-              {activeMetadataTab === 'tokens' && message.tokenUsage && (
+              {currentActiveTab === 'tokens' && message.tokenUsage && (
                 <div className="flex items-center gap-1 mt-3 text-sm ml-0">
                   <Package2 className="h-4 w-4 text-orange mr-1" />
 
@@ -440,9 +444,9 @@ const MessageItem = memo<MessageItemProps>(
                     )}
                 </div>
               )}
-              {activeMetadataTab === 'todos' && message.latestTodos && (
+              {currentActiveTab === 'todos' && message.latestTodos && (
                 <div className="ml-0 mt-3 space-y-1">
-                  {message.latestTodos.map((task) => (
+                  {message.latestTodos.map((task: any) => (
                     <div key={task.id} className="flex items-start gap-2">
                       <CircleCheck
                         className={cn(
@@ -549,14 +553,14 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       attachedResourceIds,
       onRemoveResource,
       onAttachResources,
+      isActive = true,
     },
     ref
   ) => {
     const [showClearConfirm, setShowClearConfirm] = useState(false);
-    const [showPermissionDialog, setShowPermissionDialog] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<ChatInputHandle>(null);
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     // Store subscriptions
     const resources = useResourcesStore((state) => state.resources);
@@ -575,18 +579,133 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       return msg?.permissionRequest || null;
     });
 
+    // Throw chatError to trigger ErrorBoundary (must be in useEffect, not render)
+    const chatError = useChatStore((state) => state.chatError);
+    const [errorToThrow, setErrorToThrow] = useState<Error | null>(null);
+
+    useEffect(() => {
+      if (chatError && !errorToThrow) {
+        // Validate chatError is a clean error message (not corrupted console output)
+        if (
+          typeof chatError === 'string' &&
+          chatError.trim().length > 0 &&
+          !chatError.includes('[Settings]') && // Filter out console.log artifacts
+          !chatError.startsWith('{') && // Filter out JSON objects
+          !chatError.startsWith('[') // Filter out arrays
+        ) {
+          try {
+            setErrorToThrow(new Error(chatError));
+          } catch (err) {
+            // If creating Error fails, use a generic message
+            setErrorToThrow(new Error('An unexpected error occurred'));
+          }
+        }
+      }
+    }, [chatError, errorToThrow]);
+
+    if (errorToThrow) {
+      throw errorToThrow;
+    }
+
     const selectedAgentId = useAgentsStore((state) => state.selectedAgentId);
-
-    // Auto-focus chat input when agent changes
-    useChatInputFocus(() => {
-      chatInputRef.current?.focus();
-    });
-    const sendMessage = useChatStore((state) => state.sendMessage);
-
-    // Get current project for auto-focus and path stripping
+    const storeSendMessage = useChatStore((state) => state.sendMessage);
     const selectedProjectId = useProjectsStore((state) => state.selectedProjectId);
     const projects = useProjectsStore((state) => state.projects);
     const currentProject = selectedProjectId ? projects.get(selectedProjectId) : undefined;
+
+    // Debug: Track isActive changes
+    useEffect(() => {
+      console.log('[ChatInterface] isActive changed:', {
+        isActive,
+        activeChat,
+        selectedAgentId,
+      });
+    }, [isActive, activeChat, selectedAgentId]);
+
+    // Debug: Track message changes
+    useEffect(() => {
+      console.log('[ChatInterface] Messages changed:', {
+        isActive,
+        messageCount: messages.length,
+        lastMessageId: messages[messages.length - 1]?.id,
+        lastMessageContentLength: messages[messages.length - 1]?.content?.length || 0,
+        lastMessageRole: messages[messages.length - 1]?.role,
+        allMessageIds: messages.map((m) => m.id),
+      });
+    }, [messages, isActive]);
+
+    // Scroll position management with sticky-bottom (z-index keeps elements mounted)
+    // bottomThreshold: 300px to account for streaming content growth during render
+    // When you scroll up slightly (e.g., 100px), growing content can push you to 500-600px away
+    const { scrollRef, scrollToBottom } = useChatScroll(messages, {
+      isActive,
+      bottomThreshold: 300,
+    });
+
+    // Message metadata state management
+    const { activeMetadataTab, handleMetadataToggle } = useMessageMetadata({
+      onScrollToBottom: scrollToBottom,
+    });
+
+    // Wrapper for sendMessage to match usePermissionHandling signature
+    const sendMessageWrapper = useCallback(
+      async (
+        content: string,
+        _agentId: string | undefined,
+        attachedResourceIds: string[],
+        options?: { permissionMode?: string }
+      ) => {
+        await storeSendMessage(content, undefined, attachedResourceIds, options as any);
+      },
+      [storeSendMessage]
+    );
+
+    // Permission handling
+    const { handlePermissionApprove, handlePermissionReject } = usePermissionHandling({
+      activeChat,
+      currentPermissionRequest,
+      sendMessage: sendMessageWrapper,
+    });
+
+    // Connect scrollRef to the actual scrollable viewport element (runs once, z-index keeps it mounted)
+    useEffect(() => {
+      console.log('[ChatInterface] Connecting scrollRef', {
+        hasScrollAreaRef: !!scrollAreaRef.current,
+        scrollRefAlreadySet: !!scrollRef.current,
+      });
+
+      if (scrollAreaRef.current && !scrollRef.current) {
+        const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+        console.log('[ChatInterface] Found viewport:', {
+          found: !!viewport,
+          isHTMLDivElement: viewport instanceof HTMLDivElement,
+        });
+
+        if (viewport instanceof HTMLDivElement) {
+          scrollRef.current = viewport;
+          console.log('[ChatInterface] scrollRef connected to viewport', {
+            scrollTop: viewport.scrollTop,
+            scrollHeight: viewport.scrollHeight,
+            clientHeight: viewport.clientHeight,
+          });
+        }
+      }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Wrap onSendMessage to force scroll to bottom (Rule #3)
+    const handleSendMessage = useCallback(
+      (content: string, options?: { permissionMode?: PermissionMode; model?: ModelOption }) => {
+        onSendMessage(content, options);
+        // Force scroll to bottom when message is sent (Rule #3)
+        // Use double RAF to ensure DOM has updated with new message
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            scrollToBottom();
+          });
+        });
+      },
+      [onSendMessage, scrollToBottom]
+    );
 
     // Derived values
     const streamingMessageId = streamingMessage?.id || null;
@@ -601,23 +720,14 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       return filePath;
     };
 
-    // Scroll to bottom when messages change or agent switches
+    // Warmup markdown cache for improved rendering performance
     useEffect(() => {
-      // Use setTimeout to ensure DOM has fully updated with new content
-      const scrollTimer = setTimeout(() => {
-        const scrollAreaRoot = scrollAreaRef.current;
-        const viewport = scrollAreaRoot?.querySelector('[data-radix-scroll-area-viewport]');
-
-        if (viewport) {
-          // Force scroll to absolute bottom
-          viewport.scrollTop = viewport.scrollHeight;
-        } else {
-          logger.warn('[ChatInterface] ScrollArea viewport not found');
-        }
-      }, 150);
-
-      return () => clearTimeout(scrollTimer);
-    }, [messages, selectedAgentId]);
+      const cacheService = MarkdownCacheService.getInstance();
+      const contents = messages.map((msg) => msg.content).filter(Boolean);
+      if (contents.length > 0) {
+        cacheService.warmup(contents);
+      }
+    }, [messages]);
 
     // Auto-focus chat input when a worktree/project is selected
     useEffect(() => {
@@ -631,10 +741,23 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       ref,
       () => ({
         focus: () => {
-          // Focus the CodeMirror editor
-          const cmEditor = document.querySelector('.cm-editor .cm-content') as HTMLElement;
+          // Try to focus via chatInputRef first (most reliable)
+          if (chatInputRef.current && typeof chatInputRef.current.focus === 'function') {
+            chatInputRef.current.focus();
+            return;
+          }
+
+          // Fallback: Focus the CodeMirror editor within THIS component's scroll area
+          // IMPORTANT: Scope to scrollAreaRef to avoid focusing wrong agent's editor
+          const container = scrollAreaRef.current;
+          if (!container) {
+            return;
+          }
+
+          // Find CodeMirror editor within this component's container
+          const cmEditor = container.querySelector('.cm-editor .cm-content') as HTMLElement;
           if (cmEditor) {
-            cmEditor.focus();
+            cmEditor.focus({ preventScroll: true });
 
             // If vim mode exists, ensure we're in insert mode
             // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
@@ -653,15 +776,15 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               }
             }
           } else {
-            // Fallback to .editor-content
-            const editor = document.querySelector('.editor-content') as HTMLDivElement;
+            // Fallback to .editor-content within this container
+            const editor = container.querySelector('.editor-content') as HTMLDivElement;
             if (editor) {
-              editor.focus();
+              editor.focus({ preventScroll: true });
             }
           }
         },
       }),
-      []
+      [activeChat]
     );
 
     const confirmClearChat = () => {
@@ -674,87 +797,6 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
     const cancelClearChat = () => {
       setShowClearConfirm(false);
-    };
-
-    const handlePermissionApprove = async () => {
-      setShowPermissionDialog(false);
-
-      if (activeChat && currentPermissionRequest) {
-        const chatId = activeChat;
-
-        // Add a permission action message to show the accepted change
-        const permissionActionMessage: ChatMessage = {
-          id: `permission-approved-${Date.now()}`,
-          role: 'assistant',
-          content: '',
-          timestamp: new Date(),
-          permissionAction: {
-            type: 'accepted',
-            file_path: currentPermissionRequest.file_path,
-            ...(currentPermissionRequest.old_string && {
-              old_string: currentPermissionRequest.old_string,
-            }),
-            ...(currentPermissionRequest.new_string && {
-              new_string: currentPermissionRequest.new_string,
-            }),
-            ...(currentPermissionRequest.content && {
-              content: currentPermissionRequest.content,
-            }),
-            timestamp: new Date(),
-          },
-        };
-
-        // Add the permission action message to the chat
-        useChatStore.setState((state) => {
-          const messages = state.messages.get(chatId) || [];
-          state.messages.set(chatId, [...messages, permissionActionMessage]);
-          state.streamingMessages.delete(chatId);
-          return state;
-        });
-
-        // Continue with the approved changes
-        await sendMessage('Continue with the approved changes.', undefined, [], {
-          permissionMode: 'bypassPermissions',
-        });
-      }
-    };
-
-    const handlePermissionReject = () => {
-      setShowPermissionDialog(false);
-
-      if (activeChat && currentPermissionRequest) {
-        const chatId = activeChat;
-
-        // Add a permission action message to show the rejected change
-        const permissionActionMessage: ChatMessage = {
-          id: `permission-rejected-${Date.now()}`,
-          role: 'assistant',
-          content: '',
-          timestamp: new Date(),
-          permissionAction: {
-            type: 'rejected',
-            file_path: currentPermissionRequest.file_path,
-            ...(currentPermissionRequest.old_string && {
-              old_string: currentPermissionRequest.old_string,
-            }),
-            ...(currentPermissionRequest.new_string && {
-              new_string: currentPermissionRequest.new_string,
-            }),
-            ...(currentPermissionRequest.content && {
-              content: currentPermissionRequest.content,
-            }),
-            timestamp: new Date(),
-          },
-        };
-
-        // Add the permission action message to the chat
-        useChatStore.setState((state) => {
-          const messages = state.messages.get(chatId) || [];
-          state.messages.set(chatId, [...messages, permissionActionMessage]);
-          state.streamingMessages.delete(chatId);
-          return state;
-        });
-      }
     };
 
     const formatTimestamp = (date: Date) => {
@@ -813,9 +855,23 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       <div
         role="main"
         aria-label="Chat interface"
-        className="flex flex-col flex-1 min-h-0 bg-background min-w-0"
+        className="flex flex-col flex-1 min-h-0 bg-background min-w-0 relative"
         data-chat-interface
+        onDragEnter={dragHandlers.onDragEnter}
+        onDragOver={dragHandlers.onDragOver}
+        onDragLeave={dragHandlers.onDragLeave}
+        onDrop={dragHandlers.onDrop}
       >
+        {/* Drag overlay - extends over entire interface including chat input */}
+        {isDragging && (
+          <div className="absolute inset-0 z-50 bg-muted/95 flex items-center justify-center pointer-events-none">
+            <div className="bg-background rounded-lg p-4 flex flex-col items-center gap-2 pointer-events-none">
+              <Paperclip className="h-8 w-8 text-primary" />
+              <p className="text-sm font-medium text-text">Drop files to attach</p>
+            </div>
+          </div>
+        )}
+
         {/* Clear Chat Confirmation Dialog */}
         <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
           <DialogContent>
@@ -838,23 +894,7 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         </Dialog>
 
         {/* Messages Area */}
-        <div
-          className="flex-1 flex flex-col relative min-h-0 overflow-hidden"
-          onDragEnter={dragHandlers.onDragEnter}
-          onDragOver={dragHandlers.onDragOver}
-          onDragLeave={dragHandlers.onDragLeave}
-          onDrop={dragHandlers.onDrop}
-        >
-          {/* Drag overlay */}
-          {isDragging && (
-            <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center pointer-events-none">
-              <div className="bg-background/90 rounded-lg p-4 flex flex-col items-center gap-2 pointer-events-none">
-                <Paperclip className="h-8 w-8 text-primary" />
-                <p className="text-sm font-medium text-text">Drop files to attach</p>
-              </div>
-            </div>
-          )}
-
+        <div className="flex-1 flex flex-col relative min-h-0 overflow-hidden">
           <ScrollArea ref={scrollAreaRef} className="flex-1 overflow-hidden">
             <div role="log" aria-live="polite" aria-label="Chat messages" className="px-2 py-1.5">
               {messages.map((message, index) => (
@@ -864,11 +904,15 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                   streamingMessageId={streamingMessageId}
                   resources={resources}
                   formatTimestamp={formatTimestamp}
-                  isLastMessage={index === messages.length - 1}
-                  onScrollToBottom={() =>
+                  _isLastMessage={index === messages.length - 1}
+                  _onScrollToBottom={() =>
                     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
                   }
                   isStreaming={isStreaming}
+                  activeMetadataTab={activeMetadataTab}
+                  onMetadataToggle={(messageId, tab) =>
+                    handleMetadataToggle(messageId, tab, index === messages.length - 1)
+                  }
                 />
               ))}
 
@@ -907,7 +951,7 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               )}
 
               {/* Inline Permission Request */}
-              {currentPermissionRequest && !showPermissionDialog && (
+              {currentPermissionRequest && (
                 <div className="mb-4">
                   <div className="rounded-lg py-2 bg-muted">
                     <div className="flex items-start gap-3">
@@ -1058,8 +1102,7 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         {selectedAgentId !== 'terminal-tab' && (
           <ChatInput
             ref={chatInputRef}
-            key={selectedAgentId}
-            onSendMessage={onSendMessage}
+            onSendMessage={handleSendMessage}
             isLoading={isLoading}
             attachedResourceIds={attachedResourceIds}
             onRemoveResource={onRemoveResource}

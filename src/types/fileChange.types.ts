@@ -1,6 +1,6 @@
 /**
  * File change notification types for Claude Code integration
- * Phase 1: Message structure debugging and type definitions
+ * Message structure debugging and type definitions
  */
 
 /**

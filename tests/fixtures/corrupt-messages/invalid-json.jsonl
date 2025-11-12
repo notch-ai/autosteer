@@ -1,0 +1,4 @@
+{"type":"user","uuid":"msg-1","message":{"role":"user","content":[{"type":"text","text":"Hello"}]},"timestamp":1699000000000}
+{type:invalid,"uuid":"msg-2",message:null}
+{"type":"assistant","uuid":"msg-3","message":{"role":"assistant","content":[{"type":"text","text":"Response"}]},"timestamp":1699000001000}
+{"type":"user","uuid":"msg-4","message":{"role":"user","content":[{"type":"text","text":"Continue"}],"timestamp":1699000002000

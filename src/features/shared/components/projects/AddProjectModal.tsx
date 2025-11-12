@@ -1,6 +1,6 @@
 import { Input } from '@/features/shared/components/ui/Input';
 import { Modal } from '@/features/shared/components/ui/Modal';
-import { SearchService } from '@/commons/utils/SearchService';
+import { SearchService } from '@/services/SearchService';
 import { Card } from '@/components/ui/card';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { toastError, toastSuccess } from '@/components/ui/sonner';
@@ -49,7 +49,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose }): JS
   // Autocomplete state
   const [repoUrls, setRepoUrls] = useState<string[]>([]);
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
-  const [isInputFocused, setIsInputFocused] = useState(false); // Phase 2: Enhanced focus tracking
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const branchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);

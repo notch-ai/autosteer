@@ -36,7 +36,6 @@ export interface UsageData {
 export interface MonitoringConfig {
   /**
    * Paths to Claude data directories
-   * Default: ["~/.config/claude/projects/", "~/.claude/projects/"]
    */
   claudePaths?: string[];
 

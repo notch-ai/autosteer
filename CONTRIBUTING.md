@@ -91,19 +91,24 @@ pnpm dev
 
 ### Testing
 
-We use Jest as our primary test framework. Write tests for all new functionality:
+We use Jest and Playwright for testing. Write tests for all new functionality:
 
 - **Unit tests** (`pnpm test:unit`) - For utilities, services, hooks, and business logic
 - **Integration tests** (`pnpm test:integration`) - For critical workflows and cross-component interactions
+- **Component tests** (`pnpm test:component`) - Playwright component testing for UI components
+- **Visual tests** (`pnpm test:visual`) - Visual regression testing with Playwright
 - **E2E tests** (`pnpm test:e2e`) - For end-to-end user workflows
 - **Performance tests** - For benchmarking and performance-critical code
 
 Run all tests before submitting:
 ```bash
-pnpm test          # Run all tests
-pnpm test:unit     # Run unit tests only
+pnpm test              # Run all tests
+pnpm test:unit         # Run unit tests only
 pnpm test:integration  # Run integration tests only
-pnpm test:e2e      # Run E2E tests only
+pnpm test:component    # Run Playwright component tests
+pnpm test:visual       # Run visual regression tests
+pnpm test:e2e          # Run E2E tests only
+pnpm test:coverage     # Run tests with coverage report
 ```
 
 Manual testing checklist for PRs:
@@ -111,7 +116,11 @@ Manual testing checklist for PRs:
 - [ ] Basic navigation works
 - [ ] No console errors in development
 - [ ] Changes work as expected
+- [ ] Terminal functionality works (if applicable)
+- [ ] Git operations work (if applicable)
+- [ ] Session persistence works (save/restore)
 - [ ] Test on multiple platforms (macOS, Linux, Windows via WSL) when possible
+- [ ] Visual regression tests pass (for UI changes)
 
 ### Documentation
 
@@ -124,19 +133,35 @@ Manual testing checklist for PRs:
 ```
 autosteer/
 ├── src/
-│   ├── main/           # Electron main process
-│   ├── components/     # React UI components
-│   ├── features/       # Feature modules
-│   ├── services/       # Application services
-│   ├── stores/         # State management
-│   ├── hooks/          # React hooks
-│   ├── commons/        # Shared utilities
-│   ├── entities/       # Data models
-│   └── types/          # TypeScript types
-├── assets/             # App icons and images
-├── tests/              # Test files
-├── scripts/            # Build and release scripts
-└── .github/workflows/  # CI/CD configuration
+│   ├── main/                     # Electron main process
+│   │   ├── ipc/                  # IPC handlers (claude, project, git, system)
+│   │   ├── services/             # Main process services
+│   │   └── windows/              # Window management
+│   ├── features/                 # Domain-based feature organization
+│   │   ├── chat/                 # Chat feature domain (15 components)
+│   │   ├── monitoring/           # Monitoring feature domain (10 components)
+│   │   ├── settings/             # Settings feature domain (4 components)
+│   │   └── shared/               # Shared components across features (48 components)
+│   │       └── components/       # Organized by subdomain (agent, git, layout, etc.)
+│   ├── components/               # Common UI primitives (shadcn/ui)
+│   ├── services/                 # Renderer process services
+│   ├── stores/                   # State management (Zustand + Immer)
+│   ├── hooks/                    # React hooks (useCodeMirror, useTerminalPool)
+│   ├── commons/                  # Shared utilities
+│   │   ├── utils/                # Utility functions
+│   │   ├── contexts/             # React contexts
+│   │   └── config/               # Configuration
+│   ├── entities/                 # Data models
+│   ├── types/                    # TypeScript types
+│   └── views/                    # Top-level view components
+├── tests/
+│   ├── unit/                     # Unit tests (organized by feature path)
+│   ├── integration/              # Integration tests
+│   ├── component/                # Playwright component tests
+│   └── e2e/                      # E2E tests
+├── assets/                       # App icons and images
+├── scripts/                      # Build and release scripts
+└── .github/workflows/            # CI/CD configuration
 ```
 
 ## Release Process

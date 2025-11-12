@@ -2,7 +2,7 @@
  * Types for message conversion between SDK and UI formats
  */
 
-import type { ChatMessage } from '@/entities/ChatMessage';
+import type { ComputedMessage } from '@/stores/chat.selectors';
 import type { SDKMessage } from './sdk.types';
 
 /**
@@ -12,7 +12,7 @@ export interface ConvertedMessage {
   /**
    * The converted ChatMessage (null if message shouldn't be displayed)
    */
-  chatMessage: ChatMessage | null;
+  chatMessage: ComputedMessage | null;
 
   /**
    * Additional metadata extracted from the message

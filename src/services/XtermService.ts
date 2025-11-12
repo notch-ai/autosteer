@@ -29,7 +29,6 @@ export class XtermService {
 
   private constructor() {
     this.setupIpcHandlers();
-    log.info('XtermService initialized with PTY support');
   }
 
   static getInstance(): XtermService {
@@ -47,10 +46,6 @@ export class XtermService {
     ipcMain.handle(
       'terminal:write',
       async (_event, params: { terminalId: string; data: string }) => {
-        log.debug('[XtermService] IPC terminal:write received:', {
-          terminalId: params.terminalId,
-          dataLength: params.data.length,
-        });
         try {
           await this.writeToTerminal(params.terminalId, params.data);
           return { success: true };
@@ -79,8 +74,6 @@ export class XtermService {
         }
       }
     );
-
-    log.info('[XtermService] IPC handlers registered (write, resize)');
   }
 
   /**
@@ -90,11 +83,6 @@ export class XtermService {
     window: BrowserWindow,
     params?: TerminalCreateParams
   ): Promise<TerminalData> {
-    log.info(
-      `Creating terminal. Current count: ${this.terminals.size}/${this.maxTerminals}. Active terminals:`,
-      Array.from(this.terminals.keys())
-    );
-
     if (this.terminals.size >= this.maxTerminals) {
       log.error(
         `Maximum terminal limit reached (${this.maxTerminals}). Active terminals:`,
@@ -143,10 +131,6 @@ export class XtermService {
       // Setup PTY event handlers
       this.setupPtyHandlers(terminalId, pty, window);
 
-      log.info(
-        `Created PTY terminal ${terminalId} with PID ${pty.pid}, shell: ${shell}. Active terminals: ${this.terminals.size}/${this.maxTerminals}`
-      );
-
       const now = new Date();
       return {
         id: terminalId,
@@ -178,15 +162,6 @@ export class XtermService {
 
     // Handle PTY data output
     const dataDisposable = pty.onData((data: string) => {
-      // HYPOTHESIS LOGGING: Track backend PTY output routing
-      log.info(
-        `[DIAG-H2-PTY-DATA] terminalId=${terminalId.substring(0, 8)} pid=${pty.pid} windowId=${window.id} dataLen=${data.length} dataPreview=${data.substring(0, 30).replace(/\n/g, '\\n')} channel=terminal:data:${terminalId.substring(0, 8)} windowDestroyed=${window.isDestroyed()} allTerminals=${Array.from(
-          this.terminals.keys()
-        )
-          .map((id) => id.substring(0, 8))
-          .join(',')}`
-      );
-
       if (!window.isDestroyed()) {
         window.webContents.send(`terminal:data:${terminalId}`, data);
       }
@@ -195,7 +170,6 @@ export class XtermService {
     // Handle PTY exit
     const exitDisposable = pty.onExit(
       ({ exitCode, signal }: { exitCode: number; signal?: number }) => {
-        log.info(`PTY terminal ${terminalId} exited with code ${exitCode}, signal ${signal}`);
         const term = this.terminals.get(terminalId);
         if (term) {
           term.isActive = false;
@@ -219,9 +193,6 @@ export class XtermService {
         }
 
         this.terminals.delete(terminalId);
-        log.info(
-          `Terminal ${terminalId} removed from map. Active terminals: ${this.terminals.size}`
-        );
       }
     );
 
@@ -262,7 +233,6 @@ export class XtermService {
     try {
       terminal.pty.resize(cols, rows);
       terminal.size = { cols, rows };
-      log.debug(`Resized PTY terminal ${terminalId} to ${cols}x${rows}`);
     } catch (error) {
       log.error(`Failed to resize PTY terminal ${terminalId}:`, error);
       throw error;
@@ -279,10 +249,6 @@ export class XtermService {
     }
 
     try {
-      log.info(
-        `Killing PTY terminal ${terminalId} (PID: ${terminal.pid}). Active terminals: ${this.terminals.size}/${this.maxTerminals}`
-      );
-
       // Step 1: Mark as inactive
       terminal.isActive = false;
 
@@ -310,17 +276,12 @@ export class XtermService {
                 });
               }
               this.terminals.delete(terminalId);
-              log.info(
-                `Terminal ${terminalId} force removed. Active terminals: ${this.terminals.size}`
-              );
             }
           }, 2000);
         } else {
           clearTimeout(killTimeout);
         }
       }, 1000);
-
-      log.info(`Terminal ${terminalId} kill signal sent`);
     } catch (error) {
       log.error(`Failed to kill PTY terminal ${terminalId}:`, error);
       // Attempt cleanup even on error
@@ -391,7 +352,6 @@ export class XtermService {
    * Cleanup all PTY sessions
    */
   async cleanup(): Promise<void> {
-    log.info('Cleaning up all PTY terminals');
     const killPromises = Array.from(this.terminals.keys()).map((terminalId) => {
       return this.killTerminal(terminalId).catch((error) => {
         log.error(`Error killing PTY terminal ${terminalId}:`, error);

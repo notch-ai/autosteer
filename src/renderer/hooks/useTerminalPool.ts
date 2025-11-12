@@ -14,7 +14,7 @@ export interface TerminalPoolStats {
 }
 
 /**
- * useTerminalPool Hook - Phase 2 Instance Pooling
+ * useTerminalPool Hook -  Instance Pooling
  *
  * Provides access to the terminal instance pool for React components.
  *
@@ -52,7 +52,6 @@ export interface TerminalPoolStats {
  * attachTerminal(terminalId, element);
  * ```
  *
- * @see docs/terminal-persistence-architecture.md Phase 2
  */
 export const useTerminalPool = () => {
   // Use ref to maintain singleton pool manager instance across renders
@@ -290,9 +289,9 @@ export const useTerminalPool = () => {
    */
   useEffect(() => {
     return () => {
+      logger.debug('[useTerminalPool] Hook unmounting (pool persists)');
       // Note: We don't clear the pool on unmount to support terminal persistence
       // Terminals will be destroyed explicitly when needed
-      logger.debug('[useTerminalPool] Hook unmounting (pool persists)');
     };
   }, []);
 

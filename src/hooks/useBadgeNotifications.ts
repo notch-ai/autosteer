@@ -2,7 +2,6 @@
  * Badge Notifications Hook
  *
  * Purpose: React hook for managing badge notification state and operations
- * Phase 2: Integration & UI
  *
  * This hook provides:
  * - Badge visibility state management

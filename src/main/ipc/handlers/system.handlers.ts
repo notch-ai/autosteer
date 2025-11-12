@@ -1,6 +1,6 @@
 /**
  * System Handlers - Consolidated IPC handlers for system operations
- * Phase 4: IPC Simplification - System Domain Handler
+ * IPC Simplification - System Domain Handler
  *
  * Consolidates:
  * - TerminalHandlers.ts → system.handlers.ts (terminal operations)
@@ -25,16 +25,16 @@
  * - ~150 LoC target per domain
  */
 
-import { IpcMainInvokeEvent, BrowserWindow } from 'electron';
-import log from 'electron-log';
-import { XtermService } from '@/services/XtermService';
-import { BadgeService } from '../../services/BadgeService';
 import { FileDataStoreService } from '@/services/FileDataStoreService';
 import { UpdateService } from '@/services/UpdateService';
-import { mainLogger } from '../../services/logger';
+import { XtermService } from '@/services/XtermService';
 import { AutosteerConfig, CustomCommand } from '@/types/config.types';
-import { TerminalCreateParams, TerminalResponse } from '@/types/terminal.types';
 import { IPC_CHANNELS } from '@/types/ipc.types';
+import { TerminalCreateParams, TerminalResponse } from '@/types/terminal.types';
+import { BrowserWindow, IpcMainInvokeEvent } from 'electron';
+import log from 'electron-log';
+import { BadgeService } from '../../services/BadgeService';
+import { mainLogger } from '../../services/logger';
 import { ErrorHandler } from '../../utils/errorHandler';
 import { registerSafeHandler } from '../safeHandlerWrapper';
 
@@ -61,15 +61,12 @@ export class SystemHandlers {
   setUpdateService(updateService: UpdateService): void {
     this.updateService = updateService;
     this.registerUpdateHandlers();
-    log.info('[SystemHandlers] Update service registered');
   }
 
   /**
    * Register all System IPC handlers
    */
   registerHandlers(): void {
-    log.info('[SystemHandlers] Registering System IPC handlers');
-
     this.registerTerminalHandlers();
     this.registerBadgeHandlers();
     this.registerConfigHandlers();
@@ -80,8 +77,6 @@ export class SystemHandlers {
     if (this.updateService) {
       this.registerUpdateHandlers();
     }
-
-    log.info('[SystemHandlers] System IPC handlers registered successfully');
   }
 
   /**
@@ -95,8 +90,6 @@ export class SystemHandlers {
         event: IpcMainInvokeEvent,
         params?: TerminalCreateParams
       ): Promise<TerminalResponse> => {
-        log.info('[SystemHandlers] terminal:create invoked', { params });
-
         const window = BrowserWindow.fromWebContents(event.sender);
         if (!window) {
           log.error('[SystemHandlers] Window not found for terminal creation');
@@ -105,11 +98,6 @@ export class SystemHandlers {
 
         try {
           const terminalData = await this.xtermService.createTerminal(window, params);
-          log.info('[SystemHandlers] Terminal created successfully', {
-            id: terminalData.id,
-            pid: terminalData.pid,
-          });
-
           return { success: true, data: terminalData };
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to create terminal';
@@ -124,11 +112,8 @@ export class SystemHandlers {
     registerSafeHandler(
       IPC_CHANNELS.TERMINAL_DESTROY,
       async (_event: IpcMainInvokeEvent, terminalId: string): Promise<TerminalResponse> => {
-        log.info('[SystemHandlers] terminal:destroy invoked', { terminalId });
-
         try {
           await this.xtermService.killTerminal(terminalId);
-          log.info('[SystemHandlers] Terminal destroyed successfully', { terminalId });
           return { success: true };
         } catch (error) {
           const errorMessage =
@@ -829,11 +814,8 @@ export class SystemHandlers {
    * Cleanup terminal service
    */
   async cleanup(): Promise<void> {
-    log.info('[SystemHandlers] Cleaning up system handlers');
-
     try {
       await this.xtermService.cleanup();
-      log.info('[SystemHandlers] System handlers cleaned up successfully');
     } catch (error) {
       log.error('[SystemHandlers] Cleanup failed:', error);
       throw error;

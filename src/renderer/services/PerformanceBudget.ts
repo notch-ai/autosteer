@@ -1,5 +1,4 @@
 /**
- * Phase 8: Performance Budget System
  * Enforces performance budgets and prevents regressions
  */
 

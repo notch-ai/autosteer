@@ -1,5 +1,5 @@
 /**
- * Terminal Performance Benchmarks - Phase 5
+ * Terminal Performance Benchmarks
  *
  * Performance validation tests for terminal session operations.
  * Uses Vitest with performance assertions to validate targets.

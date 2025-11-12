@@ -1,7 +1,6 @@
 /**
  * Git Handlers Test Suite
  * Tests for IPC git handler operations including diff, watching, and file operations
- * Phase 4: IPC Simplification - Git Domain Handler Tests
  */
 
 import { GitHandlers } from '@/main/ipc/handlers/git.handlers';

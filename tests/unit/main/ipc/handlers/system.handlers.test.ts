@@ -1,7 +1,6 @@
 /**
  * System Handlers Test Suite
  * Tests for IPC system handler operations including terminal, badge, config, log, store, and update
- * Phase 4: IPC Simplification - System Domain Handler Tests
  */
 
 import { SystemHandlers } from '@/main/ipc/handlers/system.handlers';

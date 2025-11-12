@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export interface PickerKeyboardNavOptions<T> {
   items: T[];
@@ -24,8 +24,6 @@ export interface PickerKeyboardNavResult {
  * Shared keyboard navigation hook for picker components
  *
  * Provides consistent keyboard navigation behavior across:
- * - SlashCommands
- * - FileMentions
  * - Git Repository Picker (AddProjectModal)
  *
  * Features:
@@ -33,8 +31,7 @@ export interface PickerKeyboardNavResult {
  * - Enter key selection
  * - Escape key to close
  * - Optional Tab key handling
- * - DOM containment validation
- * - Event propagation control
+ * - Uses document-level keyboard listeners (required because focus is on input field)
  * - Debug logging support
  *
  * @example
@@ -42,13 +39,23 @@ export interface PickerKeyboardNavResult {
  * const { selectedIndex, setSelectedIndex } = usePickerKeyboardNav({
  *   items: filteredItems,
  *   isOpen: isPickerOpen,
- *   pickerRef: pickerRef,
+ *   pickerRef,
  *   onSelect: handleSelect,
  *   onClose: handleClose,
  *   onTabSelect: handleTabSelect, // optional
  *   enableLogging: true,
  *   componentName: 'MyPicker',
  * });
+ *
+ * // Render with className-based highlighting
+ * <Command shouldFilter={false} loop={false}>
+ *   {items.map((item, index) => (
+ *     <CommandItem
+ *       className={index === selectedIndex ? 'bg-accent text-accent-foreground' : ''}
+ *       onMouseEnter={() => setSelectedIndex(index)}
+ *     />
+ *   ))}
+ * </Command>
  * ```
  */
 export function usePickerKeyboardNav<T>({
@@ -62,42 +69,23 @@ export function usePickerKeyboardNav<T>({
   enableLogging = false,
   componentName = 'Picker',
 }: PickerKeyboardNavOptions<T>): PickerKeyboardNavResult {
+  // Start with first item (0) selected by default
+  // Mouse hover will immediately supersede this
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const isProcessingRef = useRef(false);
 
-  // Reset selection when items change
+  // Reset selection to first item (0) when items change (new search results)
   useEffect(() => {
     setSelectedIndex(0);
-  }, [items.length]);
+  }, [items]);
 
-  // Keyboard event handler
+  // Document-level keyboard handler
+  // REQUIRED: Focus is on input field, not picker, so Command's onKeyDown won't fire
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || items.length === 0) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Prevent concurrent event processing
-      if (isProcessingRef.current) {
-        if (enableLogging) {
-          console.log(`[${componentName}] Event already being processed, ignoring`);
-        }
-        return;
-      }
-
-      // CRITICAL: Only handle events if picker is mounted and visible in DOM
-      if (!pickerRef.current || !document.body.contains(pickerRef.current)) {
-        if (enableLogging) {
-          console.log(`[${componentName}] Ignoring event - picker not mounted or not in DOM`);
-        }
-        return;
-      }
-
-      // No items to navigate
-      if (items.length === 0) return;
-
-      // Mark as processing
-      isProcessingRef.current = true;
-
-      let handled = false;
+      // Only handle if picker is open and visible
+      if (!pickerRef || !pickerRef.current) return;
 
       switch (event.key) {
         case 'ArrowDown':
@@ -105,12 +93,8 @@ export function usePickerKeyboardNav<T>({
           event.stopPropagation();
           setSelectedIndex((prev) => {
             const newIndex = (prev + 1) % items.length;
-            if (enableLogging) {
-              console.log(`[${componentName}] ArrowDown: ${prev} -> ${newIndex}`);
-            }
             return newIndex;
           });
-          handled = true;
           break;
 
         case 'ArrowUp':
@@ -118,90 +102,61 @@ export function usePickerKeyboardNav<T>({
           event.stopPropagation();
           setSelectedIndex((prev) => {
             const newIndex = (prev - 1 + items.length) % items.length;
-            if (enableLogging) {
-              console.log(`[${componentName}] ArrowUp: ${prev} -> ${newIndex}`);
-            }
             return newIndex;
           });
-          handled = true;
           break;
 
         case 'Enter':
           event.preventDefault();
           event.stopPropagation();
           if (items[selectedIndex]) {
-            if (enableLogging) {
-              console.log(`[${componentName}] Enter: selecting index ${selectedIndex}`);
-            }
             onSelect(items[selectedIndex]);
           }
-          handled = true;
           break;
 
         case 'Escape':
           event.preventDefault();
-          event.stopPropagation();
-          if (enableLogging) {
-            console.log(`[${componentName}] Escape: closing picker`);
-          }
           onClose();
-          handled = true;
           break;
 
         case 'Tab':
           if (onTabSelect) {
             event.preventDefault();
-            event.stopPropagation();
             if (items[selectedIndex]) {
-              if (enableLogging) {
-                console.log(`[${componentName}] Tab: selecting index ${selectedIndex}`);
-              }
               onTabSelect(items[selectedIndex]);
             }
-            handled = true;
           }
           break;
 
         default:
-          // Handle additional custom keys
-          for (const customKey of additionalKeys) {
-            if (event.key === customKey.key) {
+          // Check additional keys
+          for (const { key, handler } of additionalKeys) {
+            if (event.key === key) {
               event.preventDefault();
-              event.stopPropagation();
-              customKey.handler(event, selectedIndex, items);
-              handled = true;
+              handler(event, selectedIndex, items);
               break;
             }
           }
       }
-
-      // Reset processing flag after a small delay
-      setTimeout(() => {
-        isProcessingRef.current = false;
-      }, 10);
-
-      if (!handled && enableLogging) {
-        console.log(`[${componentName}] Key not handled:`, event.key);
-      }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      isProcessingRef.current = false;
-    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [
     isOpen,
     items,
     selectedIndex,
+    pickerRef,
     onSelect,
     onClose,
     onTabSelect,
     additionalKeys,
     enableLogging,
     componentName,
-    pickerRef,
   ]);
 
-  return { selectedIndex, setSelectedIndex };
+  return {
+    selectedIndex,
+    setSelectedIndex,
+  };
 }

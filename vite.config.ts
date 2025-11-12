@@ -2,6 +2,10 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { builtinModules } from 'module';
+import dotenv from 'dotenv';
+
+// Load .env file
+dotenv.config();
 
 // Consolidated Vite configuration for all build targets
 const isProduction = process.env.NODE_ENV === 'production';
@@ -93,6 +97,10 @@ export const rendererConfig = defineConfig({
       overlay: true,
     },
   },
+  define: {
+    // Manually expose non-VITE_ prefixed env vars to renderer
+    'process.env.OPEN_DEV_TOOLS': JSON.stringify(process.env.OPEN_DEV_TOOLS),
+  },
   build: {
     ...sharedConfig.build,
     outDir: '../../.vite/renderer/main_window',
@@ -115,7 +123,7 @@ export const rendererConfig = defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'zustand', '@radix-ui/react-*'],
+    include: ['react', 'react-dom', 'zustand', '@radix-ui/react-*', 'react-window'],
   },
 });
 

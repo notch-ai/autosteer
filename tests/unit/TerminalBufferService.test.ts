@@ -26,10 +26,12 @@ describe('TerminalBufferService - Phase 1 Buffer Management', () => {
 
     it('should log service initialization', () => {
       expect(log.info).toHaveBeenCalledWith(
-        '[TerminalBufferService] Service initialized (Phase 4 - Memory Optimization)',
+        '[TerminalBufferService] Service initialized',
         expect.objectContaining({
           maxScrollbackLines: 10000,
           maxBufferSizeBytes: 52428800,
+          memoryWarningThreshold: expect.any(Number),
+          trimPerformanceTarget: expect.any(Number),
         })
       );
     });

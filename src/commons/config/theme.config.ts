@@ -1,5 +1,5 @@
 /**
- * Theme configuration for the desktop app
+ * Theme configuration for the app
  * This file controls the visual theme settings including icon sets
  */
 

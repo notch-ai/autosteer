@@ -1,8 +1,6 @@
 /**
  * Utility for loading and merging scoped configuration files
  * Following Claude Code's scope overlay rules:
- * - Global scope: ~/.claude/
- * - Project scope: <project>/.claude/
  * - User scope: <project>/.claude.local/ (git-ignored, highest precedence)
  *
  * Overlay rules: user > project > global

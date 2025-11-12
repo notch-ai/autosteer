@@ -2,6 +2,8 @@
  * Service for interacting with Claude Code SDK via IPC
  */
 
+import { toastError } from '@/components/ui/sonner';
+import { setupAutoBadgeClear, showBadgeIfNotFocused } from '@/renderer/utils/badgeUtils';
 import {
   ConversationOptions,
   ResultMessage,
@@ -10,11 +12,9 @@ import {
   ToolResultMessage,
   ToolUseMessage,
 } from '../../types/streaming.types';
-import { getTodoMonitor } from './TodoActivityMonitorManager';
 import { logger } from './LoggerService';
-import { logger as generalLogger } from '@/commons/utils/logger';
-import { showBadgeIfNotFocused, setupAutoBadgeClear } from '@/renderer/utils/badgeUtils';
 import { MessageProcessor } from './MessageProcessor';
+import { getTodoMonitor } from './TodoActivityMonitorManager';
 
 // Type for IPC listener function - using any for event to avoid Electron dependency
 type IpcListener = (event: any, ...args: unknown[]) => void;
@@ -103,7 +103,7 @@ export class ClaudeCodeService {
 
       if (existingQuery) {
         const [queryId, queryInfo] = existingQuery;
-        generalLogger.debug('[ClaudeCodeService] Forcing cleanup of existing query for session:', {
+        logger.debug('[ClaudeCodeService] Forcing cleanup of existing query for session:', {
           sessionId: options.sessionId,
           oldQueryId: queryId,
         });
@@ -186,11 +186,11 @@ export class ClaudeCodeService {
 
     // Log when "/" is entered as prompt
     if (prompt.startsWith('/')) {
-      generalLogger.debug('[ClaudeCodeService] ========== SLASH COMMAND DETECTED ==========');
-      generalLogger.debug('[ClaudeCodeService] Prompt:', prompt);
-      generalLogger.debug('[ClaudeCodeService] Session ID:', sessionId);
-      generalLogger.debug('[ClaudeCodeService] Working directory:', conversationOptions?.cwd);
-      generalLogger.debug(
+      logger.debug('[ClaudeCodeService] ========== SLASH COMMAND DETECTED ==========');
+      logger.debug('[ClaudeCodeService] Prompt:', prompt);
+      logger.debug('[ClaudeCodeService] Session ID:', sessionId);
+      logger.debug('[ClaudeCodeService] Working directory:', conversationOptions?.cwd);
+      logger.debug(
         '[ClaudeCodeService] Full query options:',
         JSON.stringify(queryOptions, null, 2)
       );
@@ -204,17 +204,17 @@ export class ClaudeCodeService {
       let hasReceivedErrorInResult = false;
 
       // Start query and get queryId
-      generalLogger.debug(
+      logger.debug(
         '[DEBUG ClaudeCodeService] Invoking claude-code:query-start with:',
         queryOptions
       );
       ipcRenderer
         ?.invoke?.('claude-code:query-start', queryOptions)
         .then((queryId: string) => {
-          generalLogger.debug('[DEBUG ClaudeCodeService] Received queryId:', queryId);
+          logger.debug('[DEBUG ClaudeCodeService] Received queryId:', queryId);
           // Set up listeners for this query
           const messageListener = (_event: any, message: any) => {
-            generalLogger.debug('[DEBUG ClaudeCodeService] Message received:', {
+            logger.debug('[DEBUG ClaudeCodeService] Message received:', {
               type: message.type,
               queryId,
               isAborted,
@@ -240,7 +240,7 @@ export class ClaudeCodeService {
           };
 
           const completeListener = async () => {
-            generalLogger.debug('[DEBUG ClaudeCodeService] Complete event received', {
+            logger.debug('[DEBUG ClaudeCodeService] Complete event received', {
               isAborted,
             });
 
@@ -248,6 +248,11 @@ export class ClaudeCodeService {
 
             // Show badge notification if window is not focused (even if aborted)
             await showBadgeIfNotFocused();
+
+            // Call onComplete callback to clear streaming state
+            if (callbacks.onComplete) {
+              callbacks.onComplete(finalContent);
+            }
 
             cleanup();
 
@@ -278,9 +283,21 @@ export class ClaudeCodeService {
             }
           };
 
+          const validationErrorListener: IpcListener = (_event, ...args) => {
+            const data = args[0] as { error: string; details: string; validationMethod: string };
+            logger.error('[ClaudeCodeService] Message validation error:', {
+              error: data.error,
+              details: data.details,
+              validationMethod: data.validationMethod,
+            });
+
+            // Show error toast directly without breaking the chat flow
+            toastError(`Validation Error: ${data.details}`, { duration: 5000 });
+          };
+
           // Cleanup function
           const cleanup = () => {
-            generalLogger.debug('[DEBUG ClaudeCodeService] Cleanup called', {
+            logger.debug('[DEBUG ClaudeCodeService] Cleanup called', {
               queryId,
               isAborted,
             });
@@ -288,6 +305,10 @@ export class ClaudeCodeService {
             ipcRenderer?.removeListener?.(`claude-code:complete:${queryId}`, completeListener);
             ipcRenderer?.removeListener?.(`claude-code:error:${queryId}`, errorListener);
             ipcRenderer?.removeListener?.(`claude-code:trace:${queryId}`, traceListener);
+            ipcRenderer?.removeListener?.(
+              `claude-code:validation-error:${queryId}`,
+              validationErrorListener
+            );
             this.activeQueries.delete(queryId);
             // Clean up agent-specific abort controller if it matches
             if (options?.sessionId) {
@@ -303,6 +324,7 @@ export class ClaudeCodeService {
           ipcRenderer?.on?.(`claude-code:complete:${queryId}`, completeListener);
           ipcRenderer?.on?.(`claude-code:error:${queryId}`, errorListener);
           ipcRenderer?.on?.(`claude-code:trace:${queryId}`, traceListener);
+          ipcRenderer?.on?.(`claude-code:validation-error:${queryId}`, validationErrorListener);
 
           // Store query info for abort capability
           this.activeQueries.set(queryId, {
@@ -323,7 +345,7 @@ export class ClaudeCodeService {
 
           // Handle abort
           abortController.signal.addEventListener('abort', () => {
-            generalLogger.debug('[DEBUG ClaudeCodeService] Abort signal received');
+            logger.debug('[DEBUG ClaudeCodeService] Abort signal received');
             isAborted = true;
             // Tell main process to abort the query
             ipcRenderer?.invoke?.('claude-code:query-abort', queryId)?.catch?.(() => {
@@ -335,7 +357,7 @@ export class ClaudeCodeService {
           });
         })
         .catch((error) => {
-          generalLogger.error('[DEBUG ClaudeCodeService] Failed to invoke query-start:', error);
+          logger.error('[DEBUG ClaudeCodeService] Failed to invoke query-start:', error);
           if (callbacks.onError) {
             callbacks.onError(error instanceof Error ? error : new Error('Unknown error'));
           }
@@ -385,18 +407,29 @@ export class ClaudeCodeService {
 
       case 'assistant':
         // Handle assistant messages using MessageProcessor
-        generalLogger.debug('[ClaudeCodeService] Assistant message received');
+        logger.debug('[ClaudeCodeService] Assistant message received');
 
         // Clear interruption flag when we receive real content
         if (sessionId && this.interruptedSessions.has(sessionId)) {
-          generalLogger.debug(
-            '[ClaudeCodeService] Clearing interruption flag for session:',
-            sessionId
-          );
+          logger.debug('[ClaudeCodeService] Clearing interruption flag for session:', sessionId);
           this.interruptedSessions.delete(sessionId);
         }
 
-        const assistantProcessed = MessageProcessor.processSdkMessage(message);
+        let assistantProcessed;
+        try {
+          assistantProcessed = MessageProcessor.processSdkMessage(message);
+        } catch (error) {
+          logger.error('[ClaudeCodeService] Message processing failed:', error);
+          // Propagate error through onError callback to trigger ErrorBoundary
+          if (callbacks.onError) {
+            callbacks.onError(
+              error instanceof Error
+                ? error
+                : new Error(`Message processing failed: ${String(error)}`)
+            );
+          }
+          return; // Stop processing this message
+        }
 
         if (assistantProcessed.chatMessage) {
           const chatMsg = assistantProcessed.chatMessage;
@@ -415,7 +448,7 @@ export class ClaudeCodeService {
 
           // Send text content if available
           if (chatMsg.content && callbacks.onChunk) {
-            generalLogger.debug('[ClaudeCodeService] Text content received:', {
+            logger.debug('[ClaudeCodeService] Text content received:', {
               textLength: chatMsg.content.length,
               textPreview: chatMsg.content.substring(0, 100),
               isInterruptedMessage: chatMsg.content.includes('Request interrupted'),
@@ -472,13 +505,10 @@ export class ClaudeCodeService {
         if (sessionId && message.subtype === 'error_during_execution') {
           const interruptedAt = this.interruptedSessions.get(sessionId);
           if (interruptedAt && Date.now() - interruptedAt < 15000) {
-            generalLogger.debug(
-              '[ClaudeCodeService] Filtering error message from interrupted session:',
-              {
-                sessionId,
-                timeSinceInterrupt: Date.now() - interruptedAt,
-              }
-            );
+            logger.debug('[ClaudeCodeService] Filtering error message from interrupted session:', {
+              sessionId,
+              timeSinceInterrupt: Date.now() - interruptedAt,
+            });
             return;
           }
         }
@@ -554,7 +584,7 @@ export class ClaudeCodeService {
 
       case 'user':
         // Handle user messages (e.g., "[Request interrupted by user]")
-        generalLogger.debug('[ClaudeCodeService] User message received');
+        logger.debug('[ClaudeCodeService] User message received');
 
         // Filter out "[Request interrupted by user]" messages from recently interrupted sessions
         if (sessionId && message.message?.content) {
@@ -565,7 +595,7 @@ export class ClaudeCodeService {
               ? message.message.content[0]?.text
               : message.message.content;
             if (content === '[Request interrupted by user]') {
-              generalLogger.debug('[ClaudeCodeService] Filtering interrupted user message:', {
+              logger.debug('[ClaudeCodeService] Filtering interrupted user message:', {
                 sessionId,
                 timeSinceInterrupt: Date.now() - interruptedAt,
               });
@@ -589,14 +619,14 @@ export class ClaudeCodeService {
         }
 
         const userProcessed = MessageProcessor.processSdkMessage(message);
-        generalLogger.debug('[ClaudeCodeService] User message processed:', {
+        logger.debug('[ClaudeCodeService] User message processed:', {
           hasMessage: !!userProcessed.chatMessage,
           content: userProcessed.chatMessage?.content,
           type: userProcessed.type,
         });
 
         if (userProcessed.chatMessage && callbacks.onChunk) {
-          generalLogger.debug('[ClaudeCodeService] Sending user message chunk:', {
+          logger.debug('[ClaudeCodeService] Sending user message chunk:', {
             content: userProcessed.chatMessage.content,
             isNewMessage: true,
           });
@@ -609,7 +639,7 @@ export class ClaudeCodeService {
             messageType: 'user',
           });
         } else {
-          generalLogger.debug('[ClaudeCodeService] Not sending chunk:', {
+          logger.debug('[ClaudeCodeService] Not sending chunk:', {
             hasMessage: !!userProcessed.chatMessage,
             hasCallback: !!callbacks.onChunk,
           });
@@ -618,7 +648,7 @@ export class ClaudeCodeService {
 
       default:
         // Unhandled message type
-        generalLogger.debug('[ClaudeCodeService] Unhandled message type:', message.type);
+        logger.debug('[ClaudeCodeService] Unhandled message type:', message.type);
         break;
     }
   }
@@ -668,8 +698,8 @@ export class ClaudeCodeService {
    * @param agentId - The ID of the agent/session to stop streaming for
    */
   stopStreaming(agentId?: string): void {
-    generalLogger.debug('[DEBUG stopStreaming] Called with agentId:', agentId);
-    generalLogger.debug(
+    logger.debug('[DEBUG stopStreaming] Called with agentId:', agentId);
+    logger.debug(
       '[DEBUG stopStreaming] Available controllers:',
       Array.from(this.agentAbortControllers.keys())
     );
@@ -681,16 +711,14 @@ export class ClaudeCodeService {
       // Stop streaming for specific agent
       const controller = this.agentAbortControllers.get(agentId);
       if (controller) {
-        generalLogger.debug('[DEBUG stopStreaming] Found controller for agent, aborting:', agentId);
+        logger.debug('[DEBUG stopStreaming] Found controller for agent, aborting:', agentId);
         controller.abort();
         this.agentAbortControllers.delete(agentId);
-      } else {
-        generalLogger.warn('[DEBUG stopStreaming] No controller found for agent:', agentId);
       }
     } else {
       // Fallback: stop all streaming (backward compatibility)
       // This shouldn't be used but kept for safety
-      generalLogger.debug('[DEBUG stopStreaming] No agentId provided, aborting all controllers');
+      logger.debug('[DEBUG stopStreaming] No agentId provided, aborting all controllers');
       this.agentAbortControllers.forEach((controller) => controller.abort());
       this.agentAbortControllers.clear();
     }

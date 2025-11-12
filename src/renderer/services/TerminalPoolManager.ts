@@ -12,7 +12,7 @@ interface TerminalPoolEntry {
 }
 
 /**
- * TerminalPoolManager - Phase 2 Instance Pooling (Renderer Process)
+ * TerminalPoolManager - Instance Pooling (Renderer Process)
  *
  * Manages terminal instance pooling in the renderer process.
  *
@@ -34,8 +34,6 @@ interface TerminalPoolEntry {
  * - <10ms attach/detach operations
  * - <100ms terminal switch time
  * - O(1) instance lookup
- *
- * @see docs/terminal-persistence-architecture.md Phase 2
  */
 export class TerminalPoolManager {
   private static readonly MAX_POOL_SIZE = 10;
@@ -66,8 +64,7 @@ export class TerminalPoolManager {
 
     // Create new adapter instance
     const adapter = new TerminalLibraryAdapter({
-      scrollback: 10000, // 10k line scrollback from Phase 1
-      fontSize: terminal.size.rows === 24 ? 14 : 13,
+      scrollback: 10000, // 10k line scrollback
     });
 
     // Attach to DOM element

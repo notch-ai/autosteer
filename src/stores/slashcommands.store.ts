@@ -18,17 +18,20 @@ import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 
 // DevTools configuration - only in development
-const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
+// DevTools configuration - only in development
+// Support both main process (Node.js) and renderer process (Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development');
+const withDevtools = isDevelopment ? devtools : (f: any) => f;
 
 /**
  * SlashCommand Interface from IPC Handler
- * Represents a slash command definition loaded from .claude/commands
  */
 export interface SlashCommandFromIPC {
   trigger: string; // The command trigger (e.g., 'pr', 'commit', 'engineering:fix-bug')
   description: string; // Description from markdown file
   content: string; // Full markdown content for Claude Code
-  source: 'local' | 'user'; // Whether from .claude/commands or ~/.claude/commands
 }
 
 /**
@@ -78,8 +81,6 @@ export const useSlashCommandsStore = create<SlashCommandsStore>()(
       // ==================== ACTIONS ====================
 
       loadSlashCommands: async (projectPath?: string) => {
-        logger.debug('[SlashCommandsStore] ========== LOAD SLASH COMMANDS CALLED ==========');
-
         set((state) => {
           state.slashCommandsLoading = true;
           state.slashCommandsError = null;
@@ -103,12 +104,7 @@ export const useSlashCommandsStore = create<SlashCommandsStore>()(
               state.slashCommands = commands;
               state.slashCommandsLoading = false;
             });
-
-            logger.debug(
-              `[SlashCommandsStore] Loaded ${commands.length} slash commands for path: ${projectPath || 'default'}`
-            );
           } else {
-            logger.warn('[SlashCommandsStore] window.electron.slashCommands not available');
             set((state) => {
               state.slashCommandsLoading = false;
             });

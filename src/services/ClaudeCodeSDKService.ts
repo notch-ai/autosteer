@@ -5,10 +5,10 @@
 
 import type { ClaudeCodeMessage, ClaudeCodeQueryOptions } from '@/types/claudeCode.types';
 import type { FileChangeMessage } from '@/types/fileChange.types';
+import { getNodeOptions, getSettingsAsEnv, updateRuntimeSettings } from '@/config/settings';
 import { extractFileChanges, isFileChangeMessage } from '@/types/fileChange.types';
 import { getScopedMcpConfig } from '@/utils/scopedConfig';
 import { Options, Query, SDKMessage, query } from '@anthropic-ai/claude-agent-sdk';
-import Anthropic from '@anthropic-ai/sdk';
 import log from 'electron-log';
 import { existsSync } from 'fs';
 import * as fs from 'fs/promises';
@@ -18,13 +18,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 export class ClaudeCodeSDKService {
   private static instance: ClaudeCodeSDKService;
+  private static fetchTraceTimestamp: string | null = null; // Shared timestamp for all fetch trace logs
   private sessionMap: Map<string, string> = new Map(); // agentId -> claudeSessionId
   private activeQueries: Map<string, Query> = new Map(); // queryId -> Query
   private authCheckedSessions: Set<string> = new Set(); // Track sessions where auth has been checked
-  private anthropicClient: Anthropic | null = null;
 
   private constructor() {
-    log.debug('[SDK Service] Initialized');
+    // Generate timestamp once for all fetch trace logs during this app session
+    if (!ClaudeCodeSDKService.fetchTraceTimestamp) {
+      ClaudeCodeSDKService.fetchTraceTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    }
   }
 
   static getInstance(): ClaudeCodeSDKService {
@@ -32,53 +35,6 @@ export class ClaudeCodeSDKService {
       ClaudeCodeSDKService.instance = new ClaudeCodeSDKService();
     }
     return ClaudeCodeSDKService.instance;
-  }
-
-  /**
-   * Initialize a new Claude Code session
-   * @param workingDirectory - Working directory for the session
-   * @param model - Optional model to use for the session
-   * @returns Promise<string> - Claude session ID
-   */
-  static async initializeSession(workingDirectory?: string, model?: string): Promise<string> {
-    const service = ClaudeCodeSDKService.getInstance();
-    const queryId = uuidv4();
-    const sessionId = uuidv4();
-
-    try {
-      let actualSessionId: string | undefined;
-
-      for await (const message of service.queryClaudeCode(queryId, {
-        prompt: 'Session initialized. Ready to assist.',
-        sessionId,
-        options: {
-          maxTurns: 1,
-          cwd: workingDirectory || process.cwd(),
-          ...(model && { model }), // Pass the model if provided
-        },
-      })) {
-        if (message.type === 'system' && message.subtype === 'init' && message.session_id) {
-          actualSessionId = message.session_id;
-        }
-
-        if (message.type === 'result' && message.subtype === 'success') {
-          if (!actualSessionId && message.session_id) {
-            actualSessionId = message.session_id;
-          }
-        }
-      }
-
-      if (!actualSessionId) {
-        throw new Error('No session ID received from Claude Code SDK');
-      }
-
-      return actualSessionId;
-    } catch (error) {
-      log.error('[SDK Service] Failed to initialize session:', error);
-      throw new Error(
-        `Failed to initialize Claude Code session: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
   }
 
   /**
@@ -170,7 +126,7 @@ export class ClaudeCodeSDKService {
       try {
         const scopedConfig = await getScopedMcpConfig({
           cwd: options.cwd || process.cwd(),
-          debug: true, // Enable debug logging for manual testing
+          debug: false,
         });
         mcpServers = scopedConfig.mcpServers;
       } catch (error) {
@@ -185,21 +141,81 @@ export class ClaudeCodeSDKService {
       // If running in asar, replace with unpacked path
       if (cliPath.includes('.asar')) {
         cliPath = cliPath.replace(/\.asar([/\\])/, '.asar.unpacked$1');
-        log.debug('[SDK Service] Using unpacked CLI path:', cliPath);
+      }
+
+      // Update runtime settings with current CWD, session ID, and timestamp
+      const runtimeUpdates: { cwd?: string; sessionId?: string; timestamp?: string } = {};
+      if (options.cwd) {
+        runtimeUpdates.cwd = options.cwd;
+      }
+      const effectiveSessionId = resumeSessionId || sessionId;
+      if (effectiveSessionId) {
+        runtimeUpdates.sessionId = effectiveSessionId;
+      }
+      if (ClaudeCodeSDKService.fetchTraceTimestamp) {
+        runtimeUpdates.timestamp = ClaudeCodeSDKService.fetchTraceTimestamp;
+      }
+      updateRuntimeSettings(runtimeUpdates);
+
+      // Get settings as environment variables for subprocess
+      const settingsEnv = getSettingsAsEnv();
+      log.info('[SDK Service] Subprocess environment (settingsEnv):', {
+        FETCH_TRACE_ENABLED: settingsEnv.FETCH_TRACE_ENABLED,
+        FETCH_CACHE_ENABLED: settingsEnv.FETCH_CACHE_ENABLED,
+        FETCH_TRACE_DEBUG: settingsEnv.FETCH_TRACE_DEBUG,
+        FETCH_TRACE_CWD: settingsEnv.FETCH_TRACE_CWD,
+        FETCH_TRACE_SESSION_ID: settingsEnv.FETCH_TRACE_SESSION_ID,
+      });
+
+      // Build NODE_OPTIONS for child process inheritance
+      // This is CRITICAL for MCP servers to inherit the fetch tracer
+      let nodeOptions = getNodeOptions();
+      if (settingsEnv.FETCH_TRACE_ENABLED === 'true') {
+        let loaderPath = path.resolve(__dirname, 'fetch-tracer-loader.cjs');
+        if (loaderPath.includes('.asar') && !loaderPath.includes('.asar.unpacked')) {
+          loaderPath = loaderPath.replace(/\.asar([/\\])/, '.asar.unpacked$1');
+        }
+        if (existsSync(loaderPath)) {
+          // Add --require to NODE_OPTIONS so it's inherited by ALL child processes (including MCP servers)
+          nodeOptions = `${nodeOptions} --require "${loaderPath}"`.trim();
+          log.info(
+            '[SDK Service] Adding fetch tracer to NODE_OPTIONS for child process inheritance'
+          );
+        }
+      }
+
+      // Build environment object for SDK
+      const sdkEnv = {
+        ...process.env,
+        // Merge settings as environment variables (FETCH_TRACE_*, FETCH_CACHE_*)
+        ...settingsEnv,
+        MCP_TIMEOUT: '5000',
+        // CRITICAL: Set NODE_OPTIONS so MCP server child processes inherit the fetch tracer
+        ...(nodeOptions && { NODE_OPTIONS: nodeOptions }),
+      };
+
+      // Prepare executableArgs for fetch tracer injection
+      // Using executableArgs because SDK properly passes these to Node executable
+      const executableArgs: string[] = [];
+      if (settingsEnv.FETCH_TRACE_ENABLED === 'true') {
+        let loaderPath = path.resolve(__dirname, 'fetch-tracer-loader.cjs');
+        if (loaderPath.includes('.asar') && !loaderPath.includes('.asar.unpacked')) {
+          loaderPath = loaderPath.replace(/\.asar([/\\])/, '.asar.unpacked$1');
+        }
+        if (existsSync(loaderPath)) {
+          executableArgs.push('--require', loaderPath);
+          log.info('[SDK Service] Injecting fetch tracer via executableArgs:', loaderPath);
+        }
       }
 
       const sdkOptions: Options = {
         pathToClaudeCodeExecutable: cliPath,
         // IMPORTANT: settingSources controls which settings/commands are loaded
-        // 'project' = load from {cwd}/.claude/commands/
-        // 'local' = load from {cwd}/.claude/ (git-ignored local settings)
-        // 'user' = load from ~/.claude/commands/
         settingSources: ['project', 'local', 'user'],
         // Set MCP timeout to 5 seconds (authenticated servers should connect quickly)
-        env: {
-          ...process.env,
-          MCP_TIMEOUT: '5000',
-        },
+        env: sdkEnv,
+        // Inject fetch tracer loader via executable arguments
+        ...(executableArgs.length > 0 && { executableArgs }),
         // Add additionalDirectories if available
         ...(additionalDirectories.length > 0 && { additionalDirectories }),
         // Add MCP servers from scoped configuration if available
@@ -428,7 +444,6 @@ export class ClaudeCodeSDKService {
     if (query) {
       query.interrupt();
       this.activeQueries.delete(queryId);
-      log.debug('[SDK Service] Aborted query:', queryId);
     }
   }
 
@@ -446,7 +461,6 @@ export class ClaudeCodeSDKService {
    */
   clearSessions(): void {
     this.sessionMap.clear();
-    log.debug('[SDK Service] Cleared all sessions');
   }
 
   /**
@@ -457,7 +471,6 @@ export class ClaudeCodeSDKService {
     const hasSession = this.sessionMap.has(entryId);
     if (hasSession) {
       this.sessionMap.delete(entryId);
-      log.debug('[SDK Service] Cleared session for entry:', entryId);
     }
     return hasSession;
   }
@@ -469,67 +482,6 @@ export class ClaudeCodeSDKService {
    */
   setSessionMapping(agentId: string, claudeSessionId: string): void {
     this.sessionMap.set(agentId, claudeSessionId);
-  }
-
-  /**
-   * Initialize Anthropic client for token counting
-   * @private
-   */
-  private initializeAnthropicClient(): void {
-    if (!this.anthropicClient) {
-      // Get API key from environment
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        throw new Error('ANTHROPIC_API_KEY environment variable is not set');
-      }
-      this.anthropicClient = new Anthropic({ apiKey });
-      log.debug('[SDK Service] Initialized Anthropic client for token counting');
-    }
-  }
-
-  /**
-   * Count tokens for a given model, system prompt, and messages
-   * Uses Claude's token counting API endpoint
-   * @param params - Token counting parameters
-   * @returns Promise<number> - Estimated token count
-   */
-  async countTokens(params: {
-    model: string;
-    system?: string;
-    messages: Array<{
-      role: 'user' | 'assistant';
-      content: string;
-    }>;
-  }): Promise<{ input_tokens: number }> {
-    try {
-      this.initializeAnthropicClient();
-
-      if (!this.anthropicClient) {
-        throw new Error('Failed to initialize Anthropic client');
-      }
-
-      // Call the token counting endpoint
-      // Only include system if it's defined (exactOptionalPropertyTypes requirement)
-      const countParams: {
-        model: string;
-        system?: string;
-        messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-      } = {
-        model: params.model,
-        messages: params.messages,
-      };
-
-      if (params.system) {
-        countParams.system = params.system;
-      }
-
-      const response = await this.anthropicClient.messages.countTokens(countParams);
-
-      return response;
-    } catch (error) {
-      log.error('[SDK Service] Failed to count tokens:', error);
-      throw error;
-    }
   }
 
   /**
@@ -568,28 +520,6 @@ export class ClaudeCodeSDKService {
         content: sdkMsg.content || sdkMsg.text,
         message: sdkMsg.message,
         thinking: sdkMsg.thinking,
-        session_id: sessionId || '',
-      };
-    }
-
-    if (sdkMsg.type === 'tool_call' || sdkMsg.event === 'tool_use') {
-      return {
-        type: 'tool',
-        subtype: 'call',
-        content: sdkMsg.content || sdkMsg.tool_use,
-        tool_calls: sdkMsg.tool_calls || [sdkMsg],
-        session_id: sessionId || '',
-      };
-    }
-
-    if (sdkMsg.type === 'tool_result' || sdkMsg.event === 'tool_result') {
-      return {
-        type: 'tool',
-        subtype: 'result',
-        content: sdkMsg.content || sdkMsg.result,
-        tool_results: sdkMsg.tool_results || [sdkMsg],
-        parent_tool_use_id: sdkMsg.parent_tool_use_id || sdkMsg.tool_use_id,
-        result: sdkMsg.result,
         session_id: sessionId || '',
       };
     }
@@ -741,7 +671,6 @@ export class ClaudeCodeSDKService {
 
       return null;
     } catch (error) {
-      log.debug('[SDK Service] Failed to parse file change message:', error);
       return null;
     }
   }

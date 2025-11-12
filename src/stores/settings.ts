@@ -86,6 +86,11 @@ const getDefaultPreferences = (): UserPreferences => ({
   maxTurns: null, // Default: unlimited (null = no limit)
 });
 
+// DevTools configuration - only in development
+// Use process.env (works in both Node and Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') || false;
+
 /**
  * Create SettingsStore with Zustand + Immer middleware
  * Uses devtools in development for debugging
@@ -469,7 +474,7 @@ export const useSettingsStore = create<SettingsStore>()(
     })),
     {
       name: 'settings-store',
-      trace: process.env.NODE_ENV === 'development',
+      trace: isDevelopment,
     }
   )
 );

@@ -108,7 +108,7 @@ export interface TerminalData {
 }
 
 /**
- * Terminal buffer state for session persistence (Phase 1)
+ * Terminal buffer state for session persistence
  */
 export interface TerminalBufferState {
   terminalId: string;

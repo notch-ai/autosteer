@@ -1,274 +1,78 @@
-import { cn } from '@/commons/utils';
-import { getFolderName } from '@/commons/utils/folderName';
-import { KeyboardShortcuts, useKeyboardShortcut } from '@/commons/utils/keyboardShortcuts';
-import { logger } from '@/commons/utils/logger';
+import { cn } from '@/commons/utils/ui/cn';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { AgentType, ChatMessage } from '@/entities';
-import { ChatInterface } from '@/features/chat/components/ChatInterface';
 import { ChangesTab } from '@/features/shared/components/git/ChangesTab';
+import { AgentChatInterface } from '@/features/shared/components/layout/AgentChatInterface';
+import { EmptyState } from '@/features/shared/components/layout/EmptyState';
 import { ResizablePanel } from '@/features/shared/components/layout/ResizablePanel';
 import { SessionTabs } from '@/features/shared/components/session/SessionTabs';
 import { TerminalTab } from '@/features/shared/components/terminal/TerminalTab';
 import { DetailPanel } from '@/features/shared/components/ui/DetailPanel';
-import { mockPermissionChatMessage } from '@/mocks/gitDiffMockData';
-import { useAgentsStore, useChatStore, useProjectsStore, useUIStore } from '@/stores';
-import { attachResourceToChat, detachResourceFromChat } from '@/stores/resources.store';
-import { Link2, Music, Video } from 'lucide-react';
-import React, { useCallback, useRef, useState } from 'react';
+import {
+  useAgentChatInstances,
+  useAgentContentRenderer,
+  useChatInputFocus,
+  useContentEditor,
+  useMainContentState,
+  useProjectHeader,
+} from '@/hooks';
+import { useAgentsStore, useProjectsStore, useUIStore } from '@/stores';
+import { Link2 } from 'lucide-react';
+import React, { useState } from 'react';
 
 // Toggle this to show mock permission message for UX development
 const USE_MOCK_PERMISSION = false;
 
 export const MainContent: React.FC = () => {
-  // Use domain-specific stores for reactivity (getters in core don't trigger re-renders)
+  // Store subscriptions
   const selectedAgentId = useAgentsStore((state) => state.selectedAgentId);
   const agents = useAgentsStore((state) => state.agents);
   const selectedProjectId = useProjectsStore((state) => state.selectedProjectId);
-  const projects = useProjectsStore((state) => state.projects);
-
-  // Subscribe to chat store for messages reactivity
-  // Important: Subscribe to activeChat separately to avoid re-renders when other chats update
-  const activeChat = useChatStore((state) => state.activeChat);
-  const streamingStates = useChatStore((state) => state.streamingStates);
-  const chatError = useChatStore((state) => state.chatError);
-
-  // Subscribe to messages only for the active chat using a stable reference
-  // This prevents infinite loops by comparing array references before updating
-  const [baseChatMessages, setBaseChatMessages] = useState<ChatMessage[]>([]);
-  const messagesRef = useRef<ChatMessage[]>([]);
-
-  React.useEffect(() => {
-    // Subscribe to changes and update local state only when reference changes
-    const unsubscribe = useChatStore.subscribe((state) => {
-      if (state.activeChat) {
-        const messages = state.messages.get(state.activeChat) || [];
-        // Only update if the array reference has changed
-        if (messages !== messagesRef.current) {
-          messagesRef.current = messages;
-          setBaseChatMessages(messages);
-        }
-      } else if (messagesRef.current.length > 0) {
-        messagesRef.current = [];
-        setBaseChatMessages([]);
-      }
-    });
-
-    // Initial load
-    const state = useChatStore.getState();
-    if (state.activeChat) {
-      const messages = state.messages.get(state.activeChat) || [];
-      messagesRef.current = messages;
-      setBaseChatMessages(messages);
-    } else {
-      messagesRef.current = [];
-      setBaseChatMessages([]);
-    }
-
-    return unsubscribe;
-  }, [activeChat]); // Re-subscribe when activeChat changes
-
-  // Chat store actions
-  const sendMessage = useChatStore((state) => state.sendMessage);
-
-  // Agents store actions
   const updateAgent = useAgentsStore((state) => state.updateAgent);
-
-  // Derive streaming state from chat store
-  const isStreamingActiveChat = activeChat ? streamingStates.get(activeChat) || false : false;
-
-  // UI store - presentation state
   const detailPanelCollapsed = useUIStore((state) => state.detailPanelCollapsed);
   const toggleDetailPanel = useUIStore((state) => state.toggleDetailPanel);
   const setShowProjectCreation = useUIStore((state) => state.setShowProjectCreation);
 
-  // Derive selected agent from store
-  const selectedAgent = selectedAgentId ? agents.get(selectedAgentId) : null;
-  const chatMessages = USE_MOCK_PERMISSION
-    ? [...baseChatMessages, mockPermissionChatMessage]
-    : baseChatMessages;
+  // Custom hooks - all logic extracted
+  const { selectedAgent, showTodosPanel, shouldShowEmpty } = useMainContentState({
+    selectedAgentId,
+    selectedProjectId,
+    agents,
+  });
 
-  // Get current attachments (resource IDs) from chat store
-  const attachments = useChatStore((state) => state.attachments);
-  const currentAttachments = activeChat ? attachments.get(activeChat) || [] : [];
-  const attachedResourceIds = currentAttachments.map((att) => att.resourceId);
+  const { currentProject, displayName, handleCopyPath } = useProjectHeader(selectedProjectId);
 
-  const chatInterfaceRef = useRef<{ focus: () => void } | null>(null);
+  const {
+    isEditingContent,
+    editedContent,
+    handleContentClick,
+    handleContentChange,
+    handleContentSave,
+    handleContentCancel,
+    handleContentKeyDown,
+  } = useContentEditor({
+    selectedAgent: selectedAgent ?? null,
+    updateAgent,
+  });
+
+  const { agentIdsWithInstances, chatInterfaceRefs } = useAgentChatInstances({
+    selectedAgentId,
+  });
+
+  const { handleMainContentClick, handleRefReady } = useChatInputFocus({
+    selectedAgentId,
+    chatInterfaceRefs,
+  });
+
+  const { renderContentByType } = useAgentContentRenderer(selectedAgent);
+
   const [isContentExpanded] = useState(false);
-  const [isEditingContent, setIsEditingContent] = useState(false);
-  const [editedContent, setEditedContent] = useState('');
 
-  // Get current project for header
-  const currentProject = selectedProjectId ? projects.get(selectedProjectId) : null;
-  const folderName = currentProject?.localPath ? getFolderName(currentProject.localPath) : null;
-  const displayName = currentProject?.branchName || folderName;
-
-  // Only show todos panel when a worktree is selected AND a session tab is active (not terminal or changes)
-  const showTodosPanel =
-    !!selectedProjectId && selectedAgentId !== 'terminal-tab' && selectedAgentId !== 'changes-tab';
-
-  const handleCopyPath = useCallback(() => {
-    if (currentProject?.localPath) {
-      navigator.clipboard.writeText(currentProject.localPath).catch(logger.error);
-    }
-  }, [currentProject]);
-
-  const handleContentClick = useCallback(() => {
-    if (selectedAgent) {
-      setEditedContent(selectedAgent.content);
-      setIsEditingContent(true);
-    }
-  }, [selectedAgent]);
-
-  const handleContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setEditedContent(e.target.value);
-  }, []);
-
-  const handleContentSave = useCallback(async () => {
-    if (!selectedAgent) return;
-
-    try {
-      await updateAgent(selectedAgent.id, { content: editedContent });
-      setIsEditingContent(false);
-    } catch (error) {
-      logger.error('Failed to update content:', error as Error);
-      // Revert to original content on error
-      setEditedContent(selectedAgent.content);
-      setIsEditingContent(false);
-    }
-  }, [selectedAgent, editedContent, updateAgent]);
-
-  const handleContentCancel = useCallback(() => {
-    if (selectedAgent) {
-      setEditedContent(selectedAgent.content);
-    }
-    setIsEditingContent(false);
-  }, [selectedAgent]);
-
-  const handleContentKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Escape') {
-        handleContentCancel();
-      } else if (e.key === 'Enter' && e.ctrlKey) {
-        void handleContentSave();
-      }
-    },
-    [handleContentCancel, handleContentSave]
-  );
-
-  // Keyboard shortcut: Focus chat input (Cmd+Alt+Enter)
-  useKeyboardShortcut(
-    [KeyboardShortcuts.FOCUS_CHAT_INPUT, KeyboardShortcuts.FOCUS_CHAT_INPUT_ALT],
-    () => {
-      if (chatInterfaceRef.current && selectedAgentId !== 'terminal-tab') {
-        chatInterfaceRef.current.focus();
-      }
-    },
-    { enabled: !!selectedAgentId && selectedAgentId !== 'terminal-tab' }
-  );
-
-  const handleMainContentClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-
-    // Don't focus if clicking within tabs or interactive elements
-    if (
-      target.closest('button') ||
-      target.closest('input') ||
-      target.closest('textarea') ||
-      target.closest('[role="tab"]') ||
-      target.closest('[role="tablist"]')
-    ) {
-      return;
-    }
-
-    // Check if click is within chat area (messages or input) - look for chat container or message wrappers
-    const isClickInChatArea = !!(
-      target.closest('.editor-content') ||
-      target.closest('.markdown-content') ||
-      target.closest('[role="log"]') ||
-      target.closest('[aria-label="Chat messages"]')
-    );
-
-    // Focus chat if:
-    // - Click is OUTSIDE chat messages (only focus on whitespace/empty areas)
-    // - Never focus when clicking within messages (to allow text selection/copy)
-    const shouldFocus = !isClickInChatArea;
-
-    if (shouldFocus && chatInterfaceRef.current) {
-      chatInterfaceRef.current.focus();
-    }
-  }, []);
-
-  const renderContentByType = () => {
-    if (!selectedAgent) return null;
-
-    switch (selectedAgent.type) {
-      case AgentType.CODE:
-        return (
-          <div>
-            <pre>
-              <code>{selectedAgent.content}</code>
-            </pre>
-          </div>
-        );
-
-      case AgentType.IMAGE:
-        return (
-          <div>
-            <img src={selectedAgent.content} alt={selectedAgent.title} />
-          </div>
-        );
-
-      case AgentType.VIDEO:
-      case AgentType.AUDIO:
-        return (
-          <div>
-            <p>{selectedAgent.content}</p>
-            <div>
-              {selectedAgent.type === AgentType.VIDEO ? (
-                <Video className="h-5 w-5" />
-              ) : (
-                <Music className="h-5 w-5" />
-              )}
-              <span>Media Player</span>
-            </div>
-          </div>
-        );
-
-      default:
-        return (
-          <div>
-            <p>{selectedAgent.content}</p>
-          </div>
-        );
-    }
-  };
-
-  // Show empty state if no project is selected OR no agent is selected (but allow terminal and changes tabs)
-  if (
-    !selectedProjectId ||
-    (!selectedAgent && selectedAgentId !== 'terminal-tab' && selectedAgentId !== 'changes-tab')
-  ) {
-    return (
-      <main
-        id="main-content-empty"
-        data-component="MainContent"
-        data-state="empty"
-        className="h-full flex flex-col bg-background main-content-container"
-      >
-        <div
-          id="center-panel-empty"
-          data-panel="center-empty"
-          className="h-full flex flex-col items-center justify-center center-panel"
-        >
-          <Button variant="brand" onClick={() => setShowProjectCreation(true)}>
-            Create a project
-          </Button>
-        </div>
-      </main>
-    );
+  // Early return for empty state
+  if (shouldShowEmpty) {
+    return <EmptyState onCreateProject={() => setShowProjectCreation(true)} />;
   }
 
   return (
@@ -356,17 +160,18 @@ export const MainContent: React.FC = () => {
             <div
               id="chat-container"
               data-section="chat-wrapper"
-              className="flex-1 flex flex-col min-h-0 chat-wrapper"
+              className="flex-1 flex flex-col min-h-0 min-w-0 chat-wrapper"
             >
               <div
                 id="chat-interface-container"
                 data-section="chat-interface"
-                className="flex-1 flex flex-col min-h-0 chat-interface-container"
+                className="flex-1 flex flex-col min-h-0 min-w-0 relative chat-interface-container"
               >
                 {/* Keep TerminalTab mounted to preserve state across tab switches */}
                 <div
-                  className={cn('flex-1 flex flex-col', {
-                    hidden: selectedAgentId !== 'terminal-tab',
+                  className={cn('flex flex-col min-h-0 min-w-0 absolute inset-0', {
+                    'z-10': selectedAgentId === 'terminal-tab',
+                    'z-0 pointer-events-none': selectedAgentId !== 'terminal-tab',
                   })}
                 >
                   <TerminalTab className="flex-1" />
@@ -374,47 +179,24 @@ export const MainContent: React.FC = () => {
 
                 {/* Keep ChangesTab mounted to preserve state across tab switches */}
                 <div
-                  className={cn('flex-1 flex flex-col min-h-0', {
-                    hidden: selectedAgentId !== 'changes-tab',
+                  className={cn('flex flex-col min-h-0 min-w-0 absolute inset-0', {
+                    'z-10': selectedAgentId === 'changes-tab',
+                    'z-0 pointer-events-none': selectedAgentId !== 'changes-tab',
                   })}
                 >
                   <ChangesTab className="flex-1" />
                 </div>
 
-                {/* Keep ChatInterface mounted to preserve state across tab switches */}
-                <div
-                  className={cn('flex-1 flex flex-col min-h-0', {
-                    hidden: selectedAgentId === 'terminal-tab' || selectedAgentId === 'changes-tab',
-                  })}
-                >
-                  <ChatInterface
-                    ref={chatInterfaceRef}
-                    messages={chatMessages}
-                    onSendMessage={async (content, options) => {
-                      await sendMessage(content, undefined, attachedResourceIds, options);
-                      if (attachedResourceIds.length > 0) {
-                        attachedResourceIds.forEach((id) => detachResourceFromChat(id));
-                      }
-                    }}
-                    isLoading={isStreamingActiveChat || !!chatError}
-                    attachedResourceIds={attachedResourceIds}
-                    onRemoveResource={detachResourceFromChat}
-                    onAttachResources={async (resourceIds) => {
-                      // First, we need to get the actual resources and store them
-                      for (const id of resourceIds) {
-                        // Get the resource data from electron (it was just uploaded)
-                        const resources = await window.electron?.resources?.getResources([id]);
-                        if (resources && resources.length > 0) {
-                          const resource = resources[0];
-                          // Pass the resource data so it can be stored
-                          attachResourceToChat(id, resource);
-                        } else {
-                          attachResourceToChat(id);
-                        }
-                      }
-                    }}
+                {/* Per-agent ChatInterface instances - all mounted, visibility controlled by display:none */}
+                {agentIdsWithInstances.map((agentId) => (
+                  <AgentChatInterface
+                    key={agentId}
+                    agentId={agentId}
+                    selectedAgentId={selectedAgentId}
+                    useMockPermission={USE_MOCK_PERMISSION}
+                    onRefReady={handleRefReady}
                   />
-                </div>
+                ))}
               </div>
             </div>
           </div>

@@ -8,8 +8,11 @@ import { createGzip } from 'zlib';
 
 class MainProcessLogger {
   private initialized = false;
+  private fileLoggingEnabled: boolean;
 
-  constructor() {}
+  constructor() {
+    this.fileLoggingEnabled = process.env.FILE_APP_LOGGING === 'true';
+  }
 
   async initialize() {
     if (this.initialized) return;
@@ -28,7 +31,7 @@ class MainProcessLogger {
         this.setDevelopmentMode(devMode);
       }
     } catch (error) {
-      log.debug('Could not load dev mode from config during initialization:', error);
+      // Config not available during initialization
     }
   }
 
@@ -38,30 +41,37 @@ class MainProcessLogger {
   }
 
   private initializeLogger() {
-    const logPath = path.join(app.getPath('userData'), 'logs');
-    log.transports.file.resolvePathFn = () => path.join(logPath, 'app.log');
-
-    log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{processType}] [{level}] {text}';
-
-    // Enable console logging for development
+    // Always enable console logging (stdout/stderr)
     log.transports.console.level = 'debug';
     log.transports.console.format = '[{h}:{i}:{s}.{ms}] [{level}] {text}';
 
-    log.transports.file.maxSize = 5 * 1024 * 1024;
+    // Configure file logging based on environment flag
+    if (this.fileLoggingEnabled) {
+      const logPath = path.join(app.getPath('userData'), 'logs');
+      log.transports.file.resolvePathFn = () => path.join(logPath, 'app.log');
+      log.transports.file.format =
+        '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{processType}] [{level}] {text}';
+      log.transports.file.maxSize = 5 * 1024 * 1024;
+      log.transports.file.level = 'warn';
 
-    log.transports.file.archiveLogFn = (oldLogFile: any) => {
-      const oldPath = oldLogFile.toString();
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const newPath = oldPath.replace('.log', `-${timestamp}.log.gz`);
+      log.transports.file.archiveLogFn = (oldLogFile: any) => {
+        const oldPath = oldLogFile.toString();
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const newPath = oldPath.replace('.log', `-${timestamp}.log.gz`);
 
-      this.compressLogFile(oldPath, newPath).catch((error) => {
-        log.error('Failed to compress log file:', error);
-      });
+        this.compressLogFile(oldPath, newPath).catch((error) => {
+          log.error('Failed to compress log file:', error);
+        });
 
-      return newPath;
-    };
+        return newPath;
+      };
 
-    log.transports.file.level = 'warn';
+      log.info(`File logging enabled - Log directory: ${logPath}`);
+    } else {
+      // Disable file transport completely
+      log.transports.file.level = false;
+      log.info('File logging disabled (FILE_APP_LOGGING=false)');
+    }
 
     log.catchErrors({
       showDialog: false,
@@ -71,7 +81,6 @@ class MainProcessLogger {
     });
 
     log.info(`App started - Version: ${app.getVersion()}`);
-    log.info(`Log directory: ${logPath}`);
   }
 
   private async compressLogFile(sourcePath: string, destPath: string): Promise<void> {
@@ -91,18 +100,22 @@ class MainProcessLogger {
   }
 
   setDevelopmentMode(enabled: boolean) {
-    if (enabled) {
-      log.transports.file.level = 'silly';
-      log.transports.console.level = 'debug'; // Enable console in dev mode
-    } else {
-      log.transports.file.level = 'warn';
-      log.transports.console.level = false; // Disable console in production
+    // File logging respects FILE_APP_LOGGING flag
+    if (this.fileLoggingEnabled) {
+      log.transports.file.level = enabled ? 'silly' : 'warn';
     }
+
+    // Console logging always enabled in dev mode, disabled in production
+    log.transports.console.level = enabled ? 'debug' : false;
 
     log.info(`Log level set to ${enabled ? 'development' : 'production'} mode`);
   }
 
   async cleanOldLogs(daysToKeep: number = 7): Promise<void> {
+    if (!this.fileLoggingEnabled) {
+      return;
+    }
+
     try {
       const logPath = path.join(app.getPath('userData'), 'logs');
       const files = await fs.promises.readdir(logPath);

@@ -1,0 +1,5 @@
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Missing UUID"}]},"timestamp":1699000000000}
+{"uuid":"msg-2","message":{"role":"assistant","content":[{"type":"text","text":"Missing type"}]},"timestamp":1699000001000}
+{"type":"user","uuid":"msg-3","timestamp":1699000002000}
+{"type":"assistant","uuid":"msg-4","message":{"content":[{"type":"text","text":"Missing role"}]},"timestamp":1699000003000}
+{"type":"user","uuid":"msg-5","message":{"role":"user","content":"wrong content format"},"timestamp":1699000004000}

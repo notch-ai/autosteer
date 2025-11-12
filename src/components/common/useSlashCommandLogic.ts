@@ -1,5 +1,5 @@
 import { logger } from '@/commons/utils/logger';
-import { SearchService } from '@/commons/utils/SearchService';
+import { SearchService } from '@/services/SearchService';
 import { useSlashCommandsStore, useProjectsStore } from '@/stores';
 import { useEffect, useMemo, useRef } from 'react';
 
@@ -80,7 +80,6 @@ export const builtInCommands: SlashCommand[] = [
   // {
   //   command: 'init',
   //   label: 'Initialize',
-  //   description: 'Initialize project with CLAUDE.md guide',
   //   icon: '🚀',
   //   action: () => {},
   // },
@@ -108,7 +107,6 @@ export const builtInCommands: SlashCommand[] = [
   // {
   //   command: 'memory',
   //   label: 'Memory',
-  //   description: 'Edit CLAUDE.md memory files',
   //   icon: '🧠',
   //   action: () => {},
   // },

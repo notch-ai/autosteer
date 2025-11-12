@@ -3,11 +3,12 @@ import { useChatInputHandler } from '@/hooks/useChatInputHandler';
 import { useChatStore, useResourcesStore } from '@/stores';
 import { ModelOption } from '@/types/model.types';
 import { PermissionMode } from '@/types/permission.types';
-import { forwardRef, memo, useImperativeHandle } from 'react';
+import { forwardRef, memo, useImperativeHandle, useRef } from 'react';
 import { RichTextEditor } from './RichTextEditor';
 
 export interface ChatInputHandle {
   focus: () => void;
+  reset: () => void;
 }
 
 interface ChatInputProps {
@@ -58,6 +59,7 @@ export const ChatInput = memo(
     ) => {
       const resources = useResourcesStore((state) => state.resources);
       const stopStreaming = useChatStore((state) => state.stopStreaming);
+      const containerRef = useRef<HTMLDivElement>(null);
 
       // Delegate all business logic to handler
       const {
@@ -69,28 +71,55 @@ export const ChatInput = memo(
         setModel,
         handleSubmit,
         handleSlashCommand,
+        cursorPosition,
+        handleCursorPositionChange,
       } = useChatInputHandler({
         onSendMessage,
         isLoading,
+        selectedAgentId,
       });
 
       const isCompactingConversation = false; // TODO: Implement compacting state in CoreStore
       const isDisabled =
         (isLoading && !isStreaming) || isCompactingConversation || !selectedAgentId;
 
-      // Expose focus method to parent
-      useImperativeHandle(ref, () => ({
-        focus: () => {
-          // Focus the CodeMirror editor
-          const cmEditor = document.querySelector('.cm-editor .cm-content') as HTMLElement;
-          if (cmEditor) {
-            cmEditor.focus();
-          }
-        },
-      }));
+      // Expose focus and reset methods to parent
+      useImperativeHandle(
+        ref,
+        () => ({
+          focus: () => {
+            // Focus the CodeMirror editor within THIS component's container
+            // IMPORTANT: Scope to containerRef to avoid focusing wrong agent's editor
+            // IMPORTANT: Use preventScroll to avoid interfering with scroll position restoration
+            const container = containerRef.current;
+            if (!container) {
+              console.warn('❌ [CHAT INPUT FOCUS] Container ref not available');
+              return;
+            }
+
+            const cmEditor = container.querySelector('.cm-editor .cm-content') as HTMLElement;
+            if (cmEditor) {
+              cmEditor.focus({ preventScroll: true });
+            } else {
+              console.warn('❌ [CHAT INPUT FOCUS] CodeMirror editor not found in container', {
+                agentId: selectedAgentId,
+              });
+            }
+          },
+          reset: () => {
+            // Clear the message input
+            setMessage('');
+            // Reset permission mode to default
+            setPermissionMode('default');
+            // Reset model (null means use settings default)
+            setModel(null as any);
+          },
+        }),
+        [selectedAgentId]
+      );
 
       return (
-        <div className="px-2 pb-2 pt-1 flex-shrink-0">
+        <div ref={containerRef} className="px-2 pb-2 pt-1 flex-shrink-0">
           <div className={cn('transition-all duration-200', isDisabled ? 'opacity-60' : '')}>
             <RichTextEditor
               value={message}
@@ -113,6 +142,8 @@ export const ChatInput = memo(
               model={model}
               onModelChange={setModel}
               resources={resources}
+              initialCursorPosition={cursorPosition}
+              onCursorPositionChange={handleCursorPositionChange}
             />
           </div>
         </div>

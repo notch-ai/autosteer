@@ -6,6 +6,7 @@ export * from './components/CommandMenu';
 export * from './components/TextFormattingMenu';
 export * from './components/SlashCommands';
 export * from './components/MarkdownRenderer';
+export * from './components/CachedMarkdownRenderer';
 export * from './components/RichTextEditor';
 export * from './components/FileMentions';
 export * from './components/MentionPicker';

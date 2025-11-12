@@ -1,4 +1,5 @@
-import { Agent, Resource, ChatMessage } from '@/entities';
+import { Agent, Resource, ComputedMessage } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 import { SessionBlock } from '@/entities/SessionBlock';
 import { MonitoringConfig } from '@/monitoring/interfaces/types';
 import { SlashCommand } from '@/types/ipc.types';
@@ -157,7 +158,7 @@ declare global {
         search: (query: string) => Promise<Agent[]>;
         loadChatHistory: (
           agentId: string
-        ) => Promise<ChatMessage[] | { messages: ChatMessage[]; sessionId: string | null }>;
+        ) => Promise<ComputedMessage[] | { messages: ComputedMessage[]; sessionId: string | null }>;
         updateAdditionalDirectories: (
           worktreeId: string,
           agentId: string,
@@ -203,6 +204,8 @@ declare global {
         export: (path?: string) => Promise<void>;
         import: (path?: string) => Promise<void>;
       };
+      // Session Cache API
+      cache: import('@/types/ipc.types').CacheIpcChannels;
     };
   }
 }

@@ -98,8 +98,6 @@ export class SessionManifestService {
 
         await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
         await fsPromises.rename(tempPath, manifestPath);
-
-        logger.debug(`Updated session manifest for ${worktreeId}/${agentId}: ${sessionId}`);
       } catch (error) {
         await this.cleanupTempFile(tempPath);
         logger.error('Failed to update session manifest:', error);
@@ -115,7 +113,6 @@ export class SessionManifestService {
       const manifest: SessionManifest = JSON.parse(content);
       return manifest.agents[agentId];
     } catch (error) {
-      logger.debug(`No session found for ${worktreeId}/${agentId}`);
       return undefined;
     }
   }
@@ -127,7 +124,6 @@ export class SessionManifestService {
       const manifest: SessionManifest = JSON.parse(content);
       return manifest.agents;
     } catch (error) {
-      logger.debug(`No sessions found for worktree ${worktreeId}`);
       return {};
     }
   }
@@ -207,10 +203,9 @@ export class SessionManifestService {
           const tempPath = `${manifestPath}.tmp.${Date.now()}`;
           await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
           await fsPromises.rename(tempPath, manifestPath);
-          logger.debug(`Deleted session for agent ${agentId} from worktree ${worktreeId}`);
         }
       } catch (error) {
-        logger.debug(`Could not delete session for ${worktreeId}/${agentId}:`, error);
+        // Session deletion is a best-effort operation
       }
     });
   }
@@ -219,10 +214,56 @@ export class SessionManifestService {
     try {
       const manifestPath = this.getManifestPath(worktreeId);
       await fsPromises.access(manifestPath);
-      await fsPromises.rename(manifestPath, `${manifestPath}.deleted.${Date.now()}`);
-      logger.debug(`Deleted manifest for worktree ${worktreeId}`);
+      // Soft-delete: rename with timestamp to preserve data
+      const timestamp = Date.now();
+      const deletedPath = manifestPath.replace('.json', `.json.deleted.${timestamp}`);
+      await fsPromises.rename(manifestPath, deletedPath);
+
+      // Clear cache for this worktree
+      try {
+        const { SessionCacheService } = await import('./SessionCacheService');
+        const cacheService = SessionCacheService.getInstance();
+        await cacheService.clearWorktreeCache(worktreeId);
+        logger.debug('[SessionManifestService] Cleared cache for worktree', { worktreeId });
+      } catch (cacheError) {
+        // Don't fail if cache cleanup fails
+        logger.warn('[SessionManifestService] Failed to clear worktree cache', {
+          worktreeId,
+          error: String(cacheError),
+        });
+      }
     } catch (error) {
-      logger.debug(`No manifest to delete for worktree ${worktreeId}`);
+      // No manifest to delete
+    }
+  }
+
+  /**
+   * Clean up old soft-deleted manifest files (*.deleted.*)
+   * Called during app initialization to prevent accumulation
+   */
+  async cleanupDeletedManifests(): Promise<void> {
+    try {
+      await this.ensureSessionsDirectory();
+      const dirents = fs.readdirSync(this.sessionsDir, { withFileTypes: true });
+
+      let cleanedCount = 0;
+      for (const dirent of dirents) {
+        if (dirent.isFile() && dirent.name.includes('.deleted.')) {
+          try {
+            await fsPromises.unlink(path.join(this.sessionsDir, dirent.name));
+            cleanedCount++;
+          } catch (error) {
+            logger.warn(`Failed to delete ${dirent.name}:`, error);
+          }
+        }
+      }
+
+      if (cleanedCount > 0) {
+        logger.info(`Cleaned up ${cleanedCount} deleted manifest files`);
+      }
+    } catch (error) {
+      logger.error('Failed to cleanup deleted manifests:', error);
+      // Don't throw - cleanup failure shouldn't prevent app startup
     }
   }
 
@@ -260,8 +301,6 @@ export class SessionManifestService {
       const tempPath = `${manifestPath}.tmp.${Date.now()}`;
       await fsPromises.writeFile(tempPath, JSON.stringify(manifest, null, 2), 'utf-8');
       await fsPromises.rename(tempPath, manifestPath);
-
-      logger.debug(`Updated additional directories for ${worktreeId}/${agentId}:`, directories);
     } catch (error) {
       logger.error('Failed to update additional directories:', error);
       throw error;
@@ -278,7 +317,6 @@ export class SessionManifestService {
       const manifest: SessionManifest = JSON.parse(content);
       return manifest.additionalDirectories?.[agentId] || [];
     } catch (error) {
-      logger.debug(`No additional directories found for ${worktreeId}/${agentId}`);
       return [];
     }
   }

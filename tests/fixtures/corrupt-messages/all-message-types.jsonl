@@ -1,0 +1,8 @@
+{"type":"system","subtype":"init","uuid":"init-1","timestamp":1699000000000}
+{"type":"user","uuid":"msg-1","message":{"role":"user","content":[{"type":"text","text":"User message"}]},"timestamp":1699000001000}
+{"type":"assistant","uuid":"msg-2","message":{"role":"assistant","content":[{"type":"text","text":"Assistant response"}],"usage":{"input_tokens":100,"output_tokens":50}},"timestamp":1699000002000}
+{"type":"assistant","uuid":"msg-3","message":{"role":"assistant","content":[{"type":"tool_use","id":"tool-1","name":"Read","input":{"file_path":"test.ts"}}]},"timestamp":1699000003000}
+{"type":"user","uuid":"msg-4","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool-1","content":"file content"}]},"timestamp":1699000004000}
+{"type":"system","subtype":"compact_boundary","uuid":"compact-1","compactMetadata":{"preTokens":5000,"trigger":"manual"},"timestamp":1699000005000}
+{"type":"result","uuid":"result-1","is_error":false,"result":"Success","timestamp":1699000006000}
+{"type":"result","uuid":"result-2","is_error":true,"subtype":"error_during_execution","result":"Execution failed","timestamp":1699000007000}

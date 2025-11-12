@@ -1,7 +1,7 @@
 import React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Button as UIButton, type ButtonProps as UIButtonProps } from '@/components/ui/button';
-import { cn } from '@/commons/utils/cn';
+import { cn } from '@/commons/utils/ui/cn';
 import { Loader2 } from 'lucide-react';
 
 // Legacy button variants for backward compatibility

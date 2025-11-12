@@ -248,7 +248,6 @@ export class FileDataStoreService {
 
           // Use atomic rename
           await fsPromises.rename(tempPath, this.configPath);
-          logger.debug('Config written successfully');
         } catch (error) {
           logger.error('Failed to write config:', error);
           throw error;

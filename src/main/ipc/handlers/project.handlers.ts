@@ -208,16 +208,9 @@ export class ProjectHandlers {
           return pattern;
         });
 
-      log.debug('[ProjectHandlers] Loaded .gitignore patterns:', {
-        count: gitignorePatterns.length,
-        patterns: gitignorePatterns.slice(0, 10),
-      });
-
       return [...baseIgnorePatterns, ...gitignorePatterns];
     } catch (error) {
-      log.debug(
-        '[ProjectHandlers] No .gitignore found or error reading it, using base patterns only'
-      );
+      // No .gitignore found, using base patterns only
       return baseIgnorePatterns;
     }
   }
@@ -234,23 +227,11 @@ export class ProjectHandlers {
       const maxResults = request.maxResults || 100;
       const query = request.query.toLowerCase();
 
-      log.debug('[ProjectHandlers] searchWorkspace called:', {
-        workspacePath: normalizedPath,
-        query: request.query,
-        maxResults,
-      });
-
       const patterns = query ? [`**/*${query}*`] : ['**/*'];
       const allPatterns = await this.readGitignorePatterns(normalizedPath);
 
       const ignorePatterns = allPatterns.filter((p) => !p.startsWith('!'));
       const negationPatterns = allPatterns.filter((p) => p.startsWith('!')).map((p) => p.slice(1));
-
-      log.debug('[ProjectHandlers] Using patterns:', {
-        searchPatterns: patterns,
-        ignorePatternCount: ignorePatterns.length,
-        negationPatternCount: negationPatterns.length,
-      });
 
       const results = await fg(patterns, {
         cwd: normalizedPath,
@@ -262,12 +243,6 @@ export class ProjectHandlers {
         stats: false,
         dot: request.includeHidden !== false,
         caseSensitiveMatch: false,
-      });
-
-      log.debug('[ProjectHandlers] Glob results:', {
-        totalFound: results.length,
-        maxResults,
-        willBeLimited: results.length > maxResults,
       });
 
       let whitelistedResults: string[] = [];
@@ -287,10 +262,6 @@ export class ProjectHandlers {
         whitelistedResults = query
           ? rawWhitelistedResults.filter((file) => file.toLowerCase().includes(query))
           : rawWhitelistedResults;
-
-        log.debug('[ProjectHandlers] Whitelist results:', {
-          whitelistedCount: whitelistedResults.length,
-        });
       }
 
       const allResults = [...new Set([...results, ...whitelistedResults])];
@@ -310,7 +281,7 @@ export class ProjectHandlers {
             isFile: stat.isFile(),
           });
         } catch (err) {
-          log.debug(`[ProjectHandlers] Failed to stat ${resultPath}:`, err);
+          // Failed to stat file, skip it
         }
       }
 
@@ -340,7 +311,6 @@ export class ProjectHandlers {
       IPC_CHANNELS.FILE_OPEN,
       async (__event: IpcMainInvokeEvent, filePath: string) => {
         const content = await fs.readFile(filePath, 'utf-8');
-        log.info(`[ProjectHandlers] Opened file: ${filePath}`);
         return content;
       },
       { operationName: 'Open file' }
@@ -351,7 +321,6 @@ export class ProjectHandlers {
       IPC_CHANNELS.FILE_SAVE,
       async (__event: IpcMainInvokeEvent, filePath: string, content: string) => {
         await fs.writeFile(filePath, content, 'utf-8');
-        log.info(`[ProjectHandlers] Saved file: ${filePath}`);
       },
       { operationName: 'Save file' }
     );
@@ -380,7 +349,6 @@ export class ProjectHandlers {
 
         if (!result.canceled && result.filePath) {
           await fs.writeFile(result.filePath, content, 'utf-8');
-          log.info(`[ProjectHandlers] Saved file as: ${result.filePath}`);
           return result.filePath;
         }
 
@@ -394,7 +362,6 @@ export class ProjectHandlers {
       IPC_CHANNELS.FOLDER_OPEN,
       async (__event: IpcMainInvokeEvent, folderPath: string) => {
         await shell.openPath(folderPath);
-        log.info(`[ProjectHandlers] Opened folder: ${folderPath}`);
       },
       { operationName: 'Open folder' }
     );
@@ -424,7 +391,6 @@ export class ProjectHandlers {
         const result = await dialog.showOpenDialog(window, { ...defaultOptions, ...options });
 
         if (!result.canceled && result.filePaths.length > 0) {
-          log.info(`[ProjectHandlers] Selected files: ${result.filePaths.join(', ')}`);
           return result.filePaths;
         }
 
@@ -453,7 +419,6 @@ export class ProjectHandlers {
         const result = await dialog.showSaveDialog(window, { ...defaultOptions, ...options });
 
         if (!result.canceled && result.filePath) {
-          log.info(`[ProjectHandlers] Save path selected: ${result.filePath}`);
           return result.filePath;
         }
 
@@ -472,7 +437,6 @@ export class ProjectHandlers {
         }
 
         const result = await dialog.showMessageBox(window, options);
-        log.info(`[ProjectHandlers] Message box response: ${result.response}`);
         return result;
       },
       { operationName: 'Show message box' }
@@ -513,7 +477,6 @@ export class ProjectHandlers {
       async (_event: IpcMainInvokeEvent, ids: string[]): Promise<Resource[]> => {
         const allResources = this.store.get('resources', []);
         const resources = allResources.filter((r) => ids.includes(r.id));
-        log.info(`[ProjectHandlers] Loaded ${resources.length} resources`);
         return resources;
       },
       { operationName: 'Load resources by IDs' }
@@ -554,7 +517,6 @@ export class ProjectHandlers {
         resources.push(newResource);
         this.store.set('resources', resources);
 
-        log.info(`[ProjectHandlers] Uploaded resource: ${newResource.id}`);
         return newResource;
       },
       { operationName: 'Upload resource' }
@@ -580,7 +542,6 @@ export class ProjectHandlers {
         const filtered = resources.filter((r) => r.id !== id);
         this.store.set('resources', filtered);
 
-        log.info(`[ProjectHandlers] Deleted resource: ${id}`);
         return;
       },
       { operationName: 'Delete resource' }
@@ -591,7 +552,6 @@ export class ProjectHandlers {
       IPC_CHANNELS.RESOURCES_OPEN,
       async (__event: IpcMainInvokeEvent, resourcePath: string): Promise<void> => {
         await shell.openPath(resourcePath);
-        log.info(`[ProjectHandlers] Opened resource: ${resourcePath}`);
       },
       { operationName: 'Open resource' }
     );

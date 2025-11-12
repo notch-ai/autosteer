@@ -1,7 +1,9 @@
 # Installation Guide
 
-## Prerequisite
+## Prerequisites
 
+- **Node.js**: Version 20.x or higher (verified with `node --version`)
+- **pnpm**: Version 9.15.4 or higher (verified with `pnpm --version`)
 - **Claude Code**: Install from the [official installation guide](https://docs.claude.com/en/docs/claude-code/quickstart)
 
 ## Download Pre-built Binaries

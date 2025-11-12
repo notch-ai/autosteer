@@ -14,7 +14,7 @@
  */
 
 import { logger } from '@/commons/utils/logger';
-import { generateSessionName } from '@/commons/utils/sessionNameGenerator';
+import { generateSessionName } from '@/commons/utils/project/session_name_generator';
 import { TERMINAL_TAB_ID, CHANGES_TAB_ID } from '@/constants/tabs';
 import { AgentStatus, AgentType } from '@/entities';
 import { Project } from '@/types/project.types';
@@ -29,7 +29,12 @@ import { ProjectConfig } from './types';
 enableMapSet();
 
 // DevTools configuration - only in development
-const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
+// DevTools configuration - only in development
+// Support both main process (Node.js) and renderer process (Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development');
+const withDevtools = isDevelopment ? devtools : (f: any) => f;
 
 /**
  * ProjectsStore Interface
@@ -435,7 +440,7 @@ export const useProjectsStore = create<ProjectsStore>()(
     })),
     {
       name: 'projects-store',
-      trace: process.env.NODE_ENV === 'development',
+      trace: isDevelopment,
     }
   )
 );

@@ -7,17 +7,8 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import React, { useEffect, useRef, useState } from 'react';
-import { useSlashCommandLogic } from '@/components/common/useSlashCommandLogic';
-
-interface SlashCommand {
-  command: string;
-  label: string;
-  description: string;
-  icon: string;
-  action?: () => void;
-  content?: string; // Full markdown content for Claude Code commands
-}
+import { SlashCommand, useSlashCommands } from '@/hooks/useSlashCommands';
+import React, { useEffect } from 'react';
 
 export interface SlashCommandsProps {
   query?: string;
@@ -38,60 +29,36 @@ export interface SlashCommandsProps {
 
 /**
  * Feature component for SlashCommands
- * Migrated to use shadcn/ui components while maintaining legacy API
+ * Migrated to use shadcn/ui components and useSlashCommands hook
  * Provides slash command selection with search and keyboard navigation
+ * Follows the same pattern as FileMentions for consistency
  */
 export const SlashCommands: React.FC<SlashCommandsProps> = ({
   query = '',
   commands: providedCommands,
   onSelect,
   onClose,
-  activeCommand,
+  activeCommand: _activeCommand,
   position,
   onTabSelect,
   className,
 }) => {
-  console.log('[SlashCommands] Component render', {
+  // Use hook for ALL business logic - keyboard nav is handled internally like FileMentions
+  const {
+    filteredCommands: hookCommands,
+    selectedIndex,
+    setSelectedIndex,
+    pickerRef,
+  } = useSlashCommands({
     query,
-    queryLength: query.length,
-    hasTrailingSpace: query.endsWith(' '),
-    providedCommands: !!providedCommands,
+    isOpen: true,
+    onSelect,
+    onClose,
+    ...(onTabSelect && { onTabSelect }),
   });
 
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const [, setMenuHeight] = useState<number>(0);
-
-  // Use provided commands or fetch from logic hook
-  const { filteredCommands: hookCommands } = useSlashCommandLogic(query);
+  // Use provided commands or fetch from hook
   const filteredCommands = providedCommands || hookCommands;
-
-  console.log('[SlashCommands] After useSlashCommandLogic', {
-    filteredCommandsCount: filteredCommands.length,
-    willReturnNull: !filteredCommands || filteredCommands.length === 0,
-  });
-
-  // Reset selection when commands change
-  useEffect(() => {
-    setSelectedIndex(0);
-    // If activeCommand is provided, find its index
-    if (activeCommand && filteredCommands) {
-      const index = filteredCommands.findIndex(
-        (cmd: SlashCommand) => cmd.command === activeCommand.command
-      );
-      if (index >= 0) {
-        setSelectedIndex(index);
-      }
-    }
-  }, [filteredCommands, activeCommand]);
-
-  // Calculate menu height after render
-  useEffect(() => {
-    if (pickerRef.current) {
-      const height = pickerRef.current.scrollHeight;
-      setMenuHeight(height);
-    }
-  }, [filteredCommands]);
 
   // Auto-scroll to selected item when navigating with keyboard
   useEffect(() => {
@@ -109,78 +76,7 @@ export const SlashCommands: React.FC<SlashCommandsProps> = ({
         });
       }
     }
-  }, [selectedIndex, filteredCommands.length]);
-
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Only handle events if this component is mounted and visible
-      if (!pickerRef.current || !document.body.contains(pickerRef.current)) {
-        return;
-      }
-
-      switch (event.key) {
-        case 'ArrowDown':
-          event.preventDefault();
-          event.stopPropagation();
-          const newDownIndex = (selectedIndex + 1) % filteredCommands.length;
-          setSelectedIndex(newDownIndex);
-          break;
-        case 'ArrowUp':
-          event.preventDefault();
-          event.stopPropagation();
-          const newUpIndex =
-            (selectedIndex - 1 + filteredCommands.length) % filteredCommands.length;
-          setSelectedIndex(newUpIndex);
-          break;
-        case 'Enter':
-          event.preventDefault();
-          event.stopPropagation();
-          if (filteredCommands[selectedIndex]) {
-            onSelect(filteredCommands[selectedIndex]);
-          }
-          break;
-        case 'Escape':
-          event.preventDefault();
-          event.stopPropagation();
-          onClose();
-          break;
-        case 'Tab':
-          event.preventDefault();
-          event.stopPropagation();
-          if (filteredCommands[selectedIndex]) {
-            // Use onTabSelect if provided, otherwise use onSelect
-            if (onTabSelect) {
-              onTabSelect(filteredCommands[selectedIndex]);
-            } else {
-              onSelect(filteredCommands[selectedIndex]);
-            }
-            // Close the menu after tab selection (same as Enter behavior)
-            onClose();
-          }
-          break;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [selectedIndex, filteredCommands, onSelect, onClose, onTabSelect]);
-
-  // Handle clicks outside the picker
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [onClose]);
+  }, [selectedIndex, filteredCommands.length, pickerRef]);
 
   // Calculate position styles
   const calculatePosition = () => {
@@ -215,14 +111,9 @@ export const SlashCommands: React.FC<SlashCommandsProps> = ({
   };
 
   if (!filteredCommands || filteredCommands.length === 0) {
-    console.log('[SlashCommands] No commands found - returning null');
     // Don't render anything if no commands found to avoid flash during Tab completion
     return null;
   }
-
-  console.log('[SlashCommands] Rendering menu with commands', {
-    count: filteredCommands.length,
-  });
 
   return (
     <Card
@@ -239,15 +130,16 @@ export const SlashCommands: React.FC<SlashCommandsProps> = ({
             {filteredCommands.map((command: SlashCommand, index: number) => (
               <CommandItem
                 key={command.command}
-                value={command.command}
                 data-index={index}
-                data-selected={index === selectedIndex}
                 onSelect={() => onSelect(command)}
+                onMouseEnter={() => setSelectedIndex(index)}
                 className={cn(
                   'flex items-start px-2 py-1.5',
+                  // Override cmdk's internal selection styles completely
+                  '[&[data-selected=true]]:bg-transparent [&[data-selected=true]]:text-foreground',
+                  // Apply our manual selection styling
                   index === selectedIndex && 'bg-accent text-accent-foreground'
                 )}
-                onMouseEnter={() => setSelectedIndex(index)}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">

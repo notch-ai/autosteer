@@ -7,7 +7,7 @@ import {
   ResourceType,
   ToolUsage,
   StreamingEvent,
-  ChatMessage,
+  ComputedMessage,
 } from '@/entities';
 import { Task } from '@/features/shared/components/tasks/TaskList';
 import { VimState } from '@/stores/vimStore';
@@ -28,7 +28,7 @@ const createMockStore = (): AppStore => ({
   agentsLoading: false,
   agentsError: null,
 
-  chatHistoryCache: new Map<string, ChatMessage[]>(),
+  chatHistoryCache: new Map<string, ComputedMessage[]>(),
 
   resources: {},
   resourcesLoading: false,
@@ -374,7 +374,9 @@ export const createMockProject = (overrides: Partial<Project> = {}): Project => 
   ...overrides,
 });
 
-export const createMockChatMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
+export const createMockComputedMessage = (
+  overrides: Partial<ComputedMessage> = {}
+): ComputedMessage => ({
   id: `mock-message-${Date.now()}`,
   role: 'user',
   content: 'Mock message content',
@@ -382,9 +384,9 @@ export const createMockChatMessage = (overrides: Partial<ChatMessage> = {}): Cha
   ...overrides,
 });
 
-export const createMockChatMessageWithError = (
-  overrides: Partial<ChatMessage> = {}
-): ChatMessage => ({
+export const createMockComputedMessageWithError = (
+  overrides: Partial<ComputedMessage> = {}
+): ComputedMessage => ({
   id: `mock-error-message-${Date.now()}`,
   role: 'assistant',
   content: 'I encountered an error while processing your request.',

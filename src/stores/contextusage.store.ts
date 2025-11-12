@@ -13,7 +13,6 @@
  * @see docs/guides-architecture.md - Store Architecture
  */
 
-import { logger } from '@/commons/utils/logger';
 import { enableMapSet } from 'immer';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
@@ -23,7 +22,12 @@ import { immer } from 'zustand/middleware/immer';
 enableMapSet();
 
 // DevTools configuration - only in development
-const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
+// DevTools configuration - only in development
+// Support both main process (Node.js) and renderer process (Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development');
+const withDevtools = isDevelopment ? devtools : (f: any) => f;
 
 /**
  * ModelUsage Interface
@@ -123,11 +127,6 @@ export const useContextUsageStore = create<ContextUsageStore>()(
               modelUsage: initialUsage,
               lastUpdated: new Date(),
             });
-
-            logger.debug(
-              `[ContextUsageStore] Initialized context usage for agent ${agentId}:`,
-              initialUsage
-            );
           } else {
             // Update with latest turn's values (NOT accumulate - each turn contains full context state)
             for (const [modelName, usage] of Object.entries(modelUsage)) {
@@ -140,11 +139,6 @@ export const useContextUsageStore = create<ContextUsageStore>()(
               };
             }
             existing.lastUpdated = new Date();
-
-            logger.debug(
-              `[ContextUsageStore] Updated context usage for agent ${agentId}:`,
-              existing.modelUsage
-            );
           }
         });
       },
@@ -153,8 +147,6 @@ export const useContextUsageStore = create<ContextUsageStore>()(
         set((state) => {
           state.agentContextUsage.delete(agentId);
         });
-
-        logger.info(`[ContextUsageStore] Reset context usage for agent ${agentId}`);
       },
 
       getAgentContextUsage: (agentId: string) => {
@@ -165,8 +157,6 @@ export const useContextUsageStore = create<ContextUsageStore>()(
         set((state) => {
           state.agentContextUsage.clear();
         });
-
-        logger.info('[ContextUsageStore] Cleared all context usage');
       },
     })),
     { name: 'contextusage-store', trace: true }

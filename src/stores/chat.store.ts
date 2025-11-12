@@ -17,13 +17,12 @@
  */
 
 import { logger } from '@/commons/utils/logger';
-import { ChatMessage } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 import {
   claudeCodeService,
   type Attachment as ClaudeAttachment,
 } from '@/renderer/services/ClaudeCodeService';
 import { getTodoMonitor } from '@/renderer/services/TodoActivityMonitorManager';
-import { MessageConverter } from '@/services/MessageConverter';
 import { PermissionMode } from '@/types/permission.types';
 import type { ConversationOptions } from '@/types/streaming.types';
 import { enableMapSet } from 'immer';
@@ -32,17 +31,22 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { useAgentsStore } from './agents.store';
-import { useSettingsStore } from './settings';
-import { useWorktreeStatsStore } from './worktreestats.store';
+import { formatToolDescription } from './chat.selectors';
 import { useContextUsageStore } from './contextusage.store';
 import { useProjectsStore } from './projects.store';
+import { useSettingsStore } from './settings';
 import { Attachment, StreamChunk, StreamingMessage } from './types';
+import { useWorktreeStatsStore } from './worktreestats.store';
 
 // Enable MapSet plugin for Immer to work with Map objects
 enableMapSet();
 
 // DevTools configuration - only in development
-const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
+// Support both main process (Node.js) and renderer process (Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development');
+const withDevtools = isDevelopment ? devtools : (f: any) => f;
 
 // Streaming state batching configuration
 const STREAMING_BATCH_WINDOW_MS = 50; // 50ms batching window for streaming updates
@@ -100,7 +104,7 @@ export interface ChatStore {
   // ==================== STATE ====================
 
   // Chat Messages State
-  messages: Map<string, ChatMessage[]>; // Per-agent message history
+  messages: Map<string, ComputedMessage[]>; // Per-agent message history
   activeChat: string | null; // Currently active chat ID (agent ID)
   streamingMessages: Map<string, StreamingMessage>; // Per-agent streaming messages
   attachments: Map<string, Attachment[]>; // Per-agent attachments
@@ -111,14 +115,15 @@ export interface ChatStore {
   traceEntries: Map<string, TraceEntry[]>; // Per-chat trace entries
   draftInputs: Map<string, string>; // Per-agent draft input text
   draftCursorPositions: Map<string, number>; // Per-agent cursor positions
+  validationErrors: Map<string, Array<{ message: string; timestamp: number }>>; // Per-agent validation errors
 
   // Background Sync State
   backgroundSyncInterval: NodeJS.Timeout | null;
 
   // ==================== SELECTORS ====================
 
-  getCurrentMessages: () => ChatMessage[];
-  getMessages: (agentId: string) => ChatMessage[];
+  getCurrentMessages: () => ComputedMessage[];
+  getMessages: (agentId: string) => ComputedMessage[];
   getStreamingMessage: (agentId: string) => StreamingMessage | null;
   isStreaming: (agentId: string) => boolean;
   getAttachments: (agentId: string) => Attachment[];
@@ -126,6 +131,7 @@ export interface ChatStore {
   getTraceEntries: (agentId: string) => TraceEntry[];
   getDraftInput: (agentId: string) => string;
   getDraftCursorPosition: (agentId: string) => number | null;
+  getValidationErrors: (agentId: string) => Array<{ message: string; timestamp: number }>;
 
   // ==================== ACTIONS ====================
 
@@ -136,10 +142,10 @@ export interface ChatStore {
     resourceIds?: string[],
     options?: { permissionMode?: PermissionMode; model?: string }
   ) => Promise<void>;
-  loadChatHistory: (chatId: string) => Promise<ChatMessage[]>;
+  loadChatHistory: (chatId: string) => Promise<ComputedMessage[]>;
   clearChat: (chatId: string) => void;
   addTraceEntry: (chatId: string, direction: 'to' | 'from', message: any) => void;
-  hydrateTraceEntriesFromMessages: (chatId: string, messages: ChatMessage[]) => void;
+  hydrateTraceEntriesFromMessages: (chatId: string, messages: ComputedMessage[]) => void;
   normalizeTodoStatuses: (
     todos:
       | Array<{
@@ -161,6 +167,10 @@ export interface ChatStore {
   clearDraftInput: (agentId: string) => void;
   setDraftCursorPosition: (agentId: string, position: number) => void;
   clearDraftCursorPosition: (agentId: string) => void;
+
+  // Validation Error Operations
+  addValidationError: (agentId: string, message: string) => void;
+  clearValidationErrors: (agentId: string) => void;
 
   // Background Sync
   startBackgroundSync: () => NodeJS.Timeout;
@@ -192,6 +202,7 @@ export const useChatStore = create<ChatStore>()(
       traceEntries: new Map(),
       draftInputs: new Map(),
       draftCursorPositions: new Map(),
+      validationErrors: new Map(),
       backgroundSyncInterval: null,
 
       // ==================== SELECTORS ====================
@@ -286,6 +297,16 @@ export const useChatStore = create<ChatStore>()(
         return state.draftCursorPositions.get(agentId) ?? null;
       },
 
+      /**
+       * Get validation errors for a specific agent
+       * @param agentId - Agent ID
+       * @returns Array of validation errors or empty array
+       */
+      getValidationErrors: (agentId: string) => {
+        const state = get();
+        return state.validationErrors.get(agentId) || [];
+      },
+
       // ==================== ACTIONS ====================
 
       /**
@@ -312,7 +333,7 @@ export const useChatStore = create<ChatStore>()(
        * @param chatId - Chat ID (agent ID)
        * @param messages - Array of chat messages
        */
-      hydrateTraceEntriesFromMessages: (chatId: string, messages: ChatMessage[]) => {
+      hydrateTraceEntriesFromMessages: (chatId: string, messages: ComputedMessage[]) => {
         const traceEntries: TraceEntry[] = [];
 
         for (const msg of messages) {
@@ -467,7 +488,7 @@ export const useChatStore = create<ChatStore>()(
 
         const capturedSelectedAgentId: string = selectedAgentId;
         const messageId = nanoid();
-        const chatMessage: ChatMessage = {
+        const chatMessage: ComputedMessage = {
           id: messageId,
           role: 'user',
           content: message,
@@ -484,7 +505,7 @@ export const useChatStore = create<ChatStore>()(
           const messages = [...existingMessages, chatMessage];
 
           // Add placeholder assistant message for streaming indicator
-          const streamingAssistantMessage: ChatMessage = {
+          const streamingAssistantMessage: ComputedMessage = {
             id: streamingMessageId,
             role: 'assistant',
             content: '',
@@ -618,7 +639,7 @@ export const useChatStore = create<ChatStore>()(
                           lastMessage.content = chunk.content;
                           state.messages.set(streamingChatId, [...messages]);
                         } else {
-                          const newMessage: ChatMessage = {
+                          const newMessage: ComputedMessage = {
                             id: nanoid(),
                             role: messageRole,
                             content: chunk.content,
@@ -774,7 +795,7 @@ export const useChatStore = create<ChatStore>()(
                       lastMessage.content = compactText;
                       state.messages.set(streamingChatId, [...messages]);
                     } else {
-                      const compactionMessage: ChatMessage = {
+                      const compactionMessage: ComputedMessage = {
                         id: nanoid(),
                         role: 'assistant',
                         content: compactText,
@@ -843,7 +864,7 @@ export const useChatStore = create<ChatStore>()(
                 set((state) => {
                   const pendingTool = state.pendingToolUses.get(message.tool_use_id);
                   if (pendingTool) {
-                    const toolMessage: ChatMessage = {
+                    const toolMessage: ComputedMessage = {
                       id: nanoid(),
                       role: 'assistant',
                       content: '',
@@ -891,7 +912,7 @@ export const useChatStore = create<ChatStore>()(
                 ) {
                   set((state) => {
                     const messages = state.messages.get(streamingChatId) || [];
-                    let systemMessage: ChatMessage;
+                    let systemMessage: ComputedMessage;
 
                     if (result.subtype === 'error_max_turns') {
                       const maxTurns = useSettingsStore.getState().preferences.maxTurns ?? null;
@@ -1078,10 +1099,7 @@ export const useChatStore = create<ChatStore>()(
                         .map((tc) => {
                           if (tc.name === 'TodoWrite') return null;
 
-                          const description = MessageConverter.formatToolDescription(
-                            tc.name!,
-                            tc.input
-                          );
+                          const description = formatToolDescription(tc.name!, tc.input);
 
                           return {
                             type: 'tool_use' as const,
@@ -1182,7 +1200,9 @@ export const useChatStore = create<ChatStore>()(
             const sessionId = !Array.isArray(result) ? result.sessionId : null;
 
             // Check for compaction reset
-            const hasCompactionReset = messages.some((msg: ChatMessage) => msg.isCompactionReset);
+            const hasCompactionReset = messages.some(
+              (msg: ComputedMessage) => msg.isCompactionReset
+            );
             if (hasCompactionReset) {
               const { useContextUsageStore } = await import('./contextusage.store');
               useContextUsageStore.getState().resetAgentContextUsage(chatId);
@@ -1210,7 +1230,7 @@ export const useChatStore = create<ChatStore>()(
               (get().streamingStates.get(chatId) || get().streamingMessages.has(chatId));
 
             // Normalize todo statuses
-            const normalizedMessages = messages.map((msg: ChatMessage) => {
+            const normalizedMessages = messages.map((msg: ComputedMessage) => {
               if (msg.latestTodos && msg.latestTodos.length > 0) {
                 const normalized = get().normalizeTodoStatuses(msg.latestTodos, isSessionActive);
                 if (normalized) {
@@ -1224,7 +1244,7 @@ export const useChatStore = create<ChatStore>()(
               const existingMessages = state.messages.get(chatId) || [];
               const existingIds = new Set(existingMessages.map((m) => m.id));
               const newMessages = normalizedMessages.filter(
-                (m: ChatMessage) => !existingIds.has(m.id)
+                (m: ComputedMessage) => !existingIds.has(m.id)
               );
 
               const mergedMessages = [...existingMessages, ...newMessages].sort(
@@ -1244,7 +1264,7 @@ export const useChatStore = create<ChatStore>()(
             // Load todos into monitor
             const todoMonitor = getTodoMonitor(chatId);
             if (todoMonitor && normalizedMessages.length > 0) {
-              let lastTodoMessage: ChatMessage | null = null;
+              let lastTodoMessage: ComputedMessage | null = null;
               for (let i = normalizedMessages.length - 1; i >= 0; i--) {
                 if (
                   normalizedMessages[i].latestTodos &&
@@ -1373,7 +1393,7 @@ export const useChatStore = create<ChatStore>()(
                 timestamp: new Date(),
               };
             } else {
-              const finalMessage: ChatMessage = {
+              const finalMessage: ComputedMessage = {
                 id: streamId,
                 role: 'assistant',
                 content: finalContent,
@@ -1432,7 +1452,7 @@ export const useChatStore = create<ChatStore>()(
 
             // Immediately add interrupted message for instant UI feedback
             const messages = state.messages.get(state.activeChat) || [];
-            const interruptedMessage: ChatMessage = {
+            const interruptedMessage: ComputedMessage = {
               id: nanoid(),
               role: 'user',
               content: '[Request interrupted by user]',
@@ -1537,10 +1557,36 @@ export const useChatStore = create<ChatStore>()(
           });
         }
       },
+
+      /**
+       * Add a validation error for a specific agent
+       * @param agentId - Agent ID
+       * @param message - Error message
+       */
+      addValidationError: (agentId: string, message: string) => {
+        set((state) => {
+          const errors = state.validationErrors.get(agentId) || [];
+          errors.push({
+            message,
+            timestamp: Date.now(),
+          });
+          state.validationErrors.set(agentId, errors);
+        });
+      },
+
+      /**
+       * Clear validation errors for a specific agent
+       * @param agentId - Agent ID
+       */
+      clearValidationErrors: (agentId: string) => {
+        set((state) => {
+          state.validationErrors.delete(agentId);
+        });
+      },
     })),
     {
       name: 'chat-store',
-      trace: process.env.NODE_ENV === 'development',
+      trace: isDevelopment,
     }
   )
 );

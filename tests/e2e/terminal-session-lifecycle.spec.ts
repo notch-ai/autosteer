@@ -1,5 +1,5 @@
 /**
- * Terminal Session Lifecycle E2E Tests - Phase 5
+ * Terminal Session Lifecycle E2E Tests
  *
  * End-to-end tests validating the complete terminal session lifecycle
  * with React component integration using Playwright and Electron.

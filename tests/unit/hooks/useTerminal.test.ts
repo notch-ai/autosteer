@@ -1,5 +1,5 @@
 /**
- * useTerminal Hook Tests - Phase 2 Pool Coordination
+ * useTerminal Hook Tests
  *
  * Tests for terminal hook with TerminalPoolManager integration.
  *

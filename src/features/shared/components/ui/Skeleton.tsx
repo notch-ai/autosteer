@@ -1,6 +1,6 @@
 import React from 'react';
 import { Skeleton as UISkeleton } from '@/components/ui/skeleton';
-import { cn } from '@/commons/utils/cn';
+import { cn } from '@/commons/utils/ui/cn';
 
 // Legacy interface for backward compatibility
 interface SkeletonProps {

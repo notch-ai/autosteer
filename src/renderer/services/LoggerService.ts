@@ -69,16 +69,20 @@ class LoggerService {
 
   debug(message: string, data?: any) {
     const formatted = this.formatMessage(message, data);
+    // Also output to console for immediate visibility
+    console.debug(formatted);
     this.sendToMainProcess('debug', formatted);
   }
 
   info(message: string, data?: any) {
     const formatted = this.formatMessage(message, data);
+    console.info(formatted);
     this.sendToMainProcess('info', formatted);
   }
 
   warn(message: string, data?: any) {
     const formatted = this.formatMessage(message, data);
+    console.warn(formatted);
     this.sendToMainProcess('warn', formatted);
   }
 
@@ -86,8 +90,10 @@ class LoggerService {
     const formatted = this.formatMessage(message, error);
 
     if (error instanceof Error && error.stack) {
+      console.error(`${formatted}\nStack trace:\n${error.stack}`);
       this.sendToMainProcess('error', `${formatted}\nStack trace:\n${error.stack}`);
     } else {
+      console.error(formatted);
       this.sendToMainProcess('error', formatted);
     }
   }

@@ -1,4 +1,7 @@
-import { convertSlashCommandFormat, isCustomSlashCommand } from '@/commons/utils/slashCommandUtils';
+import {
+  convertSlashCommandFormat,
+  isCustomSlashCommand,
+} from '@/commons/utils/slash-commands/slash_command_utils';
 
 describe('slashCommandUtils', () => {
   describe('convertSlashCommandFormat', () => {

@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { ToolUsage } from '@/entities/ChatMessage';
+import React from 'react';
+import { VariableSizeList as List } from 'react-window';
+import { ToolUsage } from '@/stores/chat.selectors';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/commons/utils';
 import { ChevronRight, ChevronDown, Loader2, AlertCircle } from 'lucide-react';
+import { useVirtualScrollState } from '@/hooks';
 
 export interface ToolUsageDisplayProps {
   toolUsages: ToolUsage[];
@@ -96,19 +98,17 @@ export const ToolUsageDisplay: React.FC<ToolUsageDisplayProps> = ({
   isCompact = false,
   className,
 }) => {
-  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
-
-  const toggleExpanded = (toolId: string) => {
-    setExpandedTools((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(toolId)) {
-        newSet.delete(toolId);
-      } else {
-        newSet.add(toolId);
-      }
-      return newSet;
-    });
-  };
+  const { expandedItems, toggleExpanded, getRowHeight, listRef } = useVirtualScrollState(
+    toolUsages,
+    (tool) => tool.id,
+    (tool, isExpanded) => {
+      // Base height for collapsed tool (card with button)
+      const baseHeight = 60;
+      // Additional height when expanded (result area)
+      const expandedHeight = isExpanded && tool.result ? 250 : 0;
+      return baseHeight + expandedHeight;
+    }
+  );
 
   if (toolUsages.length === 0) return null;
 
@@ -130,81 +130,91 @@ export const ToolUsageDisplay: React.FC<ToolUsageDisplayProps> = ({
     );
   }
 
-  // Full view with expandable results
-  return (
-    <div className={cn('space-y-2', className)}>
-      {toolUsages.map((tool) => {
-        const isExpanded = expandedTools.has(tool.id);
-        const hasResult = tool.result !== undefined;
+  // Full view with virtual scrolling for performance
+  const ToolRow = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const tool = toolUsages[index];
+    const isExpanded = expandedItems.has(tool.id);
+    const hasResult = tool.result !== undefined;
 
-        return (
-          <Card key={tool.id} className="p-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                'w-full justify-start text-left font-mono text-sm',
-                'hover:bg-muted/50'
-              )}
-              onClick={() => hasResult && toggleExpanded(tool.id)}
-              disabled={!hasResult}
-            >
-              <div className="flex items-center gap-2 w-full">
-                {hasResult && (
-                  <span className="text-muted-foreground">
-                    {isExpanded ? (
-                      <ChevronDown className="h-3 w-3" />
-                    ) : (
-                      <ChevronRight className="h-3 w-3" />
-                    )}
-                  </span>
-                )}
-                {!hasResult && <span className="w-3" />}
-
-                <Badge variant="secondary" className="font-mono text-sm">
-                  {getToolIcon(tool.name)}
-                </Badge>
-
-                <span className="font-medium">{tool.name}</span>
-
-                <span className="text-muted-foreground flex-1 truncate">
-                  {formatToolInput(tool.name, tool.input)}
+    return (
+      <div style={style} className="px-2">
+        <Card className="p-2 mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn('w-full justify-start text-left font-mono text-sm', 'hover:bg-muted/50')}
+            onClick={() => hasResult && toggleExpanded(tool.id)}
+            disabled={!hasResult}
+          >
+            <div className="flex items-center gap-2 w-full">
+              {hasResult && (
+                <span className="text-muted-foreground">
+                  {isExpanded ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3" />
+                  )}
                 </span>
+              )}
+              {!hasResult && <span className="w-3" />}
 
-                {tool.isRunning && (
-                  <Badge variant="default" className="animate-pulse">
-                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                    Running
-                  </Badge>
-                )}
+              <Badge variant="secondary" className="font-mono text-sm">
+                {getToolIcon(tool.name)}
+              </Badge>
 
-                {tool.isError && (
-                  <Badge variant="destructive">
-                    <AlertCircle className="h-3 w-3 mr-1" />
-                    Error
-                  </Badge>
-                )}
-              </div>
-            </Button>
+              <span className="font-medium">{tool.name}</span>
 
-            {isExpanded && tool.result && (
-              <div className="mt-2 pl-7">
-                <ScrollArea className="max-h-60">
-                  <pre
-                    className={cn(
-                      'text-sm p-3 rounded',
-                      'bg-muted font-mono',
-                      'whitespace-pre-wrap break-words'
-                    )}
-                  >
-                    {tool.result}
-                  </pre>
-                </ScrollArea>
-              </div>
-            )}
-          </Card>
-        );
-      })}
+              <span className="text-muted-foreground flex-1 truncate">
+                {formatToolInput(tool.name, tool.input)}
+              </span>
+
+              {tool.isRunning && (
+                <Badge variant="default" className="animate-pulse">
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                  Running
+                </Badge>
+              )}
+
+              {tool.isError && (
+                <Badge variant="destructive">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Error
+                </Badge>
+              )}
+            </div>
+          </Button>
+
+          {isExpanded && tool.result && (
+            <div className="mt-2 pl-7">
+              <ScrollArea className="max-h-60">
+                <pre
+                  className={cn(
+                    'text-sm p-3 rounded',
+                    'bg-muted font-mono',
+                    'whitespace-pre-wrap break-words'
+                  )}
+                >
+                  {tool.result}
+                </pre>
+              </ScrollArea>
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  };
+
+  return (
+    <div className={cn('h-full', className)}>
+      <List
+        ref={listRef}
+        height={600} // Default height, can be made configurable
+        itemCount={toolUsages.length}
+        itemSize={getRowHeight}
+        width="100%"
+      >
+        {ToolRow}
+      </List>
     </div>
   );
 };

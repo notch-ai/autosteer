@@ -2,8 +2,6 @@
  * Badge Settings Panel Component
  *
  * Purpose: UI component for managing badge notification preferences
- * Phase 2: Integration & UI
- *
  * This component provides:
  * - Toggle for enabling/disabling badge notifications
  * - Platform support status display
@@ -96,10 +94,8 @@ export const BadgeSettingsPanel: React.FC = () => {
             </Button>
             <Button
               onClick={async () => {
-                setTestStatus('Hiding badge...');
                 await hideBadge();
-                setTestStatus('Badge hidden.');
-                setTimeout(() => setTestStatus(''), 3000);
+                setTestStatus('');
               }}
               disabled={!isEnabled || !isVisible}
               variant="outline"

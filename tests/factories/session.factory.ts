@@ -3,15 +3,15 @@
  * Creates mock session objects for testing
  */
 
-import { ChatMessage } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 
 /**
  * Create a test chat message
  * @param overrides - Partial message properties to override defaults
  * @returns ChatMessage object
  */
-export function createTestMessage(overrides?: Partial<ChatMessage>): ChatMessage {
-  const message: ChatMessage = {
+export function createTestMessage(overrides?: Partial<ComputedMessage>): ComputedMessage {
+  const message: ComputedMessage = {
     id: 'test-message-id',
     role: 'user',
     content: 'Test message content',
@@ -30,7 +30,10 @@ export function createTestMessage(overrides?: Partial<ChatMessage>): ChatMessage
  * @param overrides - Partial message properties to override defaults
  * @returns Array of ChatMessage objects
  */
-export function createTestMessages(count: number, overrides?: Partial<ChatMessage>): ChatMessage[] {
+export function createTestMessages(
+  count: number,
+  overrides?: Partial<ComputedMessage>
+): ComputedMessage[] {
   console.log(`[Session Factory] Creating ${count} test messages`);
   return Array.from({ length: count }, (_, index) => {
     const timestamp = new Date(Date.now() + index * 1000);
@@ -49,7 +52,7 @@ export function createTestMessages(count: number, overrides?: Partial<ChatMessag
  * @param messageCount - Number of messages in conversation
  * @returns Array of ChatMessage objects alternating between user and assistant
  */
-export function createTestConversation(messageCount: number): ChatMessage[] {
+export function createTestConversation(messageCount: number): ComputedMessage[] {
   console.log(`[Session Factory] Creating test conversation with ${messageCount} messages`);
   return Array.from({ length: messageCount }, (_, index) => {
     const isUser = index % 2 === 0;
@@ -72,7 +75,10 @@ export function createTestConversation(messageCount: number): ChatMessage[] {
  * @param overrides - Partial message properties to override defaults
  * @returns User ChatMessage
  */
-export function createUserMessage(content: string, overrides?: Partial<ChatMessage>): ChatMessage {
+export function createUserMessage(
+  content: string,
+  overrides?: Partial<ComputedMessage>
+): ComputedMessage {
   return createTestMessage({
     ...overrides,
     role: 'user',
@@ -88,8 +94,8 @@ export function createUserMessage(content: string, overrides?: Partial<ChatMessa
  */
 export function createAssistantMessage(
   content: string,
-  overrides?: Partial<ChatMessage>
-): ChatMessage {
+  overrides?: Partial<ComputedMessage>
+): ComputedMessage {
   return createTestMessage({
     ...overrides,
     role: 'assistant',
@@ -105,8 +111,8 @@ export function createAssistantMessage(
  */
 export function createMessageWithResources(
   resourceIds: string[],
-  overrides?: Partial<ChatMessage>
-): ChatMessage {
+  overrides?: Partial<ComputedMessage>
+): ComputedMessage {
   return createTestMessage({
     ...overrides,
     attachedResources: resourceIds,

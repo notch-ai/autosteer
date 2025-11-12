@@ -7,7 +7,7 @@ import { useProjectsStore } from '@/stores';
 import { useAgentsStore } from '@/stores';
 
 // Mock dependencies
-jest.mock('@/commons/utils/sessionNameGenerator', () => ({
+jest.mock('@/commons/utils/project/session_name_generator', () => ({
   generateSessionName: jest.fn(() => 'Session 1'),
 }));
 jest.mock('@/stores/agents.store');

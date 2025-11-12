@@ -3,38 +3,59 @@
  */
 
 import { ClaudeCodeSDKService } from '@/services/ClaudeCodeSDKService';
-import type { ClaudeCodeQueryOptions } from '@/types/claudeCode.types';
+import { MessageValidator } from '@/services/MessageValidator';
+import type { ClaudeCodeMessage, ClaudeCodeQueryOptions } from '@/types/claudeCode.types';
 import { ipcMain } from 'electron';
 import log from 'electron-log/main';
 import { v4 as uuidv4 } from 'uuid';
 
-export function registerClaudeCodeHandlers(): void {
-  log.info('[ClaudeCode Handlers] Starting handler registration');
+/**
+ * Infer Pydantic classname from SDK message type/subtype
+ * Maps to SDK types: SDKAssistantMessage, SDKResultMessage, etc.
+ */
+function inferPydanticClassname(message: ClaudeCodeMessage): string {
+  const { type, subtype } = message;
 
+  // Map based on type and subtype combinations
+  if (type === 'system' && subtype === 'init') {
+    return 'SDKSystemMessage';
+  }
+  if (type === 'system' && subtype === 'compact_boundary') {
+    return 'SDKCompactBoundaryMessage';
+  }
+  if (type === 'message' || type === 'assistant') {
+    return 'SDKAssistantMessage';
+  }
+  if (type === 'user') {
+    return 'SDKUserMessage';
+  }
+  if (type === 'result') {
+    return 'SDKResultMessage';
+  }
+  if (type === 'stream_event') {
+    return 'SDKPartialAssistantMessage';
+  }
+  if (type === 'error') {
+    return 'error';
+  }
+
+  // Fallback for unknown types
+  return `unknown (type: ${type}, subtype: ${subtype || 'none'})`;
+}
+export function registerClaudeCodeHandlers(): void {
   try {
     const claudeService = ClaudeCodeSDKService.getInstance();
-    log.info('[ClaudeCode Handlers] Successfully got ClaudeCodeSDKService instance');
 
     /**
      * Start a Claude Code query with streaming
      */
     ipcMain.handle('claude-code:query-start', async (event, options: ClaudeCodeQueryOptions) => {
       const queryId = uuidv4();
-      log.debug('[IPC Handler] ========== QUERY START ==========');
-      log.debug('[IPC Handler] Query ID:', queryId);
-      log.debug('[IPC Handler] Options:', JSON.stringify(options, null, 2));
-      log.debug('[IPC Handler] claudeService type:', typeof claudeService);
-      log.debug(
-        '[IPC Handler] claudeService.queryClaudeCode type:',
-        typeof claudeService.queryClaudeCode
-      );
+      log.debug('[IPC Handler] QUERY START Options:', JSON.stringify(options, null, 2));
 
       // Start streaming in background
       setTimeout(async () => {
         try {
-          log.debug('[IPC Handler] ========== CALLING SDK SERVICE ==========');
-          log.debug('[IPC Handler] About to call claudeService.queryClaudeCode');
-
           // Send outgoing trace before starting query
           event.sender.send(`claude-code:trace:${queryId}`, {
             direction: 'to',
@@ -49,9 +70,54 @@ export function registerClaudeCodeHandlers(): void {
           let messageCount = 0;
           for await (const message of claudeService.queryClaudeCode(queryId, options)) {
             messageCount++;
-            log.debug('[IPC Handler] ========== Message #' + messageCount + ' ==========');
-            log.debug('[IPC Handler] Message type:', message.type);
-            log.debug('[IPC Handler] Message:', JSON.stringify(message, null, 2));
+
+            // Infer Pydantic classname from message type/subtype
+            const classname = inferPydanticClassname(message);
+
+            // Streamlined one-line logging
+            log.debug(
+              `[IPC Handler] Message #${messageCount}: ${classname} (type=${message.type}, subtype=${message.subtype || 'none'}) | ${JSON.stringify(message)}`
+            );
+
+            // Validate message before sending to renderer
+            const validationResult = MessageValidator.validate(message, {
+              strict: false,
+              enableFallback: true,
+              trackSequenceNumbers: true,
+            });
+
+            // Block invalid messages AND partial extraction results
+            if (!validationResult.isValid || validationResult.validationMethod === 'partial') {
+              log.error('[IPC Handler] ❌ Message validation failed or partial:', {
+                isValid: validationResult.isValid,
+                validationMethod: validationResult.validationMethod,
+                errors: validationResult.errors,
+                warnings: validationResult.warnings,
+                messageType: message.type,
+                messagePreview: JSON.stringify(message).substring(0, 200),
+              });
+
+              // Send validation error to renderer
+              event.sender.send(`claude-code:validation-error:${queryId}`, {
+                error: 'Message validation failed',
+                details:
+                  validationResult.errors?.join(', ') ||
+                  `Validation method: ${validationResult.validationMethod}`,
+                validationMethod: validationResult.validationMethod,
+              });
+
+              // Continue processing - don't stop the stream
+              continue;
+            }
+
+            // Log validation warnings (non-blocking)
+            if (validationResult.warnings && validationResult.warnings.length > 0) {
+              log.warn('[IPC Handler] ⚠️ Message validation warnings:', {
+                warnings: validationResult.warnings,
+                validationMethod: validationResult.validationMethod,
+                messageType: message.type,
+              });
+            }
 
             // Send incoming trace for all SDK messages
             event.sender.send(`claude-code:trace:${queryId}`, {
@@ -59,16 +125,9 @@ export function registerClaudeCodeHandlers(): void {
               message: message,
             });
 
-            // Send each message to renderer
-            log.debug(
-              '[IPC Handler] Sending to renderer on channel:',
-              `claude-code:message:${queryId}`
-            );
             event.sender.send(`claude-code:message:${queryId}`, message);
-            log.debug('[IPC Handler] Message sent to renderer');
           }
-          log.debug('[IPC Handler] ========== STREAM COMPLETE ==========');
-          log.debug('[IPC Handler] Total messages:', messageCount);
+          log.debug('[IPC Handler] QUERY DONE total messages:', messageCount);
           // Send completion signal
           event.sender.send(`claude-code:complete:${queryId}`);
         } catch (error) {
@@ -125,8 +184,6 @@ export function registerClaudeCodeHandlers(): void {
       const cleared = claudeService.clearSessionForEntry(entryId);
       return { success: true, cleared };
     });
-
-    log.info('[ClaudeCode Handlers] Successfully registered all Claude Code IPC handlers');
   } catch (error) {
     log.error('[ClaudeCode Handlers] Failed to register handlers:', error);
     throw error;

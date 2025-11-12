@@ -1,4 +1,4 @@
-import { cn } from '@/commons/utils/cn';
+import { cn } from '@/commons/utils/ui/cn';
 import { toastError, toastInfo } from '@/components/ui/sonner';
 import { GitDiscardService } from '@/services/GitDiscardService';
 import { Square, Trash2 } from 'lucide-react';

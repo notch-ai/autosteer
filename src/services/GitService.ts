@@ -355,32 +355,65 @@ export class GitService {
       const defaultBranch = await this.getDefaultBranch(mainRepoPath);
       log.info(`[GitService] Default branch is: ${defaultBranch}`);
 
-      // Note: We don't need to force-update the local default branch because:
-      // 1. If it's checked out, git refuses to update it (fatal: refusing to fetch into branch checked out)
-      // 2. We use origin/${defaultBranch} directly when creating worktrees (line 296), which is always up-to-date
-      // 3. The 'git fetch origin' above (line 259) already updated all remote tracking branches
+      // Step 3: Force update the remote tracking branch to ensure absolute latest
+      // This ensures origin/${defaultBranch} points to the most recent commit
+      // even if there's a race condition between fetch and worktree creation
+      log.info(
+        `[GitService] Force-updating remote tracking branch refs/remotes/origin/${defaultBranch}...`
+      );
+      await execAsync(`git fetch origin ${defaultBranch}:refs/remotes/origin/${defaultBranch}`, {
+        cwd: mainRepoPath,
+        timeout: 120000,
+      });
 
-      // Step 3: Check if the branch exists remotely
+      // Step 4: Check if the branch exists remotely
       // This determines whether we track an existing remote branch or create a new one
       log.info(`[GitService] Checking if branch "${branchName}" exists on remote...`);
       const remoteBranchExists = await this.remoteBranchExists(mainRepoPath, branchName);
 
-      // Step 4: Create the worktree
+      // Step 4.1: Check for branch naming conflicts
+      // Git doesn't allow both 'foo' and 'foo/bar' to exist simultaneously
+      if (!remoteBranchExists) {
+        const conflictingBranch = await this.checkBranchNameConflict(mainRepoPath, branchName);
+        if (conflictingBranch) {
+          return {
+            success: false,
+            message: `Cannot create branch '${branchName}' due to naming conflict`,
+            error: `A branch named '${conflictingBranch}' already exists. Git does not allow both '${branchName}' and '${conflictingBranch}' because they would conflict in the refs namespace. Please choose a different branch name.`,
+          };
+        }
+      }
+
+      // Step 4.5: If remote branch exists, fetch it to create local remote tracking branch
+      // This ensures origin/${branchName} reference exists locally
+      if (remoteBranchExists) {
+        log.info(
+          `[GitService] Fetching remote branch "${branchName}" to create tracking branch...`
+        );
+        await execAsync(`git fetch origin ${branchName}:refs/remotes/origin/${branchName}`, {
+          cwd: mainRepoPath,
+          timeout: 120000,
+        });
+      }
+
+      // Step 5: Create the worktree
       // Two scenarios handled:
       // A) Remote branch exists: Create worktree that tracks the existing remote branch
-      //    Command: git worktree add <path> <branch>
-      //    Result: Worktree checks out existing branch, no new commits
+      //    Command: git worktree add -b <branch> <path> origin/<branch>
+      //    Result: Worktree checks out remote branch, local branch created to track it
       //
       // B) New branch: Create worktree with new branch based on latest default branch
       //    Command: git worktree add -b <branch> <path> origin/<default>
       //    Result: New branch created from origin/main (or master/develop)
-      //    Note: New branch will be pushed to remote in Step 5
+      //    Note: New branch will be pushed to remote in Step 6
       let worktreeCommand;
       if (remoteBranchExists) {
         log.info(
           `[GitService] Branch "${branchName}" exists on remote, creating worktree to track it`
         );
-        worktreeCommand = `git worktree add "${worktreePath}" "${branchName}"`;
+        // Create worktree tracking the remote branch
+        // This creates a local branch that tracks origin/branchName
+        worktreeCommand = `git worktree add -b "${branchName}" "${worktreePath}" "origin/${branchName}"`;
       } else {
         log.info(
           `[GitService] Branch "${branchName}" does not exist, creating new branch from ${defaultBranch}`
@@ -423,7 +456,7 @@ export class GitService {
         throw error;
       }
 
-      // Step 5: If we created a new branch, push it to remote
+      // Step 6: If we created a new branch, push it to remote
       if (!remoteBranchExists) {
         log.info('[GitService] Pushing new branch to remote...');
         await execAsync(`git push -u origin "${branchName}"`, {
@@ -458,11 +491,24 @@ export class GitService {
     try {
       const { mainRepoPath, worktreePath, branchName } = options;
 
-      // Remove the worktree from git
+      // Remove the worktree from git tracking
       await execAsync(`git worktree remove --force "${worktreePath}"`, {
         cwd: mainRepoPath,
         timeout: 60000,
       });
+
+      // Always delete the physical directory after successful git removal
+      // Note: git worktree remove only removes git tracking, not the directory itself
+      try {
+        await fsPromises.rm(worktreePath, { recursive: true, force: true });
+        log.info(`[GitService] Deleted worktree directory: ${worktreePath}`);
+      } catch (rmError) {
+        const rmErrorMessage = rmError instanceof Error ? rmError.message : 'Unknown error';
+        log.warn(
+          `[GitService] Failed to delete worktree directory '${worktreePath}': ${rmErrorMessage}`
+        );
+        // Don't fail the entire operation if directory deletion fails
+      }
 
       // Clean up any prunable worktrees
       await execAsync('git worktree prune', {
@@ -498,6 +544,9 @@ export class GitService {
       // If git worktree remove failed, try to manually delete the directory
       try {
         await fsPromises.rm(options.worktreePath, { recursive: true, force: true });
+        log.info(
+          `[GitService] Deleted worktree directory (git tracking may be inconsistent): ${options.worktreePath}`
+        );
         return {
           success: true,
           message: `Worktree directory removed (git tracking may be inconsistent)`,
@@ -525,6 +574,62 @@ export class GitService {
   }
 
   /**
+   * Checks for branch naming conflicts in Git refs namespace
+   * Git doesn't allow both 'foo' and 'foo/bar' to exist simultaneously
+   *
+   * @param repoPath - Path to the git repository
+   * @param branchName - Name of the branch to check
+   * @returns The conflicting branch name if exists, null otherwise
+   *
+   * Examples:
+   * - If 'test/test' exists, cannot create 'test'
+   * - If 'test' exists, cannot create 'test/foo'
+   */
+  async checkBranchNameConflict(repoPath: string, branchName: string): Promise<string | null> {
+    try {
+      const { stdout } = await execAsync(`git ls-remote --heads origin`, {
+        cwd: repoPath,
+      });
+
+      const lines = stdout.trim().split('\n');
+      const allBranches = lines
+        .map((line) => {
+          const match = line.match(/\trefs\/heads\/(.+)$/);
+          return match ? match[1] : null;
+        })
+        .filter((branch): branch is string => branch !== null);
+
+      // Check if any existing branch would conflict with the new branch name
+      for (const existingBranch of allBranches) {
+        // Conflict if existing branch starts with "branchName/"
+        // Example: branchName="test", existingBranch="test/test" → conflict
+        if (existingBranch.startsWith(`${branchName}/`)) {
+          log.warn(
+            `[GitService] Branch naming conflict: cannot create '${branchName}' because '${existingBranch}' exists`
+          );
+          return existingBranch;
+        }
+
+        // Conflict if branchName starts with "existingBranch/"
+        // Example: branchName="test/foo", existingBranch="test" → conflict
+        if (branchName.startsWith(`${existingBranch}/`)) {
+          log.warn(
+            `[GitService] Branch naming conflict: cannot create '${branchName}' because '${existingBranch}' exists`
+          );
+          return existingBranch;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log.error(`[GitService] Error checking branch name conflict:`, errorMessage);
+      // Return null to allow operation to continue (fail later with clearer error)
+      return null;
+    }
+  }
+
+  /**
    * Checks if a branch exists on the remote
    *
    * @param repoPath - Path to the git repository
@@ -533,17 +638,26 @@ export class GitService {
    *
    * Implementation: Uses `git ls-remote --heads origin` to query remote
    * without fetching all data. This is fast and doesn't modify local state.
+   * Performs exact match on the branch name to avoid false positives.
    */
   async remoteBranchExists(repoPath: string, branchName: string): Promise<boolean> {
     try {
       log.info(`[GitService] Checking if remote branch exists: ${branchName}`);
-      const { stdout } = await execAsync(`git ls-remote --heads origin "${branchName}"`, {
+      const { stdout } = await execAsync(`git ls-remote --heads origin`, {
         cwd: repoPath,
       });
-      const exists = stdout.trim().length > 0;
-      const status = exists ? 'exists' : 'does not exist';
+
+      // Parse output to find exact match for refs/heads/<branchName>
+      // Each line format: <commit-hash>\trefs/heads/<branch-name>
+      const lines = stdout.trim().split('\n');
+      const exactMatch = lines.some((line) => {
+        const match = line.match(/\trefs\/heads\/(.+)$/);
+        return match && match[1] === branchName;
+      });
+
+      const status = exactMatch ? 'exists' : 'does not exist';
       log.info(`[GitService] Remote branch "${branchName}" ${status}`);
-      return exists;
+      return exactMatch;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       log.error(`[GitService] Error checking remote branch "${branchName}":`, errorMessage);

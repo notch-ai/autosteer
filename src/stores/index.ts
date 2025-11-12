@@ -114,6 +114,10 @@ export type { MCPStore } from './mcp.store';
 export { useTasksStore } from './tasks.store';
 export type { TasksStore } from './tasks.store';
 
+// Scroll Position Store
+// Replaced by useChatScroll hook - browser handles scroll with z-index stacking
+// See: autosteer/src/hooks/useChatScroll.ts
+
 // ============================================================================
 // LEGACY CORE STORE REMOVED
 // All functionality has been migrated to domain-specific stores above.

@@ -328,7 +328,7 @@ describe('GitService', () => {
     it('should return true when remote branch exists', async () => {
       console.log('[GitService.test] Testing remoteBranchExists - exists');
       mockExecAsync.mockResolvedValueOnce({
-        stdout: 'abc123 refs/heads/feature-branch',
+        stdout: 'abc123\trefs/heads/feature-branch',
         stderr: '',
       });
 

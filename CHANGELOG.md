@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/notch-ai/autosteer/compare/v0.1.19...v0.1.20) (2025-11-12)
+
+
+### Performance Improvements
+
+* comprehensive performance and architecture improvements ([34c921e](https://github.com/notch-ai/autosteer/commit/34c921e4c4aafe2847b6efb4ec16b84b70bd8eb1))
+
 ## [0.1.19](https://github.com/notch-ai/autosteer/compare/v0.1.18...v0.1.19) (2025-11-06)
 
 

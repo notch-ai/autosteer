@@ -23,6 +23,7 @@ export class CCUsageMonitor implements UserMonitor {
 
   constructor(config?: MonitoringConfig) {
     this.config = {
+      claudePaths: config?.claudePaths || ['~/.config/claude/projects/', '~/.claude/projects/'],
       sessionHours: config?.sessionHours || 5,
       costMode: config?.costMode || 'auto',
       filePattern: config?.filePattern || '**/*.jsonl',

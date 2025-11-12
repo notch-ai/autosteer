@@ -209,6 +209,7 @@ export interface SlashCommand {
   trigger: string; // The command trigger (e.g., 'pr', 'commit')
   description: string; // First non-empty line from the markdown file
   content: string; // Full markdown content for Claude Code
+  source: 'local' | 'user'; // Source of the command (local or user)
 }
 
 // File system interfaces for directory listing

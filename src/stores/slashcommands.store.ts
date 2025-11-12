@@ -32,6 +32,7 @@ export interface SlashCommandFromIPC {
   trigger: string; // The command trigger (e.g., 'pr', 'commit', 'engineering:fix-bug')
   description: string; // Description from markdown file
   content: string; // Full markdown content for Claude Code
+  source: 'local' | 'user';
 }
 
 /**

@@ -386,6 +386,7 @@ describe('chat.selectors', () => {
         session_id: 'sess-1',
         agents: [],
         apiKeySource: 'user',
+        claude_code_version: '0.1.0',
         cwd: '/test',
         tools: [],
         mcp_servers: [],

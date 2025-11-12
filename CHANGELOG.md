@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.22](https://github.com/notch-ai/autosteer/compare/v0.1.21...v0.1.22) (2025-11-12)
+
+
+### Bug Fixes
+
+* slash command init ([9bee821](https://github.com/notch-ai/autosteer/commit/9bee821f48a6f8a04c0d6cf4398ba5a2bc9f6163))
+
 ## [0.1.21](https://github.com/notch-ai/autosteer/compare/v0.1.20...v0.1.21) (2025-11-12)
 
 

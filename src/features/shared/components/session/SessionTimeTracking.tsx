@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ChatMessage } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 import { cn } from '@/commons/utils';
 
 interface SessionTimeTrackingProps {
-  messages: ChatMessage[];
+  messages: ComputedMessage[];
   className?: string;
 }
 

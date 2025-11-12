@@ -1,6 +1,5 @@
 /**
  * TDD Tests for ClaudeCodeService - Write Tests FIRST
- * Following Phase 1: Core API Integration specifications
  */
 
 // Mock fetch globally for all tests

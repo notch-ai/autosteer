@@ -4,7 +4,7 @@ import { todoActivityMonitor } from '@/renderer/services/TodoActivityMonitor';
 import { useAgentsStore, useChatStore, useProjectsStore, useUIStore } from '@/stores';
 import { ModelOption } from '@/types/model.types';
 import { DEFAULT_PERMISSION_MODE, PermissionMode } from '@/types/permission.types';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  *
@@ -18,6 +18,8 @@ import { useCallback, useRef, useState } from 'react';
  * - Error state management
  * - Loading state management
  * - Permission mode and model selection
+ * - Per-session draft input persistence (auto-save on change)
+ * - Per-session cursor position persistence (via callbacks)
  *
  * Architecture:
  * - Extracted from ChatInput.tsx for separation of concerns
@@ -25,6 +27,7 @@ import { useCallback, useRef, useState } from 'react';
  * - Uses useAgentsStore for agent context
  * - Uses useProjectsStore for project context
  * - Uses useUIStore for model selection
+ * - Automatically syncs draft state with chat store per agent session
  *
  * Usage:
  * ```tsx
@@ -40,6 +43,8 @@ import { useCallback, useRef, useState } from 'react';
  *   setModel,
  *   handleSubmit,
  *   handleCommandParse,
+ *   cursorPosition,
+ *   handleCursorPositionChange,
  * } = useChatInputHandler({
  *   onSendMessage,
  *   isLoading,
@@ -56,6 +61,7 @@ export interface UseChatInputHandlerProps {
     options?: { permissionMode?: PermissionMode; model?: ModelOption }
   ) => void;
   isLoading: boolean;
+  selectedAgentId: string | null;
 }
 
 export interface UseChatInputHandlerReturn {
@@ -75,13 +81,26 @@ export interface UseChatInputHandlerReturn {
     args?: string;
   };
   handleSlashCommand: (commandContent: string) => void;
+  cursorPosition: number | null;
+  handleCursorPositionChange: (position: number) => void;
 }
 
 export const useChatInputHandler = ({
   onSendMessage,
   isLoading,
+  selectedAgentId,
 }: UseChatInputHandlerProps): UseChatInputHandlerReturn => {
-  const [message, setMessageState] = useState('');
+  // Core store subscriptions - must be called before useState
+  const getDraftInput = useChatStore((state) => state.getDraftInput);
+
+  // Initialize message state with draft synchronously to avoid blank input on mount
+  const [message, setMessageState] = useState(() => {
+    if (selectedAgentId) {
+      return getDraftInput(selectedAgentId);
+    }
+    return '';
+  });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(DEFAULT_PERMISSION_MODE);
@@ -89,18 +108,52 @@ export const useChatInputHandler = ({
   // Use ref to track latest message value to avoid stale closure issues
   const messageRef = useRef(message);
 
-  // Wrap setMessage to update ref synchronously
-  const setMessage = useCallback((msg: string) => {
-    messageRef.current = msg;
-    setMessageState(msg);
-  }, []);
+  // Rest of store subscriptions
+  const clearChat = useChatStore((state) => state.clearChat);
+  const setDraftInput = useChatStore((state) => state.setDraftInput);
+  const clearDraftInput = useChatStore((state) => state.clearDraftInput);
+  const setDraftCursorPosition = useChatStore((state) => state.setDraftCursorPosition);
+  const getDraftCursorPosition = useChatStore((state) => state.getDraftCursorPosition);
 
   // Get model from UI store
   const model = useUIStore((state) => state.selectedModel);
   const setModel = useUIStore((state) => state.setSelectedModel);
 
-  // Core store subscriptions
-  const clearChat = useChatStore((state) => state.clearChat);
+  // Load draft input when agent changes (for subsequent switches)
+  useEffect(() => {
+    if (selectedAgentId) {
+      const draft = getDraftInput(selectedAgentId);
+      setMessageState(draft);
+      messageRef.current = draft;
+    }
+  }, [selectedAgentId, getDraftInput]);
+
+  // Get cursor position for current agent
+  const cursorPosition = selectedAgentId ? getDraftCursorPosition(selectedAgentId) : null;
+
+  // Wrap setMessage to update both local state and draft store
+  const setMessage = useCallback(
+    (msg: string) => {
+      messageRef.current = msg;
+      setMessageState(msg);
+
+      // Auto-save draft to store
+      if (selectedAgentId) {
+        setDraftInput(selectedAgentId, msg);
+      }
+    },
+    [selectedAgentId, setDraftInput]
+  );
+
+  // Handle cursor position changes
+  const handleCursorPositionChange = useCallback(
+    (position: number) => {
+      if (selectedAgentId) {
+        setDraftCursorPosition(selectedAgentId, position);
+      }
+    },
+    [selectedAgentId, setDraftCursorPosition]
+  );
 
   /**
    * handleCommandParse - Parse slash command from user input
@@ -235,9 +288,14 @@ export const useChatInputHandler = ({
       if (commandContent.trim()) {
         onSendMessage(commandContent, { permissionMode, model });
         setMessage('');
+
+        // Clear draft for current agent
+        if (selectedAgentId) {
+          clearDraftInput(selectedAgentId);
+        }
       }
     },
-    [onSendMessage, permissionMode, model]
+    [onSendMessage, permissionMode, model, selectedAgentId, clearDraftInput]
   );
 
   /**
@@ -273,8 +331,14 @@ export const useChatInputHandler = ({
 
     // Capture message and clear immediately to prevent rapid submit issues
     const messageToSend = currentMessage;
-    setMessage('');
+    messageRef.current = '';
+    setMessageState('');
     setIsSubmitting(true);
+
+    // Clear draft for current agent
+    if (selectedAgentId) {
+      clearDraftInput(selectedAgentId);
+    }
 
     try {
       // Check if it's a built-in command
@@ -305,10 +369,19 @@ export const useChatInputHandler = ({
       setError(errorMessage);
       setIsSubmitting(false);
     }
-  }, [isLoading, onSendMessage, permissionMode, model, handleClearChat, handleCompactChat]);
+  }, [
+    isLoading,
+    onSendMessage,
+    permissionMode,
+    model,
+    handleClearChat,
+    handleCompactChat,
+    selectedAgentId,
+    clearDraftInput,
+  ]);
 
-  // Validate message (non-empty plain text)
-  const isValid = useCallback(() => {
+  // Validate message (non-empty plain text) - memoized to update when message changes
+  const isValid = useMemo(() => {
     if (!message.trim()) {
       return false;
     }
@@ -319,7 +392,7 @@ export const useChatInputHandler = ({
     const plainText = tempDiv.textContent || tempDiv.innerText || '';
 
     return plainText.trim().length > 0;
-  }, [message])();
+  }, [message]);
 
   return {
     message,
@@ -334,5 +407,7 @@ export const useChatInputHandler = ({
     handleSubmit,
     handleCommandParse,
     handleSlashCommand,
+    cursorPosition,
+    handleCursorPositionChange,
   };
 };

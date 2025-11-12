@@ -1,4 +1,4 @@
-import { toast } from '@/commons/utils/toastUtils';
+import { toast } from '@/commons/utils/ui/toast_utils';
 import { Button } from '@/components/ui/button';
 import { useAgentsStore, useProjectsStore, useMCPStore, useChatStore, useUIStore } from '@/stores';
 import { MODEL_OPTIONS } from '@/types/model.types';

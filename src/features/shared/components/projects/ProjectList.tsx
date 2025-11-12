@@ -1,4 +1,4 @@
-import { generateSessionName } from '@/commons/utils/sessionNameGenerator';
+import { generateSessionName } from '@/commons/utils/project/session_name_generator';
 import { Button } from '@/components/ui/button';
 import { toastError, toastSuccess } from '@/components/ui/sonner';
 import { AgentStatus, AgentType } from '@/entities/Agent';

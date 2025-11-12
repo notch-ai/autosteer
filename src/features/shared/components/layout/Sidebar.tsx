@@ -1,4 +1,4 @@
-import { cn } from '@/commons/utils/cn';
+import { cn } from '@/commons/utils/ui/cn';
 import { Button } from '@/components/ui/button';
 import { ProjectList } from '@/features/shared/components/projects/ProjectList';
 import { useSidebarHandler } from '@/hooks/useSidebarHandler';

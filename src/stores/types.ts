@@ -6,7 +6,8 @@
 
 // External imports
 import { VimMode } from '@/features/chat/components/editor/vim-extension';
-import { Agent, ChatMessage, Resource, StreamingEvent, ToolUsage } from '@/entities';
+import { Agent, Resource, StreamingEvent, ToolUsage } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 import { VimState } from '@/stores/vimStore';
 import { WorktreeConfig } from '@/types/config.types';
 import { SlashCommand } from '@/types/ipc.types';
@@ -234,7 +235,7 @@ export interface CoreStore {
   agentsError: string | null;
 
   // Chat State
-  messages: Map<string, ChatMessage[]>;
+  messages: Map<string, ComputedMessage[]>;
   activeChat: string | null;
   streamingMessages: Map<string, StreamingMessage>; // Per-agent streaming messages
   attachments: Map<string, Attachment[]>;
@@ -278,7 +279,7 @@ export interface CoreStore {
 
   // ==================== COMPUTED VALUES ====================
 
-  getCurrentMessages: () => ChatMessage[];
+  getCurrentMessages: () => ComputedMessage[];
   getSelectedAgent: () => Agent | null;
   getSelectedProject: () => Project | null;
   hasActiveTasks: () => boolean;
@@ -303,7 +304,7 @@ export interface CoreStore {
   clearChat: (chatId: string) => void;
   stopStreaming: () => void;
   addTraceEntry: (chatId: string, direction: 'to' | 'from', message: any) => void;
-  hydrateTraceEntriesFromMessages: (chatId: string, messages: ChatMessage[]) => void;
+  hydrateTraceEntriesFromMessages: (chatId: string, messages: ComputedMessage[]) => void;
   normalizeTodoStatuses: (
     todos:
       | Array<{
@@ -323,7 +324,7 @@ export interface CoreStore {
       }>
     | undefined;
   compactHistory: (chatId: string, maxTokens: number) => void;
-  loadChatHistory: (chatId: string) => Promise<ChatMessage[]>;
+  loadChatHistory: (chatId: string) => Promise<ComputedMessage[]>;
 
   // Project Actions
   loadProjects: () => Promise<void>;
@@ -494,7 +495,7 @@ export interface AppState {
   agentsError: string | null;
 
   // Chat History Cache
-  chatHistoryCache: Map<string, ChatMessage[]>;
+  chatHistoryCache: Map<string, ComputedMessage[]>;
 
   // Resources
   resources: Record<string, Resource>;
@@ -581,7 +582,7 @@ export interface AppActions {
   attachResourceToChat: (resourceId: string) => void;
   removeAttachedResource: (resourceId: string) => void;
   clearAttachedResources: () => void;
-  loadChatHistory: (agentId: string) => Promise<ChatMessage[]>;
+  loadChatHistory: (agentId: string) => Promise<ComputedMessage[]>;
 
   // Streaming actions
   stopStreaming: () => void;

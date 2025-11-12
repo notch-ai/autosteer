@@ -17,7 +17,7 @@ import {
   getTotalShortcutCount,
   type Shortcut,
   type ShortcutGroup,
-} from '@/commons/utils/shortcutsRegistry';
+} from '@/commons/utils/keyboard/shortcuts_registry';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;

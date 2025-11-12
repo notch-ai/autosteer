@@ -8,7 +8,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { LLMConfig, LLMService } from '@/renderer/services/LLMService';
-import { logger as rendererLogger } from '@/renderer/services/LoggerService';
 import { useSettingsStore } from '@/stores/settings';
 import { useUIStore } from '@/stores';
 import { MODEL_OPTIONS, ModelOption, DEFAULT_MODEL } from '@/types/model.types';
@@ -247,9 +246,8 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
       try {
         await window.electron.ipcRenderer.invoke('config:setDevMode', devMode);
 
-        // Update window object and logger for immediate effect
+        // Update window object for immediate effect
         (window as any).__DEV_MODE__ = devMode;
-        rendererLogger.setDevelopmentMode(devMode);
 
         // Also update localStorage for backwards compatibility
         localStorage.setItem('devMode', devMode.toString());
@@ -267,7 +265,7 @@ export const LLMSettings: React.FC<LLMSettingsProps> = ({ onClose }) => {
           );
 
           if (result.success) {
-            const { toast } = await import('@/commons/utils/toastUtils');
+            const { toast } = await import('@/commons/utils/ui/toast_utils');
             toast.success('Project directory updated', {
               description: 'Please restart the application for changes to take effect.',
               duration: 10000,

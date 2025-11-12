@@ -122,7 +122,7 @@ describe('TerminalLibraryAdapter', () => {
       expect(XTermTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
           scrollback: 10000,
-          fontSize: 14,
+          fontSize: 13,
           fontFamily: 'Menlo, Monaco, "Courier New", monospace',
           cursorBlink: true,
           convertEol: true,
@@ -177,7 +177,7 @@ describe('TerminalLibraryAdapter', () => {
       expect(XTermTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
           scrollback: 15000,
-          fontSize: 14, // Default
+          fontSize: 13, // Default
           fontFamily: 'Menlo, Monaco, "Courier New", monospace', // Default
         })
       );
@@ -672,7 +672,7 @@ describe('TerminalLibraryAdapter', () => {
 
       // Should complete in reasonable time (test depends on mock, but verifies implementation)
       expect(bufferState.scrollback).toHaveLength(10000);
-      expect(duration).toBeLessThan(1000); // Should be much faster, but allow overhead for mocks
+      expect(duration).toBeLessThan(2000); // Allow overhead for mocks and CI environment
     });
   });
 

@@ -425,7 +425,6 @@ export class ClaudeCodeCLIService {
         stdio: ['inherit', 'pipe', 'pipe'],
         env: {
           ...process.env,
-          ANTHROPIC_API_KEY: '',
           HOME: homedir,
         },
       };
@@ -605,7 +604,7 @@ export class ClaudeCodeCLIService {
                 }
               }
 
-              // Phase 1: Check for file change messages and log them
+              // Check for file change messages and log them
               const fileChangeMessage = this.parseFileChangeMessage(message);
               if (fileChangeMessage) {
                 logger.warn('[FileChange] Detected file change request:', {
@@ -755,7 +754,7 @@ export class ClaudeCodeCLIService {
 
   /**
    * Parse file change message from Claude Code output
-   * Phase 1: Comprehensive debugging and message structure analysis
+   * Comprehensive debugging and message structure analysis
    */
   parseFileChangeMessage(message: string | ClaudeCodeMessage): FileChangeMessage | null {
     try {
@@ -840,7 +839,7 @@ export class ClaudeCodeCLIService {
 
   /**
    * Log message structure for debugging
-   * Phase 1: Comprehensive message structure analysis
+   * Comprehensive message structure analysis
    */
   logMessageStructure(message: any, context: string = 'MessageDebug'): void {
     const debugInfo: FileChangeDebugInfo = {
@@ -916,17 +915,16 @@ export class ClaudeCodeCLIService {
 
   /**
    * Handle file change response from user
-   * Phase 1: Response forwarding to Claude Code
+   * Response forwarding to Claude Code
    */
   async handleFileChangeResponse(messageId: string, action: 'accept' | 'reject'): Promise<void> {
     logger.info('[FileChange] Handling user response:', { messageId, action });
 
-    // In Phase 1, we just log the response
-    // In Phase 3, this will forward the response to Claude Code
-    logger.warn('[FileChange] Response handling not yet implemented (Phase 1 - logging only):', {
+    // We just log the response
+    // This will forward the response to Claude Code
+    logger.warn('[FileChange] Response handling not yet implemented (logging only):', {
       messageId,
       action,
-      timestamp: Date.now(),
     });
   }
 

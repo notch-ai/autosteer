@@ -1,4 +1,6 @@
-import { Agent, ChatMessage, ResourceType } from '@/entities';
+import { Agent, ResourceType } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
+import {} from '@/stores/chat.selectors';
 import { PermissionMode } from '@/types/permission.types';
 import { ConversationOptions } from '@/types/streaming.types';
 import { logger } from '@/commons/utils/logger';
@@ -25,7 +27,7 @@ export class ClaudeCodeProvider implements LLMProvider {
     userMessage: string,
     agent: Agent,
     attachedResourceIds: string[],
-    _chatHistory: ChatMessage[] = [],
+    _chatHistory: ComputedMessage[] = [],
     streamingCallbacks?: StreamingCallbacks,
     options?: {
       permissionMode?: PermissionMode;
@@ -132,20 +134,6 @@ export class ClaudeCodeProvider implements LLMProvider {
             // Use projectId to construct worktree path
             const homedir = require('os').homedir();
             workingDirectory = `${homedir}/.autosteer/worktrees/${options.projectId}`;
-            logger.debug(
-              '[ClaudeCodeProvider] No workingDirectory provided, using projectId:',
-              workingDirectory
-            );
-          }
-
-          // Log when "/" is entered as prompt
-          if (contextMessage.startsWith('/')) {
-            logger.debug('[ClaudeCodeProvider] ========== SLASH COMMAND DETECTED ==========');
-            logger.debug('[ClaudeCodeProvider] Original user message:', userMessage);
-            logger.debug('[ClaudeCodeProvider] Context message (to be sent):', contextMessage);
-            logger.debug('[ClaudeCodeProvider] Agent ID:', agent.id);
-            logger.debug('[ClaudeCodeProvider] Working directory:', workingDirectory);
-            logger.debug('[ClaudeCodeProvider] Project ID:', options?.projectId);
           }
 
           // Configure conversation options

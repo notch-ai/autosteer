@@ -1,5 +1,6 @@
 import { logger } from '@/commons/utils/logger';
 import { useTerminal } from '@/hooks/useTerminal';
+import { useTerminalScrollPreservation } from '@/hooks/useTerminalScrollPreservation';
 import { useTerminalPool } from '@/renderer/hooks/useTerminalPool';
 import { useTerminalStore } from '@/stores';
 import { Terminal } from '@/types/terminal.types';
@@ -54,6 +55,7 @@ export const useTerminalTabHandler = ({
   const saveTerminalSession = useTerminalStore((state) => state.saveTerminalSession);
   const getTerminalSession = useTerminalStore((state) => state.getTerminalSession);
   const getLastTerminalForProject = useTerminalStore((state) => state.getLastTerminalForProject);
+  const setActiveTerminal = useTerminalStore((state) => state.setActiveTerminal);
 
   const {
     createTerminal: createTerminalIPC,
@@ -71,6 +73,9 @@ export const useTerminalTabHandler = ({
     detachTerminal: detachPoolTerminal,
     fitTerminal: fitPoolTerminal,
   } = useTerminalPool();
+
+  const { saveTerminalScrollPosition, restoreTerminalScrollPosition } =
+    useTerminalScrollPreservation();
 
   const handleCreateTerminal = useCallback(async () => {
     if (isCreatingRef.current) {
@@ -151,6 +156,9 @@ export const useTerminalTabHandler = ({
       const xterm = adapter.getXtermInstance();
       xtermRef.current = xterm;
       fitPoolTerminal(terminalId);
+
+      // Restore scroll position from previous session
+      restoreTerminalScrollPosition(terminalId, xterm);
 
       // Set up IPC listeners
       setupTerminalListeners(
@@ -260,6 +268,9 @@ export const useTerminalTabHandler = ({
         const cols = xterm?.cols || 0;
         const rows = xterm?.rows || 0;
 
+        // Save scroll position before switching
+        saveTerminalScrollPosition(terminal.id, xterm);
+
         saveTerminalSession(terminal.id, {
           terminal,
           terminalId: terminal.id,
@@ -295,21 +306,37 @@ export const useTerminalTabHandler = ({
       existingSession = getLastTerminalForProject(currentProjectId);
     }
 
-    if (existingSession && !terminal) {
+    // Restore terminal if:
+    // 1. We found an existing session for this project
+    // 2. AND (no current terminal OR project just changed)
+    if (existingSession && (!terminal || projectChanged)) {
       if (lastRestoredTerminalIdRef.current === existingSession.terminalId) {
         return undefined;
       }
 
       const inPool = hasPoolTerminal(existingSession.terminalId);
 
+      // ✅ FIX: If terminal NOT in pool, don't restore - create new instead
       if (!inPool) {
-        logger.warn('[useTerminalTabHandler] Terminal in cache but not pool - will create new', {
+        logger.warn('[useTerminalTabHandler] 🚨 Terminal in cache but NOT in pool - creating new', {
           terminalId: existingSession.terminalId.substring(0, 8),
           ownerProjectId: existingSession.ownerProjectId?.substring(0, 8),
+          action: 'Will create NEW terminal instead of corrupted session',
         });
+
+        // Don't restore corrupted session - create new terminal
+        const timeoutId = setTimeout(() => {
+          void handleCreateTerminal();
+        }, 10);
+
+        prevProjectIdRef.current = currentProjectId;
+
+        return () => clearTimeout(timeoutId);
       }
 
+      // ✅ Session exists AND in pool - safe to restore
       setTerminal(existingSession.terminal);
+      setActiveTerminal(existingSession.terminalId);
       terminalOwnerProjectRef.current = existingSession.ownerProjectId;
       lastRestoredTerminalIdRef.current = existingSession.terminalId;
 
@@ -345,7 +372,10 @@ export const useTerminalTabHandler = ({
   // Effect 3: Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (terminal?.id) {
+      if (terminal?.id && xtermRef.current) {
+        // Save scroll position before cleanup
+        saveTerminalScrollPosition(terminal.id, xtermRef.current);
+
         removeTerminalListeners(terminal.id);
         if (hasPoolTerminal(terminal.id)) {
           detachPoolTerminal(terminal.id);
@@ -353,7 +383,13 @@ export const useTerminalTabHandler = ({
         xtermRef.current = null;
       }
     };
-  }, [terminal?.id, removeTerminalListeners, detachPoolTerminal, hasPoolTerminal]);
+  }, [
+    terminal?.id,
+    removeTerminalListeners,
+    detachPoolTerminal,
+    hasPoolTerminal,
+    saveTerminalScrollPosition,
+  ]);
 
   return {
     terminal,

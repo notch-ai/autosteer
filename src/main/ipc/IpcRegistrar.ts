@@ -15,16 +15,18 @@ const fsPromises = {
 };
 import { convertToFolderName } from '../utils/folderName';
 import { ClaudeHandlers, ProjectHandlers, GitHandlers, SystemHandlers } from './handlers';
+import { CacheHandlers } from './handlers/cache.handlers';
 import { registerClaudeCodeHandlers } from './claudeCodeHandlers';
 import { registerGitHandlers } from './gitHandlers';
 import { registerAttachmentHandlers } from './attachmentHandlers';
 import { UpdateService } from '@/services/UpdateService';
 
-// Migrated from 13 specialized handlers to 4 domain handlers:
+// Migrated from 13 specialized handlers to 5 domain handlers:
 // - ClaudeHandlers (Agent, MCP, SlashCommand)
 // - ProjectHandlers (File, Resource)
 // - GitHandlers (GitDiff)
 // - SystemHandlers (Terminal, Badge, Config, Log, Store, Update)
+// - CacheHandlers
 
 /**
  * Centralized IPC registrar that replaces SimplifiedIpcManager, IpcManager, and IpcMigrationManager
@@ -37,6 +39,7 @@ export class IpcRegistrar {
   private projectHandlers: ProjectHandlers;
   private gitHandlers: GitHandlers;
   private systemHandlers: SystemHandlers;
+  private cacheHandlers: CacheHandlers;
 
   constructor(private applicationContainer: ApplicationContainer) {
     this.fileDataStore = FileDataStoreService.getInstance();
@@ -45,43 +48,26 @@ export class IpcRegistrar {
     this.projectHandlers = new ProjectHandlers();
     this.gitHandlers = new GitHandlers();
     this.systemHandlers = new SystemHandlers();
+    this.cacheHandlers = new CacheHandlers();
   }
 
   initialize(): void {
     try {
-      log.info('[IpcRegistrar] Starting IPC handler registration (Phase 4 architecture)');
-
       // Register base handlers (app, settings, window, shell, theme, worktree, test-mode)
       this.registerHandlers();
-      log.debug('[IpcRegistrar] Base handlers registered');
 
-      // Phase 4: Register 4 consolidated domain handlers
+      // Register 5 consolidated domain handlers
       this.claudeHandlers.registerHandlers();
-      log.debug('[IpcRegistrar] Claude handlers registered (Agent, MCP, SlashCommand)');
-
       this.projectHandlers.registerHandlers();
-      log.debug('[IpcRegistrar] Project handlers registered (File, Resource)');
-
       this.gitHandlers.registerHandlers();
-      log.debug('[IpcRegistrar] Git handlers registered (GitDiff)');
-
       this.systemHandlers.registerHandlers();
-      log.debug(
-        '[IpcRegistrar] System handlers registered (Terminal, Badge, Config, Log, Store, Update)'
-      );
+      this.cacheHandlers.registerHandlers();
 
       // Specialized utility handlers (separate from domain handler consolidation)
       // These handle specific SDK/utility operations not part of core IPC domains
       registerClaudeCodeHandlers();
-      log.debug('[IpcRegistrar] Claude Code SDK handlers registered');
-
       registerGitHandlers();
-      log.debug('[IpcRegistrar] Git utility handlers registered');
-
       registerAttachmentHandlers();
-      log.debug('[IpcRegistrar] Attachment handlers registered');
-
-      log.info('[IpcRegistrar] All IPC handlers registered successfully (4 domain + 3 utility)');
     } catch (error) {
       log.error('[IpcRegistrar] Failed to initialize IPC handlers:', error);
       throw error;
@@ -426,14 +412,31 @@ export class IpcRegistrar {
           log.warn('Git worktree remove failed:', removeResult.error);
         }
 
-        // Delete session manifest for this worktree
+        // Delete trace files for all sessions in this worktree
         try {
           const { SessionManifestService } = await import('@/services/SessionManifestService');
+          const { TraceLogger } = await import('@/services/TraceLogger');
+
           const sessionManifest = SessionManifestService.getInstance();
+          const traceLogger = TraceLogger.getInstance();
+
+          // Get all session IDs for this worktree
+          const sessions = await sessionManifest.getAllAgentSessions(folderName);
+          const sessionIds = Object.values(sessions);
+
+          // Delete trace files for all sessions
+          if (sessionIds.length > 0) {
+            await traceLogger.deleteTraceFiles(sessionIds);
+            log.info(
+              `Deleted trace files for ${sessionIds.length} sessions in worktree: ${folderName}`
+            );
+          }
+
+          // Delete session manifest for this worktree
           await sessionManifest.deleteWorktreeManifest(folderName);
         } catch (error) {
-          log.warn('Failed to delete session manifest:', error);
-          // Don't fail the entire deletion if session cleanup fails
+          log.warn('Failed to delete trace files and session manifest:', error);
+          // Don't fail the entire deletion if cleanup fails
         }
 
         // Delete Claude Code chat history (JSONL files) for this worktree
@@ -599,6 +602,6 @@ export class IpcRegistrar {
   }
 
   dispose(): void {
-    log.debug('IpcRegistrar disposed');
+    // Cleanup if needed
   }
 }

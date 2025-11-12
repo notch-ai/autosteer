@@ -46,7 +46,7 @@ export interface TerminalStore extends TerminalState {
   getTerminalsForProject: (projectId: string) => TerminalSession[];
   getLastTerminalForProject: (projectId: string) => TerminalSession | undefined;
 
-  // Phase 1: Buffer state persistence actions
+  // Buffer state persistence actions
   saveBufferState: (bufferState: TerminalBufferState) => void;
   getBufferState: (terminalId: string) => TerminalBufferState | undefined;
   removeBufferState: (terminalId: string) => void;
@@ -68,7 +68,7 @@ export interface TerminalStore extends TerminalState {
 const terminalSessionsCache = new Map<string, TerminalSession>();
 const projectToTerminalMap = new Map<string, Set<string>>(); // projectId -> Set<terminalId>
 
-// Store buffer states outside of Zustand for Phase 1 buffer management
+// Store buffer states outside of Zustand for buffer management
 const bufferStatesCache = new Map<string, TerminalBufferState>();
 
 // Store session states (terminal + buffer) outside of Zustand
@@ -207,7 +207,7 @@ export const useTerminalStore = create<TerminalStore>()(
       return sessions.length > 0 ? sessions[0] : undefined;
     },
 
-    // Phase 1: Buffer state persistence actions
+    // Buffer state persistence actions
     saveBufferState: (bufferState: TerminalBufferState) => {
       bufferStatesCache.set(bufferState.terminalId, bufferState);
     },

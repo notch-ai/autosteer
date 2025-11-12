@@ -4,14 +4,14 @@
  */
 
 import { useChatStore } from '@/stores';
-import { ChatMessage } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 
 /**
  * Get messages for a specific agent (or active chat if no agentId provided)
  * @param agentId - Optional agent ID to get messages for
  * @returns Array of chat messages
  */
-export function useChatMessages(agentId?: string): ChatMessage[] {
+export function useChatMessages(agentId?: string): ComputedMessage[] {
   return useChatStore((state) => {
     if (agentId) {
       return state.getMessages(agentId);

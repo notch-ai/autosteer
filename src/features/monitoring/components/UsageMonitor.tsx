@@ -1,7 +1,10 @@
 import React, { useEffect } from 'react';
 import { UsageDashboard } from './UsageDashboard';
 import { useMonitoringStore } from '@/stores';
-import { KeyboardShortcuts, useKeyboardShortcut } from '@/commons/utils/keyboardShortcuts';
+import {
+  KeyboardShortcuts,
+  useKeyboardShortcut,
+} from '@/commons/utils/keyboard/keyboard_shortcuts';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 

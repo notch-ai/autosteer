@@ -3,6 +3,7 @@ import { logger } from '@/commons/utils/logger';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 interface Props {
   children: ReactNode;
@@ -33,10 +34,38 @@ export class ErrorBoundary extends Component<Props, State> {
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     logger.error('Error caught by boundary:', error, errorInfo);
     this.setState({ error, errorInfo });
+
+    // Show error toast notification
+    toast.error('Application Error', {
+      description: error.message || 'An unexpected error occurred',
+      duration: 10000, // 10 seconds
+      action: {
+        label: 'Dismiss',
+        onClick: () => {
+          // Toast will auto-dismiss
+        },
+      },
+    });
   }
+
+  isDevelopment = (): boolean => {
+    // Check process.env (works in both Node and Vite)
+    return typeof process !== 'undefined' && process.env?.NODE_ENV === 'development';
+  };
 
   handleReset = () => {
     this.setState({ hasError: false, error: null, errorInfo: null });
+
+    // Clear chatError from store if it exists
+    try {
+      // @ts-expect-error - Access global store for emergency cleanup
+      if (window.useChatStore) {
+        // @ts-expect-error - Dynamic state update for cleanup
+        window.useChatStore.setState({ chatError: null });
+      }
+    } catch (err) {
+      // Ignore cleanup errors
+    }
   };
 
   override render() {
@@ -58,7 +87,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </AlertDescription>
               </Alert>
 
-              {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
+              {this.isDevelopment() && this.state.errorInfo && (
                 <div className="bg-surface p-4 rounded-md overflow-auto max-h-64">
                   <pre className="text-sm text-text-muted">
                     {this.state.errorInfo.componentStack}

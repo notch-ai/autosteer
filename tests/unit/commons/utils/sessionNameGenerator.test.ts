@@ -1,4 +1,7 @@
-import { generateSessionName, getSessionInitials } from '@/commons/utils/sessionNameGenerator';
+import {
+  generateSessionName,
+  getSessionInitials,
+} from '@/commons/utils/project/session_name_generator';
 import { sessionNames } from '@/commons/constants/sessionNames';
 
 describe('sessionNameGenerator', () => {

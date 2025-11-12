@@ -1,4 +1,4 @@
-import { ChatMessage } from './ChatMessage';
+import { ComputedMessage } from '@/stores/chat.selectors';
 
 export enum AgentStatus {
   DRAFT = 'draft',
@@ -31,5 +31,5 @@ export interface Agent {
   resourceIds: string[];
   projectId?: string;
   metadata?: Record<string, unknown>;
-  chatHistory?: ChatMessage[];
+  chatHistory?: ComputedMessage[];
 }

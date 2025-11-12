@@ -1,6 +1,6 @@
 /**
  * Git Handlers - Consolidated IPC handlers for Git operations
- * Phase 4: IPC Simplification - Git Domain Handler
+ * IPC Simplification - Git Domain Handler
  *
  * Consolidates:
  * - GitDiffHandlers.ts → git.handlers.ts
@@ -62,8 +62,6 @@ export class GitHandlers {
    * Register all Git IPC handlers
    */
   registerHandlers(): void {
-    logger.info('[GitHandlers] Registering Git IPC handlers');
-
     // Get diff between commits/branches
     registerSafeHandler(
       'git-diff:get-diff',
@@ -132,15 +130,9 @@ export class GitHandlers {
     registerSafeHandler(
       'git-diff:start-watching',
       async (event: IpcMainInvokeEvent, repoPath: string): Promise<void> => {
-        logger.info('[GitHandlers] git-diff:start-watching called', {
-          repoPath,
-          timestamp: new Date().toISOString(),
-        });
-
         // Stop existing watcher if any
         const existing = activeWatchers.get(repoPath);
         if (existing) {
-          logger.info('[GitHandlers] Stopping existing watcher for:', repoPath);
           existing.cleanup();
           activeWatchers.delete(repoPath);
         }
@@ -148,13 +140,8 @@ export class GitHandlers {
         const service = new GitDiffService(repoPath);
 
         // Start watching and setup callback
-        logger.info('[GitHandlers] Starting file watcher...');
         const cleanup = service.startWatching(() => {
           try {
-            logger.info('[GitHandlers] File change detected, notifying renderer', {
-              repoPath,
-              timestamp: new Date().toISOString(),
-            });
             // Notify renderer of changes
             event.sender.send('git-diff:changes-detected', { repoPath });
           } catch (error) {
@@ -165,8 +152,9 @@ export class GitHandlers {
         // Store watcher info
         activeWatchers.set(repoPath, { service, cleanup });
 
-        logger.info(`[GitHandlers] Started watching git changes for: ${repoPath}`, {
-          activeWatchersCount: activeWatchers.size,
+        logger.info('Started watching git changes', {
+          repoPath,
+          watcherCount: activeWatchers.size,
         });
       },
       { operationName: 'Start watching git changes' }
@@ -176,17 +164,13 @@ export class GitHandlers {
     registerSafeHandler(
       'git-diff:stop-watching',
       async (__event: IpcMainInvokeEvent, repoPath: string): Promise<void> => {
-        logger.info('[GitHandlers] git-diff:stop-watching called', {
-          repoPath,
-          timestamp: new Date().toISOString(),
-        });
-
         const watcher = activeWatchers.get(repoPath);
         if (watcher) {
           watcher.cleanup();
           activeWatchers.delete(repoPath);
-          logger.info(`[GitHandlers] Stopped watching git changes for: ${repoPath}`, {
-            activeWatchersCount: activeWatchers.size,
+          logger.info('Stopped watching git changes', {
+            repoPath,
+            watcherCount: activeWatchers.size,
           });
         } else {
           logger.warn('[GitHandlers] No watcher found for:', repoPath);
@@ -212,15 +196,8 @@ export class GitHandlers {
     registerSafeHandler(
       'git-diff:discard-hunk',
       async (__event: IpcMainInvokeEvent, params: DiscardHunkParams): Promise<void> => {
-        logger.info('[GitHandlers] git-diff:discard-hunk called', {
-          repoPath: params.repoPath,
-          filePath: params.filePath,
-          oldStart: params.hunk.oldStart,
-          newStart: params.hunk.newStart,
-        });
         const service = new GitDiffService(params.repoPath);
         await service.discardHunkChanges(params.filePath, params.hunk);
-        logger.info('[GitHandlers] git-diff:discard-hunk completed successfully');
       },
       { operationName: 'Discard hunk changes' }
     );
@@ -229,14 +206,8 @@ export class GitHandlers {
     registerSafeHandler(
       'git-diff:discard-lines',
       async (__event: IpcMainInvokeEvent, params: DiscardLinesParams): Promise<void> => {
-        logger.info('[GitHandlers] git-diff:discard-lines called', {
-          repoPath: params.repoPath,
-          filePath: params.filePath,
-          lineCount: params.lines.length,
-        });
         const service = new GitDiffService(params.repoPath);
         await service.discardLineChanges(params.filePath, params.lines);
-        logger.info('[GitHandlers] git-diff:discard-lines completed successfully');
       },
       { operationName: 'Discard line changes' }
     );
@@ -253,7 +224,5 @@ export class GitHandlers {
       },
       { operationName: 'Restore deleted file' }
     );
-
-    logger.info('[GitHandlers] Git IPC handlers registered successfully');
   }
 }

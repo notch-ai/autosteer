@@ -140,7 +140,11 @@ console.error = (...args: any[]) => {
     message.includes('Warning: An invalid form control') ||
     message.includes('Failed to get data directory') ||
     message.includes('Failed to load vim mode') ||
-    message.includes('not wrapped in act')
+    message.includes('not wrapped in act') ||
+    message.includes('[useChatInputHandler] Error calling onSendMessage:') ||
+    message.includes('[/clear command] Failed to clear session via IPC:') ||
+    message.includes('Failed to load agents:') ||
+    message.includes('Failed to create agent:')
   ) {
     return;
   }

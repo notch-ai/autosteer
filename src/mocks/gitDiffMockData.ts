@@ -1,5 +1,5 @@
 import { FileDiff } from '@/types/git-diff.types';
-import { ChatMessage } from '@/entities/ChatMessage';
+import { ComputedMessage } from '@/stores/chat.selectors';
 
 /**
  * Mock Git Diff Data for UX Development & Testing
@@ -936,7 +936,7 @@ export const mockFileDiffs = new Map<string, FileDiff>([
  * Mock Chat Message - Permission Action Display
  * Example of accepted git diff change shown in chat interface
  */
-export const mockPermissionChatMessage: ChatMessage = {
+export const mockPermissionChatMessage: ComputedMessage = {
   id: 'msg-permission-1',
   role: 'assistant',
   content: "I've updated the deployment script to use pnpm and added better error handling.",

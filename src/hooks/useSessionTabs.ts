@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { generateSessionName } from '../commons/utils/sessionNameGenerator';
+import { generateSessionName } from '../commons/utils/project/session_name_generator';
 import type { Agent } from '../entities/Agent';
 import { AgentStatus, AgentType } from '../entities/Agent';
 import { useAgentsStore } from '../stores/agents.store';

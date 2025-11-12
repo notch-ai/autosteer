@@ -3,7 +3,8 @@
  * Creates mock Agent objects for testing with customizable properties
  */
 
-import { Agent, AgentStatus, AgentType, ChatMessage } from '@/entities';
+import { Agent, AgentStatus, AgentType } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 
 /**
  * Default agent configuration
@@ -80,7 +81,7 @@ export function createTestAgents(count: number, overrides?: Partial<Agent>): Age
  * ```
  */
 export function createAgentWithHistory(messageCount: number, overrides?: Partial<Agent>): Agent {
-  const chatHistory: ChatMessage[] = Array.from({ length: messageCount }, (_, index) => ({
+  const chatHistory: ComputedMessage[] = Array.from({ length: messageCount }, (_, index) => ({
     id: `msg-${index}`,
     role: index % 2 === 0 ? ('user' as const) : ('assistant' as const),
     content: `Test message ${index}`,

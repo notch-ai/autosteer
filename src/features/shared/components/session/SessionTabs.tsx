@@ -1,7 +1,10 @@
 import { Bot, GitBranch, Terminal, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { cn } from '@/commons/utils/cn';
-import { KeyboardShortcuts, useKeyboardShortcut } from '@/commons/utils/keyboardShortcuts';
+import { cn } from '@/commons/utils/ui/cn';
+import {
+  KeyboardShortcuts,
+  useKeyboardShortcut,
+} from '@/commons/utils/keyboard/keyboard_shortcuts';
 import { useSessionTabs } from '@/hooks/useSessionTabs';
 import { useAgentsStore, useChatStore } from '@/stores';
 import { Button } from '@/components/ui/button';

@@ -1,4 +1,3 @@
-import { logger } from '@/commons/utils/logger';
 import {
   Terminal,
   TerminalCreateParams,
@@ -8,9 +7,12 @@ import {
 } from '@/types/terminal.types';
 import { useCallback, useEffect, useRef } from 'react';
 import { useTerminalPool } from '../renderer/hooks/useTerminalPool';
+import { logger } from '@/commons/utils/logger';
+
+export const MAX_TABS = 10;
 
 /**
- * useTerminal Hook - Phase 2 Refactored for Instance Pooling
+ * useTerminal Hook
  *
  * Provides terminal operations with integrated pooling support.
  *
@@ -29,8 +31,6 @@ import { useTerminalPool } from '../renderer/hooks/useTerminalPool';
  * // Write to terminal via IPC
  * await writeToTerminal(terminalId, data);
  * ```
- *
- * @see docs/terminal-persistence-architecture.md Phase 2
  */
 export const useTerminal = () => {
   const listenersRef = useRef<Map<string, () => void>>(new Map()); // Store cleanup functions
@@ -52,22 +52,21 @@ export const useTerminal = () => {
    */
   const createTerminal = useCallback(
     async (params?: TerminalCreateParams): Promise<Terminal> => {
-      const currentPoolSize = getPoolSize();
-      const maxPoolSize = 10;
+      const currentSize = getPoolSize();
 
-      logger.debug('[useTerminal] Creating terminal (pooling enabled)', {
-        poolSize: currentPoolSize,
-        maxPoolSize,
-      });
-
-      // Warn if approaching pool limit (8+ terminals)
-      if (currentPoolSize >= 8) {
-        logger.warn('[useTerminal] Approaching terminal pool limit', {
-          currentSize: currentPoolSize,
-          maxSize: maxPoolSize,
-          availableSlots: maxPoolSize - currentPoolSize,
+      // Warn when approaching pool limit (8+ terminals)
+      if (currentSize >= 8) {
+        logger.warn('Approaching terminal pool limit', {
+          currentSize,
+          maxSize: MAX_TABS,
+          availableSlots: MAX_TABS - currentSize,
         });
       }
+
+      logger.debug('Creating terminal', {
+        poolSize: currentSize,
+        maxPoolSize: MAX_TABS,
+      });
 
       const response: TerminalCreateResponse = await window.electron.ipc.invoke(
         'terminal:create',
@@ -79,20 +78,14 @@ export const useTerminal = () => {
       }
 
       const terminal = convertTerminalData(response.data);
-
       const newPoolSize = getPoolSize();
 
-      logger.debug('[useTerminal] Terminal created', {
-        terminalId: terminal.id,
-        poolSize: newPoolSize,
-      });
-
-      // Warn if pool is nearly full (9+ terminals)
+      // Warn when pool is nearly full (9+ terminals)
       if (newPoolSize >= 9) {
-        logger.warn('[useTerminal] Terminal pool nearly full', {
+        logger.warn('Terminal pool nearly full', {
           poolSize: newPoolSize,
-          maxPoolSize,
-          availableSlots: maxPoolSize - newPoolSize,
+          maxPoolSize: MAX_TABS,
+          availableSlots: MAX_TABS - newPoolSize,
         });
       }
 
@@ -105,19 +98,10 @@ export const useTerminal = () => {
    * Write data to terminal
    */
   const writeToTerminal = useCallback(async (terminalId: string, data: string): Promise<void> => {
-    logger.debug('[useTerminal] writeToTerminal called:', {
-      terminalId,
-      data,
-      dataLength: data.length,
-      charCodes: Array.from(data).map((c) => c.charCodeAt(0)),
-    });
-
     const response: TerminalResponse = await window.electron.ipc.invoke('terminal:write', {
       terminalId,
       data,
     });
-
-    logger.debug('[useTerminal] writeToTerminal response:', response);
 
     if (!response.success) {
       throw new Error(response.error || 'Failed to write to terminal');
@@ -147,11 +131,6 @@ export const useTerminal = () => {
    */
   const destroyTerminal = useCallback(
     async (terminalId: string): Promise<void> => {
-      logger.debug('[useTerminal] Destroying terminal (pooling enabled)', {
-        terminalId,
-        poolSize: getPoolSize(),
-      });
-
       const response: TerminalResponse = await window.electron.ipc.invoke(
         'terminal:destroy',
         terminalId
@@ -161,9 +140,10 @@ export const useTerminal = () => {
         throw new Error(response.error || 'Failed to destroy terminal');
       }
 
-      logger.debug('[useTerminal] Terminal destroyed', {
+      const remainingInPool = getPoolSize();
+      logger.debug('Terminal destroyed', {
         terminalId,
-        remainingInPool: getPoolSize(),
+        remainingInPool,
       });
     },
     [getPoolSize]
@@ -181,14 +161,11 @@ export const useTerminal = () => {
       const dataChannel = `terminal:data:${terminalId}`;
       const exitChannel = `terminal:exit:${terminalId}`;
 
-      logger.debug('[useTerminal] setupTerminalListeners called for:', terminalId);
-
       // Remove any existing listeners first to prevent duplicates
       const existingDataCleanup = listenersRef.current.get(dataChannel);
       const existingExitCleanup = listenersRef.current.get(exitChannel);
 
       if (existingDataCleanup) {
-        logger.debug('[useTerminal] Removing existing data listener for:', dataChannel);
         existingDataCleanup();
         listenersRef.current.delete(dataChannel);
       }
@@ -208,8 +185,6 @@ export const useTerminal = () => {
         onExit(exitCode as { exitCode: number; signal?: number })
       );
       listenersRef.current.set(exitChannel, exitCleanup);
-
-      logger.debug('[useTerminal] Listeners setup complete for:', terminalId);
     },
     []
   );
@@ -255,8 +230,8 @@ export const useTerminal = () => {
     return {
       poolSize: getPoolSize(),
       terminalIds: getAllTerminalIds(),
-      maxPoolSize: 10,
-      availableSlots: 10 - getPoolSize(),
+      maxPoolSize: MAX_TABS,
+      availableSlots: MAX_TABS - getPoolSize(),
     };
   }, [getPoolSize, getAllTerminalIds]);
 
@@ -271,7 +246,7 @@ export const useTerminal = () => {
     setupTerminalListeners,
     removeTerminalListeners,
 
-    // Pool stats (Phase 2)
+    // Pool stats
     getPoolStats,
   };
 };

@@ -1,20 +1,19 @@
 /**
- * MessageProcessor - Unified message transformation service
- * Converts SDK messages to ChatMessage format for both streaming and file loading
+ * MessageProcessor - Deprecated legacy message transformation service
+ * DEPRECATED: This service is marked for removal in Work Package 4
+ * Use chat.selectors.ts for message transformation instead
  *
- * NOTE: This now delegates to MessageConverter for all transformations
+ * Minimal implementation to maintain compatibility until full removal
  */
 
-import { ChatMessage } from '@/entities';
-import { logger } from '@/commons/utils/logger';
-import { MessageConverter } from '@/services/MessageConverter';
+import { ComputedMessage } from '@/stores/chat.selectors';
 import type { SDKMessage } from '@/types/sdk.types';
 
 /**
  * Result of processing an SDK message
  */
 export interface ProcessedMessage {
-  chatMessage?: ChatMessage;
+  chatMessage?: ComputedMessage;
   type: 'content' | 'tool_use' | 'tool_result' | 'system' | 'skip';
   toolUse?: {
     id: string;
@@ -31,56 +30,77 @@ export interface ProcessedMessage {
 
 export class MessageProcessor {
   /**
-   * Process SDK message and return ChatMessage or metadata
+   * Process SDK message and return ComputedMessage
+   * Transforms SDK message format to UI-ready ComputedMessage
    * @param sdkMessage - Raw message from SDK or file
-   * @returns ProcessedMessage with ChatMessage and/or metadata
+   * @returns ProcessedMessage with ComputedMessage
    */
   static processSdkMessage(sdkMessage: SDKMessage): ProcessedMessage {
-    logger.debug('[MessageProcessor] Processing SDK message:', {
-      type: sdkMessage.type,
-      uuid: sdkMessage.uuid,
-    });
+    // Only process assistant and user messages that have a message property
+    if (sdkMessage.type !== 'assistant' && sdkMessage.type !== 'user') {
+      return { type: 'skip' };
+    }
 
-    // Delegate to MessageConverter for all transformations
-    const converted = MessageConverter.convert(sdkMessage);
+    const message = (sdkMessage as any).message;
+    if (!message) {
+      return { type: 'skip' };
+    }
 
-    if (converted.chatMessage) {
-      return {
-        type: 'content',
-        chatMessage: converted.chatMessage,
+    // Extract content as string
+    let content = '';
+    if (Array.isArray(message.content)) {
+      // Validate all content blocks
+      for (const block of message.content) {
+        if (block.type === 'text') {
+          if (block.text === null || block.text === undefined) {
+            throw new Error(
+              `Invalid message: text block has null/undefined text. Block: ${JSON.stringify(block)}`
+            );
+          }
+        } else if (block.type === 'tool_use') {
+          if (!block.id || typeof block.name !== 'string' || typeof block.input !== 'object') {
+            throw new Error(
+              `Invalid message: tool_use block missing required fields (id, name, input). Block: ${JSON.stringify(block)}`
+            );
+          }
+        }
+      }
+
+      const textBlocks = message.content.filter((block: any) => block.type === 'text');
+      content = textBlocks.map((block: any) => block.text).join('\n');
+    } else if (typeof message.content === 'string') {
+      content = message.content;
+    }
+
+    // Create ComputedMessage
+    const chatMessage: ComputedMessage = {
+      id: (sdkMessage as any).uuid || message.id || `msg-${Date.now()}`,
+      role: message.role as 'user' | 'assistant',
+      content,
+      timestamp: new Date(),
+    };
+
+    // Add token usage if available
+    if (message.usage) {
+      chatMessage.tokenUsage = {
+        inputTokens: message.usage.input_tokens || 0,
+        outputTokens: message.usage.output_tokens || 0,
+        cacheCreationInputTokens: message.usage.cache_creation_input_tokens,
+        cacheReadInputTokens: message.usage.cache_read_input_tokens,
       };
     }
 
-    // Handle non-displayable messages
-    switch (converted.sourceType) {
-      case 'system':
-        return { type: 'system' };
-      case 'result':
-        return { type: 'skip' };
-      default:
-        return { type: 'skip' };
-    }
+    return {
+      type: 'content',
+      chatMessage,
+    };
   }
 
   /**
    * Batch process multiple SDK messages
-   * Useful for loading message history from files
+   * DEPRECATED: Minimal stub implementation
    */
-  static processSdkMessages(sdkMessages: SDKMessage[]): ChatMessage[] {
-    const chatMessages: ChatMessage[] = [];
-
-    for (const sdkMessage of sdkMessages) {
-      const processed = this.processSdkMessage(sdkMessage);
-      if (processed.chatMessage) {
-        chatMessages.push(processed.chatMessage);
-      }
-    }
-
-    logger.debug('[MessageProcessor] Batch processed messages:', {
-      input: sdkMessages.length,
-      output: chatMessages.length,
-    });
-
-    return chatMessages;
+  static processSdkMessages(_sdkMessages: SDKMessage[]): ComputedMessage[] {
+    return [];
   }
 }

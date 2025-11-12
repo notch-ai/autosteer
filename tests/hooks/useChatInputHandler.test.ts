@@ -43,6 +43,11 @@ describe('useChatInputHandler', () => {
   let mockOnSendMessage: jest.Mock;
   let mockClearChat: jest.Mock;
   let mockSetSelectedModel: jest.Mock;
+  let mockGetDraftInput: jest.Mock;
+  let mockSetDraftInput: jest.Mock;
+  let mockClearDraftInput: jest.Mock;
+  let mockGetDraftCursorPosition: jest.Mock;
+  let mockSetDraftCursorPosition: jest.Mock;
 
   const mockAgentId = 'test-agent-id';
   const mockProjectId = 'test-project-id';
@@ -53,6 +58,11 @@ describe('useChatInputHandler', () => {
     mockOnSendMessage = jest.fn();
     mockClearChat = jest.fn();
     mockSetSelectedModel = jest.fn();
+    mockGetDraftInput = jest.fn(() => '');
+    mockSetDraftInput = jest.fn();
+    mockClearDraftInput = jest.fn();
+    mockGetDraftCursorPosition = jest.fn(() => null);
+    mockSetDraftCursorPosition = jest.fn();
 
     // Setup store mocks
     (useAgentsStore as unknown as jest.Mock).mockImplementation((selector) => {
@@ -87,6 +97,11 @@ describe('useChatInputHandler', () => {
     (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
       const store = {
         clearChat: mockClearChat,
+        getDraftInput: mockGetDraftInput,
+        setDraftInput: mockSetDraftInput,
+        clearDraftInput: mockClearDraftInput,
+        getDraftCursorPosition: mockGetDraftCursorPosition,
+        setDraftCursorPosition: mockSetDraftCursorPosition,
       };
       return selector(store);
     });
@@ -112,6 +127,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           onSendMessage: mockOnSendMessage,
           isLoading: false,
+          selectedAgentId: mockAgentId,
         })
       );
 
@@ -124,6 +140,7 @@ describe('useChatInputHandler', () => {
     it('should initialize with default permission mode', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -135,6 +152,7 @@ describe('useChatInputHandler', () => {
     it('should get model from UI store', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -148,6 +166,7 @@ describe('useChatInputHandler', () => {
     it('should detect slash commands', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -163,6 +182,7 @@ describe('useChatInputHandler', () => {
     it('should parse command with arguments', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -178,6 +198,7 @@ describe('useChatInputHandler', () => {
     it('should not detect regular text as command', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -192,6 +213,7 @@ describe('useChatInputHandler', () => {
     it('should handle text with slash in middle', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -205,6 +227,7 @@ describe('useChatInputHandler', () => {
     it('should trim whitespace before parsing', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -218,75 +241,81 @@ describe('useChatInputHandler', () => {
   });
 
   describe('Message Validation', () => {
-    it('should validate non-empty message', () => {
+    it('should validate non-empty message', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('Hello');
       });
 
+      expect(result.current.message).toBe('Hello');
       expect(result.current.isValid).toBe(true);
     });
 
-    it('should invalidate empty message', () => {
+    it('should invalidate empty message', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('');
       });
 
       expect(result.current.isValid).toBe(false);
     });
 
-    it('should invalidate whitespace-only message', () => {
+    it('should invalidate whitespace-only message', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('   ');
       });
 
       expect(result.current.isValid).toBe(false);
     });
 
-    it('should extract plain text from HTML', () => {
+    it('should extract plain text from HTML', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('<p>Hello</p>');
       });
 
       expect(result.current.isValid).toBe(true);
     });
 
-    it('should invalidate HTML with only tags', () => {
+    it('should invalidate HTML with only tags', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('<p></p>');
       });
 
@@ -298,6 +327,7 @@ describe('useChatInputHandler', () => {
     it('should submit valid message', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -321,6 +351,7 @@ describe('useChatInputHandler', () => {
     it('should not submit when loading', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: true,
         })
@@ -340,6 +371,7 @@ describe('useChatInputHandler', () => {
     it('should not submit empty message', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -352,62 +384,65 @@ describe('useChatInputHandler', () => {
       expect(mockOnSendMessage).not.toHaveBeenCalled();
     });
 
-    it('should extract plain text before submitting', () => {
+    it('should extract plain text before submitting', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('<p>Hello <strong>Claude</strong></p>');
       });
 
-      act(() => {
-        result.current.handleSubmit();
+      await act(async () => {
+        await result.current.handleSubmit();
       });
 
       expect(mockOnSendMessage).toHaveBeenCalled();
     });
 
-    it('should handle submission errors', () => {
+    it('should handle submission errors', async () => {
       mockOnSendMessage.mockImplementation(() => {
         throw new Error('Network error');
       });
 
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('Hello');
       });
 
-      act(() => {
-        result.current.handleSubmit();
+      await act(async () => {
+        await result.current.handleSubmit();
       });
 
       expect(result.current.error).toBe('Network error');
     });
 
-    it('should clear message on successful submit', () => {
+    it('should clear message on successful submit', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('Test message');
       });
 
-      act(() => {
-        result.current.handleSubmit();
+      await act(async () => {
+        await result.current.handleSubmit();
       });
 
       expect(result.current.message).toBe('');
@@ -419,6 +454,7 @@ describe('useChatInputHandler', () => {
       it('should intercept /clear command', async () => {
         const { result } = renderHook(() =>
           useChatInputHandler({
+            selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
             isLoading: false,
           })
@@ -454,6 +490,7 @@ describe('useChatInputHandler', () => {
 
         const { result } = renderHook(() =>
           useChatInputHandler({
+            selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
             isLoading: false,
           })
@@ -476,6 +513,7 @@ describe('useChatInputHandler', () => {
 
         const { result } = renderHook(() =>
           useChatInputHandler({
+            selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
             isLoading: false,
           })
@@ -498,6 +536,7 @@ describe('useChatInputHandler', () => {
       it('should intercept /compact command', async () => {
         const { result } = renderHook(() =>
           useChatInputHandler({
+            selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
             isLoading: false,
           })
@@ -526,6 +565,7 @@ describe('useChatInputHandler', () => {
 
         const { result } = renderHook(() =>
           useChatInputHandler({
+            selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
             isLoading: false,
           })
@@ -550,6 +590,7 @@ describe('useChatInputHandler', () => {
 
         const { result } = renderHook(() =>
           useChatInputHandler({
+            selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
             isLoading: false,
           })
@@ -572,6 +613,7 @@ describe('useChatInputHandler', () => {
     it('should send slash command as message', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -590,6 +632,7 @@ describe('useChatInputHandler', () => {
     it('should not send empty slash command', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -605,6 +648,7 @@ describe('useChatInputHandler', () => {
     it('should not send whitespace-only command', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -620,6 +664,7 @@ describe('useChatInputHandler', () => {
     it('should clear message after sending', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -638,6 +683,7 @@ describe('useChatInputHandler', () => {
     it('should update permission mode', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -650,21 +696,22 @@ describe('useChatInputHandler', () => {
       expect(result.current.permissionMode).toBe('plan');
     });
 
-    it('should use permission mode in submission', () => {
+    it('should use permission mode in submission', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setPermissionMode('bypassPermissions');
         result.current.setMessage('Test');
       });
 
-      act(() => {
-        result.current.handleSubmit();
+      await act(async () => {
+        await result.current.handleSubmit();
       });
 
       expect(mockOnSendMessage).toHaveBeenCalledWith('Test', {
@@ -678,6 +725,7 @@ describe('useChatInputHandler', () => {
     it('should update model', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -690,7 +738,7 @@ describe('useChatInputHandler', () => {
       expect(mockSetSelectedModel).toHaveBeenCalledWith('claude-opus-4-20250514');
     });
 
-    it('should use selected model in submission', () => {
+    it('should use selected model in submission', async () => {
       (useUIStore as unknown as jest.Mock).mockImplementation((selector) => {
         const store = {
           selectedModel: 'claude-opus-4-20250514',
@@ -701,17 +749,18 @@ describe('useChatInputHandler', () => {
 
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('Test');
       });
 
-      act(() => {
-        result.current.handleSubmit();
+      await act(async () => {
+        await result.current.handleSubmit();
       });
 
       expect(mockOnSendMessage).toHaveBeenCalledWith('Test', {
@@ -722,24 +771,25 @@ describe('useChatInputHandler', () => {
   });
 
   describe('Error Handling', () => {
-    it('should set error on submission failure', () => {
+    it('should set error on submission failure', async () => {
       mockOnSendMessage.mockImplementation(() => {
         throw new Error('API error');
       });
 
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('Test');
       });
 
-      act(() => {
-        result.current.handleSubmit();
+      await act(async () => {
+        await result.current.handleSubmit();
       });
 
       expect(result.current.error).toBe('API error');
@@ -749,6 +799,7 @@ describe('useChatInputHandler', () => {
     it('should clear error on successful submit', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -779,24 +830,25 @@ describe('useChatInputHandler', () => {
       expect(result.current.error).toBeNull();
     });
 
-    it('should handle non-Error exceptions', () => {
+    it('should handle non-Error exceptions', async () => {
       mockOnSendMessage.mockImplementation(() => {
         throw 'String error';
       });
 
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('Test');
       });
 
-      act(() => {
-        result.current.handleSubmit();
+      await act(async () => {
+        await result.current.handleSubmit();
       });
 
       expect(result.current.error).toBe('Failed to send message');
@@ -804,43 +856,46 @@ describe('useChatInputHandler', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should handle HTML with nested tags', () => {
+    it('should handle HTML with nested tags', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('<div><p>Hello <span>world</span></p></div>');
       });
 
       expect(result.current.isValid).toBe(true);
     });
 
-    it('should handle special characters in message', () => {
+    it('should handle special characters in message', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('Test &lt;script&gt;');
       });
 
-      act(() => {
-        result.current.handleSubmit();
+      await act(async () => {
+        await result.current.handleSubmit();
       });
 
       expect(mockOnSendMessage).toHaveBeenCalled();
     });
 
-    it('should handle very long messages', () => {
+    it('should handle very long messages', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
@@ -848,27 +903,28 @@ describe('useChatInputHandler', () => {
 
       const longMessage = 'a'.repeat(10000);
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage(longMessage);
       });
 
       expect(result.current.isValid).toBe(true);
     });
 
-    it('should handle unicode characters', () => {
+    it('should handle unicode characters', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })
       );
 
-      act(() => {
+      await act(async () => {
         result.current.setMessage('Hello 世界 🌍');
       });
 
-      act(() => {
-        result.current.handleSubmit();
+      await act(async () => {
+        await result.current.handleSubmit();
       });
 
       expect(mockOnSendMessage).toHaveBeenCalledWith('Hello 世界 🌍', expect.any(Object));
@@ -877,6 +933,7 @@ describe('useChatInputHandler', () => {
     it('should handle rapid submit calls', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
+          selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
           isLoading: false,
         })

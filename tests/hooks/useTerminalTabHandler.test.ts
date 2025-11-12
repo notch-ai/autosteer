@@ -171,6 +171,8 @@ describe('useTerminalTabHandler', () => {
         saveTerminalSession: mockSaveTerminalSession,
         getTerminalSession: mockGetTerminalSession,
         getLastTerminalForProject: mockGetLastTerminalForProject,
+        getTerminalsForProject: jest.fn(() => []),
+        setActiveTerminal: jest.fn(),
       };
       return selector(store);
     });
@@ -178,6 +180,7 @@ describe('useTerminalTabHandler', () => {
     (useTerminalStore as any).getState = jest.fn(() => ({
       terminals: new Map(),
       addTerminal: mockAddTerminal,
+      getTerminalsForProject: jest.fn(() => []),
     }));
   });
 
@@ -337,9 +340,10 @@ describe('useTerminalTabHandler', () => {
 
       mockCreateTerminal.mockResolvedValue(mockTerminal);
       mockCreatePoolTerminal.mockReturnValue(mockAdapter);
+      mockGetPoolTerminal.mockReturnValue(mockAdapter);
 
-      // Mock hasPoolTerminal to return true so cleanup will call detachPoolTerminal
-      mockHasPoolTerminal.mockReturnValue(true);
+      // Initially return false so terminal is created, then true for cleanup
+      mockHasPoolTerminal.mockReturnValue(false);
 
       const { unmount } = renderHook(() =>
         useTerminalTabHandler({
@@ -353,10 +357,223 @@ describe('useTerminalTabHandler', () => {
         expect(mockCreateTerminal).toHaveBeenCalled();
       });
 
+      // Wait for terminal to be fully initialized
+      await waitFor(() => {
+        expect(mockAdapter.getXtermInstance).toHaveBeenCalled();
+      });
+
+      // Now mock hasPoolTerminal to return true for cleanup
+      mockHasPoolTerminal.mockReturnValue(true);
+
       unmount();
 
       expect(mockRemoveTerminalListeners).toHaveBeenCalled();
       expect(mockDetachPoolTerminal).toHaveBeenCalled();
+    });
+  });
+
+  describe('Project Switching', () => {
+    it('should handle project switching and save session', async () => {
+      const mockTerminal = createMockTerminal();
+      const mockAdapter = createMockXTermAdapter();
+      const mockTerminalRef = createRef<HTMLDivElement>();
+
+      const div = document.createElement('div');
+      (mockTerminalRef as any).current = div;
+
+      mockCreateTerminal.mockResolvedValue(mockTerminal);
+      mockCreatePoolTerminal.mockReturnValue(mockAdapter);
+      mockGetPoolTerminal.mockReturnValue(mockAdapter);
+      mockHasPoolTerminal.mockReturnValue(true);
+
+      const { rerender } = renderHook(
+        ({ projectId }) =>
+          useTerminalTabHandler({
+            projectId,
+            projectPath: mockProjectPath,
+            terminalRef: mockTerminalRef,
+          }),
+        { initialProps: { projectId: mockProjectId } }
+      );
+
+      await waitFor(() => {
+        expect(mockCreateTerminal).toHaveBeenCalled();
+      });
+
+      // Switch to different project
+      rerender({ projectId: 'different-project-id' });
+
+      await waitFor(() => {
+        expect(mockSaveTerminalSession).toHaveBeenCalled();
+      });
+
+      expect(mockDetachPoolTerminal).toHaveBeenCalled();
+    });
+
+    it('should create new terminal when session not in pool', async () => {
+      const mockTerminal = createMockTerminal();
+      const mockAdapter = createMockXTermAdapter();
+      const mockTerminalRef = createRef<HTMLDivElement>();
+
+      const div = document.createElement('div');
+      (mockTerminalRef as any).current = div;
+
+      mockCreateTerminal.mockResolvedValue(mockTerminal);
+      mockCreatePoolTerminal.mockReturnValue(mockAdapter);
+
+      // Return session but not in pool
+      mockGetLastTerminalForProject.mockReturnValue({
+        terminal: mockTerminal,
+        terminalId: mockTerminal.id,
+        ownerProjectId: mockProjectId,
+        lastActive: new Date(),
+      });
+      mockHasPoolTerminal.mockReturnValue(false);
+
+      renderHook(() =>
+        useTerminalTabHandler({
+          projectId: mockProjectId,
+          projectPath: mockProjectPath,
+          terminalRef: mockTerminalRef,
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockCreateTerminal).toHaveBeenCalled();
+      });
+    });
+
+    it('should handle terminal creation without projectPath', async () => {
+      const mockTerminal = createMockTerminal();
+      const mockAdapter = createMockXTermAdapter();
+      const mockTerminalRef = createRef<HTMLDivElement>();
+
+      const div = document.createElement('div');
+      (mockTerminalRef as any).current = div;
+
+      mockCreateTerminal.mockResolvedValue(mockTerminal);
+      mockCreatePoolTerminal.mockReturnValue(mockAdapter);
+
+      renderHook(() =>
+        useTerminalTabHandler({
+          projectId: mockProjectId,
+          projectPath: undefined,
+          terminalRef: mockTerminalRef,
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockCreateTerminal).toHaveBeenCalledWith({
+          size: { cols: 80, rows: 24 },
+        });
+      });
+    });
+
+    it('should handle addTerminal failure', async () => {
+      const mockTerminal = createMockTerminal();
+      const mockTerminalRef = createRef<HTMLDivElement>();
+
+      const div = document.createElement('div');
+      (mockTerminalRef as any).current = div;
+
+      mockCreateTerminal.mockResolvedValue(mockTerminal);
+      mockAddTerminal.mockImplementation(() => {
+        throw new Error('Store add failed');
+      });
+
+      const { result } = renderHook(() =>
+        useTerminalTabHandler({
+          projectId: mockProjectId,
+          projectPath: mockProjectPath,
+          terminalRef: mockTerminalRef,
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+    });
+  });
+
+  describe('XTerm Event Handlers', () => {
+    it('should handle onData when terminal exists in store', async () => {
+      const mockTerminal = createMockTerminal();
+      const mockAdapter = createMockXTermAdapter();
+      const mockTerminalRef = createRef<HTMLDivElement>();
+
+      const div = document.createElement('div');
+      (mockTerminalRef as any).current = div;
+
+      mockCreateTerminal.mockResolvedValue(mockTerminal);
+      mockCreatePoolTerminal.mockReturnValue(mockAdapter);
+      mockWriteToTerminal.mockResolvedValue(undefined);
+
+      // Mock store with terminal
+      (useTerminalStore as any).getState = jest.fn(() => ({
+        terminals: new Map([[mockTerminal.id, mockTerminal]]),
+        addTerminal: mockAddTerminal,
+      }));
+
+      renderHook(() =>
+        useTerminalTabHandler({
+          projectId: mockProjectId,
+          projectPath: mockProjectPath,
+          terminalRef: mockTerminalRef,
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockAdapter.getXtermInstance).toHaveBeenCalled();
+      });
+
+      // Trigger onData
+      const xterm = mockAdapter.getXtermInstance();
+      const onDataMock = xterm.onData as jest.Mock;
+      if (onDataMock.mock.calls[0] && onDataMock.mock.calls[0][0]) {
+        const onDataCallback = onDataMock.mock.calls[0][0];
+        onDataCallback('test data');
+        expect(mockWriteToTerminal).toHaveBeenCalledWith(mockTerminal.id, 'test data');
+      }
+    });
+
+    it('should handle onResize when terminal exists in store', async () => {
+      const mockTerminal = createMockTerminal();
+      const mockAdapter = createMockXTermAdapter();
+      const mockTerminalRef = createRef<HTMLDivElement>();
+
+      const div = document.createElement('div');
+      (mockTerminalRef as any).current = div;
+
+      mockCreateTerminal.mockResolvedValue(mockTerminal);
+      mockCreatePoolTerminal.mockReturnValue(mockAdapter);
+      mockResizeTerminal.mockResolvedValue(undefined);
+
+      // Mock store with terminal
+      (useTerminalStore as any).getState = jest.fn(() => ({
+        terminals: new Map([[mockTerminal.id, mockTerminal]]),
+        addTerminal: mockAddTerminal,
+      }));
+
+      renderHook(() =>
+        useTerminalTabHandler({
+          projectId: mockProjectId,
+          projectPath: mockProjectPath,
+          terminalRef: mockTerminalRef,
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockAdapter.getXtermInstance).toHaveBeenCalled();
+      });
+
+      // Trigger onResize
+      const xterm = mockAdapter.getXtermInstance();
+      const onResizeMock = xterm.onResize as jest.Mock;
+      if (onResizeMock.mock.calls[0] && onResizeMock.mock.calls[0][0]) {
+        const onResizeCallback = onResizeMock.mock.calls[0][0];
+        onResizeCallback({ cols: 100, rows: 30 });
+        expect(mockResizeTerminal).toHaveBeenCalledWith(mockTerminal.id, 100, 30);
+      }
     });
   });
 });

@@ -1,179 +1,85 @@
 import { logger } from '@/commons/utils/logger';
 import { toastError, toastSuccess } from '@/components/ui/sonner';
-import { mockFileDiffs, mockGitStats } from '@/mocks/gitDiffMockData';
-import { GitDiscardService } from '@/services/GitDiscardService';
-import { useUIStore, useProjectsStore } from '@/stores';
-import { FileDiff } from '@/types/git-diff.types';
-import { FileText, Loader2 } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
 import { FileChangesList } from '@/features/shared/components/git/FileChangesList';
 import { FileDiffViewer } from '@/features/shared/components/git/FileDiffViewer';
+import { useChangesTabScrollPreservation, useFileDiff, useGitStats, useGitWatcher } from '@/hooks';
+import { GitDiscardService } from '@/services/GitDiscardService';
+import { useProjectsStore, useUIStore } from '@/stores';
+import { FileText, Loader2 } from 'lucide-react';
+import React, { useEffect } from 'react';
 
 // Toggle this to use mock data for UX development
 const USE_MOCK_DATA = false;
-
-interface GitDiffStat {
-  file: string;
-  additions: number;
-  deletions: number;
-  binary?: boolean;
-  status?: 'modified' | 'staged' | 'both' | 'untracked';
-  isRenamed?: boolean;
-  oldPath?: string;
-}
-
-interface GitDiffStatsResponse {
-  success: boolean;
-  stats: GitDiffStat[];
-  error: string | null;
-}
 
 interface ChangesTabProps {
   className?: string;
 }
 
 export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
-  const [stats, setStats] = useState<GitDiffStat[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [fileDiff, setFileDiff] = useState<FileDiff[]>([]);
-  const [loadingDiff, setLoadingDiff] = useState(false);
-
+  // Get selectedProjectId separately - this is stable and won't cause re-renders
   const selectedProjectId = useProjectsStore((state) => state.selectedProjectId);
-  const projects = useProjectsStore((state) => state.projects);
+
+  // Scroll preservation for file list and diff viewer
+  const { fileListRef, diffViewerRef, saveScrollPositions, restoreScrollPositions } =
+    useChangesTabScrollPreservation(selectedProjectId || '');
+
+  // CRITICAL FIX: Use useMemo to derive workingDirectory only when selectedProjectId changes
+  // This prevents re-renders when the projects Map reference changes
+  const workingDirectory = React.useMemo(() => {
+    // Access store only when needed, not on every render
+    const state = useProjectsStore.getState();
+    const project = selectedProjectId ? state.projects.get(selectedProjectId) : null;
+    return project?.localPath;
+  }, [selectedProjectId]);
+
   const selectedFile = useUIStore((state) => state.changesTab.selectedFile);
   const setSelectedFile = useUIStore((state) => state.setSelectedFile);
   const panelSizes = useUIStore((state) => state.changesTab.panelSizes);
   const setChangesPanelSizes = useUIStore((state) => state.setChangesPanelSizes);
 
-  const currentProject = selectedProjectId ? projects.get(selectedProjectId) : null;
-  const workingDirectory = currentProject?.localPath;
+  // Use git hooks for state management
+  const {
+    stats,
+    loading,
+    error,
+    refetch: refetchGitStats,
+  } = useGitStats({
+    workingDirectory,
+    polling: true,
+    pollingInterval: 5000,
+    useMockData: USE_MOCK_DATA,
+  });
 
-  const fetchGitStats = useCallback(async () => {
-    if (USE_MOCK_DATA) {
-      // Use mock data for UX development
-      setLoading(true);
-      setError(null);
+  const { fileDiff, loadingDiff, fetchFileDiff } = useFileDiff({
+    workingDirectory,
+    useMockData: USE_MOCK_DATA,
+  });
 
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 300));
+  useGitWatcher({
+    workingDirectory,
+    onChangesDetected: refetchGitStats,
+  });
 
-      setStats(mockGitStats);
-      setLoading(false);
-      return;
-    }
-
-    if (!workingDirectory) {
-      setStats([]);
-      setError('No worktree selected');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = (await window.electron?.ipcRenderer?.invoke?.(
-        'git:diff-stats',
-        workingDirectory
-      )) as GitDiffStatsResponse | undefined;
-
-      if (!result || !result.success) {
-        throw new Error(result?.error || 'Failed to get git diff stats');
-      }
-
-      setStats(result.stats || []);
-    } catch (err) {
-      logger.error('Error fetching git stats:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch git stats');
-      setStats([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [workingDirectory]);
-
-  // Fetch stats on mount and when working directory changes
+  // Save scroll positions when project changes
   useEffect(() => {
-    void fetchGitStats();
-  }, [fetchGitStats]);
-
-  // Polling fallback - refresh every 5 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      void fetchGitStats();
-    }, 5000);
-
     return () => {
-      clearInterval(interval);
+      if (selectedProjectId) {
+        saveScrollPositions();
+      }
     };
-  }, [fetchGitStats]);
+  }, [selectedProjectId, saveScrollPositions]);
 
-  // Setup file watching for automatic updates
+  // Restore scroll positions after stats are loaded
   useEffect(() => {
-    if (!workingDirectory) {
-      return;
+    if (stats.length > 0 && selectedProjectId) {
+      // Delay restoration to allow DOM to update
+      const timer = setTimeout(() => {
+        restoreScrollPositions();
+      }, 100);
+      return () => clearTimeout(timer);
     }
-
-    // Start watching for git changes
-    window.electron?.ipcRenderer
-      ?.invoke('git-diff:start-watching', workingDirectory)
-      .catch((err) => {
-        logger.error('Failed to start git watching:', err);
-      });
-
-    // Listen for change events from main process
-    const handleChanges = (_event: unknown, ...args: unknown[]) => {
-      const data = args[0] as { repoPath: string };
-
-      if (data.repoPath === workingDirectory) {
-        // Refresh git stats when changes are detected
-        void fetchGitStats();
-      }
-    };
-
-    window.electron?.ipcRenderer?.on('git-diff:changes-detected', handleChanges);
-
-    // Cleanup on unmount or when directory changes
-    return () => {
-      window.electron?.ipcRenderer?.removeListener('git-diff:changes-detected', handleChanges);
-      window.electron?.ipcRenderer?.invoke('git-diff:stop-watching', workingDirectory).catch(() => {
-        // Ignore errors on cleanup
-      });
-    };
-  }, [workingDirectory, fetchGitStats]);
-
-  const fetchFileDiff = useCallback(
-    async (file: string) => {
-      setLoadingDiff(true);
-
-      try {
-        if (USE_MOCK_DATA) {
-          // Use mock data for UX development
-          await new Promise((resolve) => setTimeout(resolve, 200));
-
-          const mockDiff = mockFileDiffs.get(file);
-          setFileDiff(mockDiff ? [mockDiff] : []);
-          setLoadingDiff(false);
-          return;
-        }
-
-        if (!workingDirectory) return;
-
-        const result = (await window.electron?.ipcRenderer?.invoke?.('git-diff:get-uncommitted', {
-          repoPath: workingDirectory,
-          filePath: file,
-        })) as FileDiff[] | undefined;
-
-        setFileDiff(result || []);
-      } catch (err) {
-        logger.error('Error fetching file diff:', err);
-        setFileDiff([]);
-      } finally {
-        setLoadingDiff(false);
-      }
-    },
-    [workingDirectory]
-  );
+    return undefined;
+  }, [stats.length, selectedProjectId, restoreScrollPositions]);
 
   const handleFileSelect = async (file: string) => {
     setSelectedFile(file);
@@ -235,11 +141,10 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
       // Clear selection if the discarded file was selected
       if (selectedFile === filePath) {
         setSelectedFile(null);
-        setFileDiff([]);
       }
 
       // Refresh git stats to update the file list
-      await fetchGitStats();
+      await refetchGitStats();
     } catch (error) {
       logger.error('Error discarding file:', error);
       toastError(
@@ -250,7 +155,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
 
   if (!workingDirectory && !USE_MOCK_DATA) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
+      <div className="flex flex-col items-center justify-center h-full bg-background text-muted-foreground p-4">
         <FileText className="h-8 w-8 mb-2 opacity-50" />
         <p className="text-sm text-center">No worktree selected</p>
       </div>
@@ -259,7 +164,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
+      <div className="flex flex-col items-center justify-center h-full bg-background text-muted-foreground p-4">
         <p className="text-sm text-center text-destructive mb-2">{error}</p>
       </div>
     );
@@ -267,7 +172,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
 
   if (stats.length === 0 && !loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
+      <div className="flex flex-col items-center justify-center h-full bg-background text-muted-foreground p-4">
         <FileText className="h-8 w-8 mb-2 opacity-50" />
         <p className="text-sm text-center">No changes in git</p>
       </div>
@@ -275,9 +180,13 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
   }
 
   return (
-    <div className={`flex h-full ${className || ''}`}>
+    <div className={`flex h-full bg-background ${className || ''}`}>
       {/* Left Panel - File List */}
-      <div className="flex-shrink-0 h-full" style={{ width: `${panelSizes.fileList}%` }}>
+      <div
+        ref={fileListRef}
+        className="flex-shrink-0 h-full overflow-auto"
+        style={{ width: `${panelSizes.fileList}%` }}
+      >
         <FileChangesList
           files={stats}
           selectedFile={selectedFile}
@@ -319,7 +228,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
       />
 
       {/* Right Panel - Diff Viewer */}
-      <div className="flex-1 overflow-hidden h-full">
+      <div ref={diffViewerRef} className="flex-1 overflow-auto h-full">
         {loadingDiff ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -330,7 +239,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
             selectedFile={selectedFile}
             workingDirectory={workingDirectory}
             onRefresh={async () => {
-              await fetchGitStats();
+              await refetchGitStats();
               if (selectedFile) {
                 await fetchFileDiff(selectedFile);
               }

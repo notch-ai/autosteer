@@ -87,7 +87,6 @@ const builtInCommands: SlashCommand[] = [
   {
     command: '/init',
     label: 'Initialize',
-    description: 'Initialize project with CLAUDE.md guide',
     icon: '🚀',
     action: () => {},
   },
@@ -115,7 +114,6 @@ const builtInCommands: SlashCommand[] = [
   {
     command: '/memory',
     label: 'Memory',
-    description: 'Edit CLAUDE.md memory files',
     icon: '🧠',
     action: () => {},
   },

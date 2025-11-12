@@ -97,7 +97,12 @@ export type GitStore = GitState & GitActions;
 /**
  * DevTools configuration
  */
-const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
+// DevTools configuration - only in development
+// Support both main process (Node.js) and renderer process (Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development');
+const withDevtools = isDevelopment ? devtools : (f: any) => f;
 
 /**
  * Git store - manages git status and diff caching for projects

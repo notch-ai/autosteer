@@ -1,3 +1,4 @@
+import { getDevSettings, logSettingsAtStartup } from '@/config/settings';
 import { ApplicationContainer } from '@/services/ApplicationContainer';
 import { FileDataStoreService } from '@/services/FileDataStoreService';
 import { UpdateService } from '@/services/UpdateService';
@@ -85,7 +86,6 @@ class ElectronApp {
     // Initialize test mode handler if test mode is active
     if (isTestModeActive()) {
       this.testModeHandler = getTestModeHandler();
-      log.info('Test mode is active - visual testing enabled');
     }
   }
 
@@ -104,13 +104,17 @@ class ElectronApp {
   }
 
   private setupEventHandlers(): void {
-    log.info('[SETUP] Setting up Electron event handlers');
-
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     app
       .whenReady()
       .then(async () => {
+        // Log application settings at startup
+        logSettingsAtStartup();
+
+        // Fetch tracer is injected into SDK subprocess via NODE_OPTIONS (see ClaudeCodeSDKService)
+        // No need to instrument main process - only SDK subprocess API calls are traced
+
         // Initialize FileDataStoreService and ensure config.json exists
         // This will load custom project directory from config if set
         try {
@@ -122,13 +126,18 @@ class ElectronApp {
           if (!configExists) {
             await fileDataStore.writeConfig({ worktrees: [] });
           }
+
+          // Clean up old deleted session manifests on startup
+          const { SessionManifestService } = await import('@/services/SessionManifestService');
+          const sessionManifest = SessionManifestService.getInstance();
+          await sessionManifest.cleanupDeletedManifests();
         } catch (error) {
           log.error('[READY] Failed to initialize file data store:', error);
           // Don't fail the entire startup for this
         }
 
-        // Set dock icon for macOS
-        if (process.platform === 'darwin' && app.dock) {
+        // Set dock icon for macOS (skip if USE_PLAIN_ICON is set for dev-no-reload mode)
+        if (process.platform === 'darwin' && app.dock && !process.env.USE_PLAIN_ICON) {
           try {
             const iconPath = path.join(__dirname, '../../assets/icon-padded.png');
             app.dock.setIcon(iconPath);
@@ -140,7 +149,6 @@ class ElectronApp {
         // Initialize IPC handlers BEFORE creating window to prevent race conditions
         // The renderer process may try to invoke IPC handlers as soon as the window loads
         try {
-          log.info('[READY] Initializing IPC handlers before window creation');
           this.ipcRegistrar.initialize();
         } catch (ipcError) {
           log.error('[READY] IPC initialization failed, but continuing:', ipcError);
@@ -167,45 +175,31 @@ class ElectronApp {
 
     // Quit when all windows are closed, except on macOS.
     app.on('window-all-closed', () => {
-      log.debug('[EVENT] All windows closed event');
       if (process.platform !== 'darwin') {
-        log.info('[EVENT] Quitting application (non-macOS)');
         app.quit();
-      } else {
-        log.debug('[EVENT] Not quitting on macOS (keeping app in dock)');
       }
     });
 
     app.on('activate', () => {
-      log.debug('[EVENT] App activate event');
       // On OS X it's common to re-create a window in the app when the
       // dock icon is clicked and there are no other windows open.
       if (BrowserWindow.getAllWindows().length === 0) {
-        log.info('[EVENT] No windows open, creating main window');
         this.createMainWindow();
-      } else {
-        log.debug('[EVENT] Windows already open, not creating new window');
       }
     });
 
     // Handle app termination
     app.on('before-quit', () => {
-      log.info('[EVENT] App before-quit event, cleaning up...');
       try {
         this.applicationContainer.cleanup();
-        log.debug('[EVENT] Application container cleaned up');
 
         if (this.updateService) {
           this.updateService.destroy();
-          log.debug('[EVENT] Update service destroyed');
         }
 
         if (this.testModeHandler) {
           this.testModeHandler.cleanup();
-          log.debug('[EVENT] Test mode handler cleaned up');
         }
-
-        log.info('[EVENT] Application cleanup completed');
       } catch (error) {
         log.error('[EVENT] Error during cleanup:', error);
       }
@@ -214,14 +208,11 @@ class ElectronApp {
 
   private async initializeUpdateService(): Promise<void> {
     try {
-      log.debug('[UPDATE] Starting update service initialization');
       const mainWindow = this.windowManager.getWindow('main');
       if (mainWindow) {
-        log.debug('[UPDATE] Main window found, creating update service');
         this.updateService = new UpdateService();
         await this.updateService.initialize(mainWindow);
         this.ipcRegistrar.setUpdateService(this.updateService);
-        log.info('[UPDATE] Update service initialized successfully');
       } else {
         log.error('[UPDATE] Main window not found, cannot initialize update service');
       }
@@ -265,8 +256,6 @@ class ElectronApp {
           { type: 'separator' },
         ],
       });
-
-      log.info('[DEVTOOLS] Context menu with inspect element enabled');
     }
   }
 
@@ -302,10 +291,15 @@ class ElectronApp {
       mainWindow.loadFile(htmlPath);
     }
 
+    // Open DevTools in development mode if enabled
     if (!app.isPackaged) {
-      mainWindow.webContents.once('did-finish-load', () => {
-        mainWindow.webContents.openDevTools();
-      });
+      const devSettings = getDevSettings();
+
+      if (devSettings.openDevTools) {
+        mainWindow.webContents.once('did-finish-load', () => {
+          mainWindow.webContents.openDevTools();
+        });
+      }
     }
   }
 }

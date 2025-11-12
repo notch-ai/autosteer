@@ -301,7 +301,7 @@ select:focus-visible {
   box-shadow: none;
 }
 
-/* Phase 2: Enhanced dropdown z-index layers with custom properties */
+/* Enhanced dropdown z-index layers with custom properties */
 :root {
   --z-index-dropdown-base: 40;
   --z-index-dropdown-overlay: 50;
@@ -336,7 +336,7 @@ select:focus-visible {
 .command-menu-dropdown {
   z-index: var(--z-index-dropdown-overlay) !important;
   position: fixed;
-  /* Phase 2: Enhanced shadow and border for better visibility */
+  /* Enhanced shadow and border for better visibility */
   box-shadow:
     0 4px 12px rgba(0, 0, 0, 0.15),
     0 0 0 1px rgba(0, 0, 0, 0.05);
@@ -351,7 +351,7 @@ select:focus-visible {
   position: relative;
 }
 
-/* Phase 2: Error boundary fallback styling */
+/* Error boundary fallback styling */
 .dropdown-error-fallback {
   z-index: var(--z-index-dropdown-critical);
   background: hsl(var(--background));
@@ -369,6 +369,35 @@ select:focus-visible {
 .markdown-content ul,
 .markdown-content ol {
   line-height: 1.4;
+}
+
+/* Markdown content overflow handling - prevent horizontal overflow from long strings */
+.markdown-content {
+  /* Constrain width within parent */
+  max-width: 100%;
+  min-width: 0;
+  /* Break long words and wrap text */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  /* Prevent horizontal overflow */
+  overflow-x: auto;
+}
+
+/* Code blocks should scroll horizontally instead of breaking */
+.markdown-content pre,
+.markdown-content pre code {
+  overflow-x: auto;
+  white-space: pre;
+  word-wrap: normal;
+  word-break: normal;
+  max-width: 100%;
+}
+
+/* Inline code should break on very long strings */
+.markdown-content code:not(pre code) {
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 /* Inline code highlighting - muted yellow using theme-aware CSS variables */

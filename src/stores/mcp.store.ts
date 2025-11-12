@@ -12,7 +12,6 @@
  * @see docs/guides-architecture.md - Store Architecture
  */
 
-import { logger } from '@/commons/utils/logger';
 import { enableMapSet } from 'immer';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
@@ -22,7 +21,12 @@ import { immer } from 'zustand/middleware/immer';
 enableMapSet();
 
 // DevTools configuration - only in development
-const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
+// DevTools configuration - only in development
+// Support both main process (Node.js) and renderer process (Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development');
+const withDevtools = isDevelopment ? devtools : (f: any) => f;
 
 /**
  * MCPServer Interface
@@ -74,8 +78,6 @@ export const useMCPStore = create<MCPStore>()(
         set((state) => {
           state.mcpServers.set(agentId, servers);
         });
-
-        logger.debug(`[MCPStore] Set ${servers.length} MCP servers for agent ${agentId}`);
       },
 
       getMCPServers: (agentId: string) => {
@@ -86,16 +88,12 @@ export const useMCPStore = create<MCPStore>()(
         set((state) => {
           state.mcpServers.delete(agentId);
         });
-
-        logger.debug(`[MCPStore] Cleared MCP servers for agent ${agentId}`);
       },
 
       clearAllMCPServers: () => {
         set((state) => {
           state.mcpServers.clear();
         });
-
-        logger.info('[MCPStore] Cleared all MCP servers');
       },
     })),
     { name: 'mcp-store', trace: true }

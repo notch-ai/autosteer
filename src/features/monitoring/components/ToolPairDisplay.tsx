@@ -1,7 +1,7 @@
-import { MessageConverter } from '@/services/MessageConverter';
+import { cn } from '@/commons/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { cn } from '@/commons/utils';
+import { formatToolDescription } from '@/stores/chat.selectors';
 import { ChevronRight, ChevronDown, CheckCircle, XCircle } from 'lucide-react';
 import React, { useState, useMemo } from 'react';
 
@@ -65,7 +65,7 @@ function pairToolsByUseId(toolCalls: ToolCall[]): PairedTool[] {
       id,
       name: toolUse.name || 'Unknown',
       input: toolUse.input,
-      description: MessageConverter.formatToolDescription(toolUse.name || '', toolUse.input),
+      description: formatToolDescription(toolUse.name || '', toolUse.input),
       result: toolResult
         ? {
             content:

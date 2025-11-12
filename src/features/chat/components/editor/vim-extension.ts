@@ -1,6 +1,7 @@
 import { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, keymap } from '@codemirror/view';
 import { Vim, getCM, vim } from '@replit/codemirror-vim';
+import { logger } from '@/commons/utils/logger';
 
 export type VimMode = 'NORMAL' | 'INSERT';
 
@@ -8,28 +9,6 @@ export interface VimExtensionOptions {
   enabled: boolean;
   onModeChange?: (mode: VimMode) => void;
 }
-
-/**
- * Rate limit interval for vim mode detection (in milliseconds)
- *
- * This controls how frequently the vim extension checks for mode changes.
- * Lower values = more responsive but more CPU usage
- * Higher values = less CPU usage but slightly delayed mode detection
- *
- * Recommended values:
- * - 100ms (default): Good balance - ~10 checks/sec, imperceptible delay
- * - 150ms: Less frequent checks - ~6-7 checks/sec, still responsive
- * - 200ms: Minimal checks - ~5 checks/sec, noticeable on fast typing
- * - 250ms: Very low overhead - ~4 checks/sec, may feel sluggish
- *
- * Note: ESC key press to exit insert mode is still detected within this interval,
- * so even at 250ms the delay is imperceptible for mode switching.
- */
-const VIM_MODE_CHECK_INTERVAL_MS = 500;
-
-// Global rate limiter that persists across plugin instances
-// This prevents recreation of the extension from resetting the rate limit
-let globalLastModeCheck = 0;
 
 export function createVimExtension(options: VimExtensionOptions): Extension {
   const { enabled, onModeChange } = options;
@@ -107,27 +86,19 @@ export function createVimExtension(options: VimExtensionOptions): Extension {
           return; // FAST PATH: No mode checking needed when vim is disabled
         }
 
-        // Performance optimization: Only check vim mode on selection changes
-        // This avoids expensive mode detection on every keystroke
+        // Instant mode detection: Only check vim mode on selection changes
+        // This is event-driven (no polling), triggered only when selection changes
         if (!update.selectionSet) {
           return;
         }
 
-        // Rate limit: Only check mode at configured interval
-        // This reduces checks from ~100/sec (during typing) to ~6-7/sec at 150ms
-        // Mode changes (ESC press) are still detected within the interval (imperceptible)
-        // Uses global rate limiter to persist across plugin recreation
-        const now = Date.now();
-        if (now - globalLastModeCheck < VIM_MODE_CHECK_INTERVAL_MS) {
-          return;
-        }
-
-        globalLastModeCheck = now;
-
-        // Detect mode changes by checking vim state
+        // Detect mode changes by checking vim state (instant, <1ms)
         const currentMode = this.getVimMode();
         if (currentMode !== this.lastMode) {
-          console.log('[vim-extension] Mode changed from', this.lastMode, 'to', currentMode);
+          logger.debug('[VimExtension] Mode changed', {
+            from: this.lastMode,
+            to: currentMode,
+          });
           this.lastMode = currentMode;
           onModeChange?.(currentMode);
         }

@@ -485,4 +485,217 @@ describe('ClaudeHandlers', () => {
       });
     });
   });
+
+  describe('Validation Configuration (Phase 2 - NOTCH-1489)', () => {
+    let originalNodeEnv: string | undefined;
+
+    beforeEach(() => {
+      originalNodeEnv = process.env.NODE_ENV;
+      jest.resetModules();
+    });
+
+    afterEach(() => {
+      if (originalNodeEnv !== undefined) {
+        process.env.NODE_ENV = originalNodeEnv;
+      } else {
+        delete process.env.NODE_ENV;
+      }
+    });
+
+    describe('Development Environment', () => {
+      it('should validate messages in development mode', () => {
+        process.env.NODE_ENV = 'development';
+        const { isValidationEnabled } = require('@/config/validation.config');
+
+        expect(isValidationEnabled()).toBe(true);
+      });
+
+      it('should validate messages in development', async () => {
+        process.env.NODE_ENV = 'development';
+        jest.resetModules();
+
+        const { ClaudeHandlers } = require('@/main/ipc/handlers/claude.handlers');
+        const testHandler = new ClaudeHandlers();
+
+        // Access private method via any cast for testing
+        const validateMessage = (testHandler as any).validateChatMessage.bind(testHandler);
+
+        const validMessage = {
+          id: 'test-id',
+          role: 'user' as const,
+          content: 'test content',
+          timestamp: new Date(),
+          attachedResources: [],
+        };
+
+        const result = validateMessage(validMessage);
+
+        expect(result).toBe(true);
+        // Note: Validation success no longer logs to reduce noise
+      });
+
+      it('should reject invalid messages in development', async () => {
+        process.env.NODE_ENV = 'development';
+        jest.resetModules();
+
+        const log = require('electron-log');
+        const { ClaudeHandlers } = require('@/main/ipc/handlers/claude.handlers');
+        const testHandler = new ClaudeHandlers();
+
+        const validateMessage = (testHandler as any).validateChatMessage.bind(testHandler);
+
+        const invalidMessage = {
+          id: '',
+          role: 'user' as const,
+          content: 'test',
+          timestamp: new Date(),
+          attachedResources: [],
+        };
+
+        const result = validateMessage(invalidMessage);
+
+        expect(result).toBe(false);
+        expect(log.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Invalid message'),
+          expect.any(Object)
+        );
+      });
+
+      it('should warn about invalid role in development', () => {
+        process.env.NODE_ENV = 'development';
+        jest.resetModules();
+
+        const log = require('electron-log');
+        const { ClaudeHandlers } = require('@/main/ipc/handlers/claude.handlers');
+        const testHandler = new ClaudeHandlers();
+
+        const validateMessage = (testHandler as any).validateChatMessage.bind(testHandler);
+
+        const invalidRoleMessage = {
+          id: 'test-id',
+          role: 'invalid' as any,
+          content: 'test',
+          timestamp: new Date(),
+          attachedResources: [],
+        };
+
+        const result = validateMessage(invalidRoleMessage);
+
+        expect(result).toBe(false);
+        expect(log.warn).toHaveBeenCalledWith(
+          expect.stringContaining('invalid role'),
+          expect.objectContaining({ role: 'invalid' })
+        );
+      });
+    });
+
+    describe('Production Environment', () => {
+      it('should skip validation in production mode', () => {
+        process.env.NODE_ENV = 'production';
+        jest.resetModules();
+
+        const { isValidationEnabled } = require('@/config/validation.config');
+
+        expect(isValidationEnabled()).toBe(false);
+      });
+
+      it('should accept all messages in production without validation', () => {
+        process.env.NODE_ENV = 'production';
+        jest.resetModules();
+
+        const log = require('electron-log');
+        const { ClaudeHandlers } = require('@/main/ipc/handlers/claude.handlers');
+        const testHandler = new ClaudeHandlers();
+
+        const validateMessage = (testHandler as any).validateChatMessage.bind(testHandler);
+
+        const invalidMessage = {
+          id: '',
+          role: 'invalid' as any,
+          content: 123,
+          timestamp: 'not-a-date',
+          attachedResources: [],
+        };
+
+        const result = validateMessage(invalidMessage);
+
+        expect(result).toBe(true);
+        expect(log.warn).not.toHaveBeenCalled();
+        expect(log.debug).not.toHaveBeenCalled();
+      });
+
+      it('should not log validation summary in production', () => {
+        process.env.NODE_ENV = 'production';
+        jest.resetModules();
+
+        const { isValidationEnabled } = require('@/config/validation.config');
+        const log = require('electron-log');
+
+        expect(isValidationEnabled()).toBe(false);
+
+        if (isValidationEnabled()) {
+          log.info('Should not be called in production');
+        }
+
+        expect(log.info).not.toHaveBeenCalledWith(
+          expect.stringContaining('Chat history loaded with validation'),
+          expect.any(Object)
+        );
+      });
+    });
+
+    describe('Validation Rules', () => {
+      beforeEach(() => {
+        process.env.NODE_ENV = 'development';
+        jest.resetModules();
+      });
+
+      it('should validate id field', () => {
+        const { ClaudeHandlers } = require('@/main/ipc/handlers/claude.handlers');
+        const testHandler = new ClaudeHandlers();
+        const validateMessage = (testHandler as any).validateChatMessage.bind(testHandler);
+
+        const noId = {
+          role: 'user' as const,
+          content: 'test',
+          timestamp: new Date(),
+          attachedResources: [],
+        };
+
+        expect(validateMessage(noId)).toBe(false);
+      });
+
+      it('should validate content type', () => {
+        const { ClaudeHandlers } = require('@/main/ipc/handlers/claude.handlers');
+        const testHandler = new ClaudeHandlers();
+        const validateMessage = (testHandler as any).validateChatMessage.bind(testHandler);
+
+        const nonStringContent = {
+          id: 'test',
+          role: 'user' as const,
+          content: 123 as any,
+          timestamp: new Date(),
+          attachedResources: [],
+        };
+
+        expect(validateMessage(nonStringContent)).toBe(false);
+      });
+
+      it('should validate timestamp', () => {
+        const { ClaudeHandlers } = require('@/main/ipc/handlers/claude.handlers');
+        const testHandler = new ClaudeHandlers();
+        const validateMessage = (testHandler as any).validateChatMessage.bind(testHandler);
+
+        const invalidTimestamp = {
+          id: 'test',
+          role: 'user' as const,
+          content: 'test',
+          timestamp: 'not-a-date' as any,
+          attachedResources: [],
+        };
+
+        expect(validateMessage(invalidTimestamp)).toBe(false);
+      });
+    });
+  });
 });

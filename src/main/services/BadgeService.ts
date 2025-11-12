@@ -2,7 +2,7 @@
  * Badge Service
  *
  * Purpose: Wrapper around Electron's app.setBadge() API for native OS badge notifications
- * Phase 1: Core Badge Implementation
+ * Core Badge Implementation
  *
  * This service provides:
  * - Platform-agnostic badge operations
@@ -37,8 +37,7 @@ export class BadgeService {
   }
 
   private initializeSettings(): void {
-    // This will be connected to settings store in Phase 2
-    // For now, default to enabled
+    // Default to enabled
     this.isEnabled = true;
   }
 
@@ -48,12 +47,10 @@ export class BadgeService {
    */
   public async showBadge(): Promise<void> {
     if (!this.isEnabled) {
-      log.debug('Badge notifications are disabled');
       return;
     }
 
     if (!this.isSupported()) {
-      log.debug('Badge notifications not supported on this platform');
       return;
     }
 
@@ -71,7 +68,6 @@ export class BadgeService {
       }
 
       this.currentBadge = badgeValue;
-      log.debug('Badge shown');
     } catch (error) {
       log.error('Failed to show badge:', error);
       throw error;
@@ -83,7 +79,6 @@ export class BadgeService {
    */
   public async hideBadge(): Promise<void> {
     if (!this.isSupported()) {
-      log.debug('Badge notifications not supported on this platform');
       return;
     }
 
@@ -97,7 +92,6 @@ export class BadgeService {
       }
 
       this.currentBadge = null;
-      log.debug('Badge hidden');
     } catch (error) {
       log.error('Failed to hide badge:', error);
       throw error;
@@ -109,20 +103,14 @@ export class BadgeService {
    */
   public isSupported(): boolean {
     // Badge is supported on macOS and Linux (with varying DE support)
-    // Windows support is planned for Phase 2
     const platform = process.platform;
     const supported = platform === 'darwin' || platform === 'linux';
-
-    if (platform === 'linux') {
-      // Log warning about potential Linux DE compatibility issues
-      log.debug('Linux detected - badge support varies by desktop environment');
-    }
 
     return supported;
   }
 
   /**
-   * Set badge enabled state (will be connected to settings in Phase 2)
+   * Set badge enabled state
    */
   public setEnabled(enabled: boolean): void {
     this.isEnabled = enabled;

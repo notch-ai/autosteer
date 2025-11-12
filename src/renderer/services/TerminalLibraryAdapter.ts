@@ -7,6 +7,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 import log from 'electron-log';
+import { TerminalRendererManager, type RendererType } from './TerminalRendererManager';
 
 /**
  * Terminal library adapter configuration
@@ -68,16 +69,6 @@ export interface TerminalBufferState {
 /**
  * TerminalLibraryAdapter - Abstraction layer for XTerm.js
  *
- * Architecture Decision (Phase 0 - Library Evaluation):
- * - Evaluated: react-xtermjs, react-blessed, native XTerm.js
- * - Decision: Custom lifecycle management with native XTerm.js
- * - Rationale:
- *   1. react-xtermjs couples terminal lifecycle to React component lifecycle (undesired)
- *   2. react-blessed has limited ANSI support and different rendering model
- *   3. Native XTerm.js provides full control over terminal lifecycle
- *   4. Custom adapter allows terminal instances to survive component unmounts
- *   5. Performance: Direct XTerm.js access for <16ms input lag requirement
- *
  * This adapter provides:
  * - Terminal instance creation and lifecycle management
  * - Buffer state persistence (10k line scrollback)
@@ -92,14 +83,16 @@ export class TerminalLibraryAdapter {
   private fitAddon: FitAddon;
   private webLinksAddon: WebLinksAddon;
   private searchAddon: SearchAddon;
+  private rendererManager: TerminalRendererManager;
+  private activeRenderer: RendererType | null = null;
   private isDisposed = false;
 
   /**
    * Default configuration for terminal instances
    */
   private static readonly DEFAULT_CONFIG: TerminalAdapterConfig = {
-    scrollback: 10000, // 10k line scrollback as per Phase 1 requirements
-    fontSize: 14,
+    scrollback: 10000, // 10k line scrollback
+    fontSize: 13, // Match var(--font-size-sm) from tailwind-tokens.css
     fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     cursorBlink: true,
     convertEol: true,
@@ -158,6 +151,7 @@ export class TerminalLibraryAdapter {
     this.fitAddon = new FitAddon();
     this.webLinksAddon = new WebLinksAddon();
     this.searchAddon = new SearchAddon();
+    this.rendererManager = new TerminalRendererManager();
 
     // Load addons into terminal
     this.terminal.loadAddon(this.fitAddon);
@@ -165,6 +159,41 @@ export class TerminalLibraryAdapter {
     this.terminal.loadAddon(this.searchAddon);
 
     log.info('[TerminalLibraryAdapter] Terminal instance created successfully');
+  }
+
+  /**
+   * Initialize terminal renderer with WebGL → Canvas → DOM fallback
+   * Should be called after terminal is opened/attached to DOM
+   *
+   * @returns The active renderer type (webgl, canvas, or dom)
+   */
+  initializeRenderer(): RendererType {
+    if (this.isDisposed) {
+      throw new Error('Cannot initialize renderer on disposed terminal');
+    }
+
+    if (this.activeRenderer !== null) {
+      log.debug('[TerminalLibraryAdapter] Renderer already initialized', {
+        type: this.activeRenderer,
+      });
+      return this.activeRenderer;
+    }
+
+    this.activeRenderer = this.rendererManager.initializeRenderer(this.terminal);
+
+    log.info('[TerminalLibraryAdapter] Renderer initialized', {
+      type: this.activeRenderer,
+    });
+
+    return this.activeRenderer;
+  }
+
+  /**
+   * Get the active renderer type
+   * @returns The active renderer type, or null if not initialized
+   */
+  getRendererType(): RendererType | null {
+    return this.activeRenderer;
   }
 
   /**

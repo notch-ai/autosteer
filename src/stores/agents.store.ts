@@ -26,7 +26,12 @@ import { immer } from 'zustand/middleware/immer';
 enableMapSet();
 
 // DevTools configuration - only in development
-const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
+// DevTools configuration - only in development
+// Support both main process (Node.js) and renderer process (Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development');
+const withDevtools = isDevelopment ? devtools : (f: any) => f;
 
 /**
  * AgentsStore Interface
@@ -311,7 +316,7 @@ export const useAgentsStore = create<AgentsStore>()(
     })),
     {
       name: 'agents-store',
-      trace: process.env.NODE_ENV === 'development',
+      trace: isDevelopment,
     }
   )
 );

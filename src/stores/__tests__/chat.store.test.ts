@@ -16,7 +16,7 @@
 
 import { useChatStore } from '@/stores';
 import { useAgentsStore } from '@/stores';
-import { ChatMessage } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 import { logger } from '@/commons/utils/logger';
 
 // Mock dependencies
@@ -141,7 +141,7 @@ describe('ChatStore', () => {
       });
 
       it('should return messages for active chat', () => {
-        const testMessages: ChatMessage[] = [
+        const testMessages: ComputedMessage[] = [
           {
             id: 'msg-1',
             role: 'user',
@@ -162,10 +162,10 @@ describe('ChatStore', () => {
 
     describe('getMessages', () => {
       it('should return messages for specific agent', () => {
-        const agent1Messages: ChatMessage[] = [
+        const agent1Messages: ComputedMessage[] = [
           { id: 'msg-1', role: 'user', content: 'Agent 1 message', timestamp: new Date() },
         ];
-        const agent2Messages: ChatMessage[] = [
+        const agent2Messages: ComputedMessage[] = [
           { id: 'msg-2', role: 'user', content: 'Agent 2 message', timestamp: new Date() },
         ];
 
@@ -279,7 +279,7 @@ describe('ChatStore', () => {
 
   describe('hydrateTraceEntriesFromMessages', () => {
     it('should hydrate traces from user and assistant messages', () => {
-      const messages: ChatMessage[] = [
+      const messages: ComputedMessage[] = [
         {
           id: 'msg-1',
           role: 'user',
@@ -318,7 +318,7 @@ describe('ChatStore', () => {
     });
 
     it('should hydrate tool call traces', () => {
-      const messages: ChatMessage[] = [
+      const messages: ComputedMessage[] = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -410,7 +410,7 @@ describe('ChatStore', () => {
 
   describe('loadChatHistory', () => {
     it('should load chat history from Electron IPC', async () => {
-      const mockMessages: ChatMessage[] = [
+      const mockMessages: ComputedMessage[] = [
         { id: 'msg-1', role: 'user', content: 'Hello', timestamp: new Date() },
         { id: 'msg-2', role: 'assistant', content: 'Hi there', timestamp: new Date() },
       ];
@@ -453,7 +453,7 @@ describe('ChatStore', () => {
     });
 
     it('should normalize todos in loaded messages', async () => {
-      const mockMessages: ChatMessage[] = [
+      const mockMessages: ComputedMessage[] = [
         {
           id: 'msg-1',
           role: 'assistant',
@@ -463,7 +463,7 @@ describe('ChatStore', () => {
             { id: '1', content: 'Task 1', status: 'in_progress', activeForm: 'Task 1' },
           ],
           // stopReason undefined indicates incomplete session
-        } as ChatMessage,
+        } as ComputedMessage,
       ];
 
       (window.electron.agents.loadChatHistory as jest.Mock).mockResolvedValue(mockMessages);
@@ -613,10 +613,10 @@ describe('ChatStore', () => {
 
   describe('Edge Cases', () => {
     it('should handle multiple agents simultaneously', () => {
-      const agent1Messages: ChatMessage[] = [
+      const agent1Messages: ComputedMessage[] = [
         { id: 'msg-1', role: 'user', content: 'Agent 1', timestamp: new Date() },
       ];
-      const agent2Messages: ChatMessage[] = [
+      const agent2Messages: ComputedMessage[] = [
         { id: 'msg-2', role: 'user', content: 'Agent 2', timestamp: new Date() },
       ];
 
@@ -643,7 +643,7 @@ describe('ChatStore', () => {
     });
 
     it('should handle very long message histories', () => {
-      const longHistory: ChatMessage[] = Array.from({ length: 1000 }, (_, i) => ({
+      const longHistory: ComputedMessage[] = Array.from({ length: 1000 }, (_, i) => ({
         id: `msg-${i}`,
         role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
         content: `Message ${i}`,

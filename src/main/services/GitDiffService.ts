@@ -1,10 +1,10 @@
+import { spawnSync } from 'child_process';
 import { FSWatcher, watch } from 'chokidar';
 import fs from 'fs';
 import { unlink } from 'fs/promises';
 import parseDiff, { File as ParsedFile } from 'parse-diff';
 import { join } from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
-import { spawnSync } from 'child_process';
 import { log as logger } from './logger';
 
 export interface DiffOptions {
@@ -369,18 +369,11 @@ export class GitDiffService {
    * Start watching for git changes
    */
   startWatching(callback: () => void): () => void {
-    logger.info('[GitDiffService] startWatching called', {
-      repoPath: this.repoPath,
-      timestamp: new Date().toISOString(),
-    });
-
     const watchPaths = [
       `${this.repoPath}/.git/index`, // Staging changes
       `${this.repoPath}/.git/HEAD`, // Branch changes
       `${this.repoPath}/.git/refs/**`, // Commits
     ];
-
-    logger.info('[GitDiffService] Setting up chokidar watcher for paths:', watchPaths);
 
     // Watch .git/index, .git/HEAD, and .git/refs for changes
     this.watcher = watch(watchPaths, {
@@ -391,19 +384,14 @@ export class GitDiffService {
       },
     });
 
-    this.watcher.on('ready', () => {
-      logger.info('[GitDiffService] Chokidar watcher ready', {
-        watchedPaths: watchPaths,
-        timestamp: new Date().toISOString(),
-      });
-    });
+    this.watcher.on('ready', () => {});
 
     this.watcher.on('error', (error) => {
       logger.error('[GitDiffService] Chokidar watcher error:', error);
     });
 
     this.watcher.on('change', (path) => {
-      logger.info('[GitDiffService] Git change detected:', {
+      logger.debug('[GitDiffService] Git change detected:', {
         path,
         timestamp: new Date().toISOString(),
       });
@@ -411,7 +399,7 @@ export class GitDiffService {
     });
 
     this.watcher.on('add', (path) => {
-      logger.info('[GitDiffService] Git file added:', {
+      logger.debug('[GitDiffService] Git file added:', {
         path,
         timestamp: new Date().toISOString(),
       });
@@ -419,14 +407,12 @@ export class GitDiffService {
     });
 
     this.watcher.on('unlink', (path) => {
-      logger.info('[GitDiffService] Git file removed:', {
+      logger.debug('[GitDiffService] Git file removed:', {
         path,
         timestamp: new Date().toISOString(),
       });
       callback();
     });
-
-    logger.info('[GitDiffService] Chokidar watcher configured, waiting for ready event');
 
     return () => this.stopWatching();
   }
@@ -436,13 +422,8 @@ export class GitDiffService {
    */
   stopWatching(): void {
     if (this.watcher) {
-      logger.info('[GitDiffService] Stopping watcher', {
-        repoPath: this.repoPath,
-        timestamp: new Date().toISOString(),
-      });
       void this.watcher.close();
       delete this.watcher;
-      logger.info('[GitDiffService] Stopped watching git changes');
     } else {
       logger.warn('[GitDiffService] No watcher to stop');
     }

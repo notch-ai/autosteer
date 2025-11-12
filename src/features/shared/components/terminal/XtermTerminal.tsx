@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+import React, { useEffect, useRef, useState } from 'react';
 
 export interface XtermTerminalProps {
   shell?: string;
@@ -36,7 +36,7 @@ export const XtermTerminal: React.FC<XtermTerminalProps> = ({
     // Initialize xterm.js
     const term = new Terminal({
       cursorBlink: true,
-      fontSize: 14,
+      fontSize: 13,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       theme: {
         background: '#1e1e1e',

@@ -1,4 +1,5 @@
-import { Agent, ChatMessage } from '@/entities';
+import { Agent } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
 import { ConfigService } from './ConfigService';
 import { PermissionMode } from '@/types/permission.types';
 import { ToolUseMessage, ToolResultMessage } from '@/types/streaming.types';
@@ -23,7 +24,7 @@ export interface LLMProvider {
     userMessage: string,
     agent: Agent,
     attachedResourceIds: string[],
-    chatHistory: ChatMessage[],
+    chatHistory: ComputedMessage[],
     streamingCallbacks?: StreamingCallbacks,
     options?: { permissionMode?: PermissionMode; workingDirectory?: string; projectId?: string }
   ): Promise<string>;
@@ -86,7 +87,7 @@ export class LLMService {
     userMessage: string,
     agent: Agent,
     attachedResourceIds: string[] = [],
-    chatHistory: ChatMessage[] = [],
+    chatHistory: ComputedMessage[] = [],
     streamingCallbacks?: StreamingCallbacks,
     options?: { permissionMode?: PermissionMode; workingDirectory?: string; projectId?: string }
   ): Promise<string> {

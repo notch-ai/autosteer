@@ -11,7 +11,7 @@ import { useModalEscape } from '@/hooks/useModalEscape';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { FormButton } from '@/features/shared/components/ui/FormButton';
-import { cn } from '@/commons/utils/cn';
+import { cn } from '@/commons/utils/ui/cn';
 
 // Legacy interface for backward compatibility
 export interface ModalFooterAction {

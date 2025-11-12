@@ -1,11 +1,12 @@
-import { Agent, AgentStatus, AgentType, ChatMessage } from '@/entities';
+import { isValidationEnabled } from '@/config/validation.config';
+import { CHANGES_TAB_ID, MAX_TABS, TERMINAL_TAB_ID } from '@/constants/tabs';
+import { Agent, AgentStatus, AgentType } from '@/entities';
 import { FileDataStoreService } from '@/services/FileDataStoreService';
-import { MessageConverter } from '@/services/MessageConverter';
-import { SessionManifestService } from '@/services/SessionManifestService';
 import { McpAuthService, McpServerConfig } from '@/services/McpAuthService';
+import { SessionManifestService } from '@/services/SessionManifestService';
+import { ComputedMessage, formatToolDescription } from '@/stores/chat.selectors';
 import { AgentConfig } from '@/types/config.types';
 import { IPC_CHANNELS, SlashCommand } from '@/types/ipc.types';
-import { MAX_TABS } from '@/constants/tabs';
 import { IpcMainInvokeEvent, shell } from 'electron';
 import log from 'electron-log';
 import { createReadStream, existsSync, readFileSync } from 'fs';
@@ -46,7 +47,6 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
  * - Claude Code session-to-agent mapping
  * - Chat history parsing from JSONL files
  * - MCP server OAuth2 authentication flow
- * - Slash command discovery from .claude/commands/
  *
  * @example
  * ```typescript
@@ -79,6 +79,46 @@ export class ClaudeHandlers {
 
     const totalCost = inputCost + outputCost + cacheCreationCost + cacheReadCost;
     return Math.round(totalCost * 1_000_000) / 1_000_000;
+  }
+
+  /**
+   * Validate ChatMessage structure
+   * Only runs in development/test environments for early warning
+   *
+   * @param message - The ChatMessage to validate
+   * @returns true if valid, false otherwise
+   */
+  private validateChatMessage(message: ComputedMessage): boolean {
+    if (!isValidationEnabled()) {
+      return true;
+    }
+
+    // Validate required fields
+    if (!message.id || typeof message.id !== 'string') {
+      log.warn('[ClaudeHandlers] Invalid message: missing or invalid id', { message });
+      return false;
+    }
+
+    if (message.role !== 'user' && message.role !== 'assistant') {
+      log.warn('[ClaudeHandlers] Invalid message: invalid role', { role: message.role });
+      return false;
+    }
+
+    if (typeof message.content !== 'string') {
+      log.warn('[ClaudeHandlers] Invalid message: content must be string', {
+        contentType: typeof message.content,
+      });
+      return false;
+    }
+
+    if (!(message.timestamp instanceof Date) || isNaN(message.timestamp.getTime())) {
+      log.warn('[ClaudeHandlers] Invalid message: invalid timestamp', {
+        timestamp: message.timestamp,
+      });
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -139,7 +179,7 @@ export class ClaudeHandlers {
     }
 
     if (agent.chatHistory) {
-      config.chat_history = agent.chatHistory.map((msg: ChatMessage) => ({
+      config.chat_history = agent.chatHistory.map((msg: ComputedMessage) => ({
         id: msg.id,
         role: msg.role,
         content: msg.content,
@@ -196,9 +236,8 @@ export class ClaudeHandlers {
           }
         }
       }
-    } catch (dirError) {
-      log.debug(`Command directory ${dirPath} not accessible`);
-    }
+      // eslint-disable-next-line no-empty
+    } catch (dirError) {}
 
     return commands;
   }
@@ -255,7 +294,6 @@ export class ClaudeHandlers {
       async (_event: IpcMainInvokeEvent) => {
         const agentConfigs = await this.fileDataStore.getAgents();
         const agents = agentConfigs.map(this.convertConfigToAgent);
-        log.info(`[ClaudeHandlers] Loaded ${agents.length} agents`);
         return agents;
       },
       { operationName: 'Load all agents' }
@@ -267,7 +305,6 @@ export class ClaudeHandlers {
       async (_event: IpcMainInvokeEvent, projectId: string) => {
         const agentConfigs = await this.fileDataStore.getAgentsByProjectId(projectId);
         const agents = agentConfigs.map(this.convertConfigToAgent);
-        log.info(`[ClaudeHandlers] Loaded ${agents.length} agents for project ${projectId}`);
         return agents;
       },
       { operationName: 'Load agents by project' }
@@ -299,7 +336,6 @@ export class ClaudeHandlers {
         const agentConfig = this.convertAgentToConfig(newAgent);
         await this.fileDataStore.addAgent(agentConfig);
 
-        log.info(`[ClaudeHandlers] Created new agent with ID: ${newAgent.id}`);
         return newAgent;
       },
       { operationName: 'Create agent' }
@@ -323,8 +359,6 @@ export class ClaudeHandlers {
           ...(claude_session_id && { claude_session_id }),
           updated_at: new Date().toISOString(),
         });
-
-        log.info(`[ClaudeHandlers] Updated agent ${id}`);
       },
       { operationName: 'Update agent' }
     );
@@ -339,7 +373,6 @@ export class ClaudeHandlers {
         }
 
         await this.fileDataStore.deleteAgent(id);
-        log.info(`[ClaudeHandlers] Deleted agent ${id}`);
       },
       { operationName: 'Delete agent' }
     );
@@ -365,7 +398,6 @@ export class ClaudeHandlers {
       async (_event: IpcMainInvokeEvent, query: string) => {
         const agentConfigs = await this.fileDataStore.searchAgents(query);
         const results = agentConfigs.map(this.convertConfigToAgent);
-        log.info(`[ClaudeHandlers] Search found ${results.length} agents for query: ${query}`);
         return results;
       },
       { operationName: 'Search agents' }
@@ -375,9 +407,13 @@ export class ClaudeHandlers {
     registerSafeHandler(
       IPC_CHANNELS.AGENTS_LOAD_CHAT_HISTORY,
       async (_event: IpcMainInvokeEvent, agentId: string) => {
+        // Skip system tabs (terminal-tab, changes-tab) - they don't have chat history
+        if (agentId === TERMINAL_TAB_ID || agentId === CHANGES_TAB_ID) {
+          return { messages: [], sessionId: null };
+        }
+
         const agent = await this.fileDataStore.getAgent(agentId);
         if (!agent || !agent.project_id) {
-          log.info(`[ClaudeHandlers] No agent found or no project_id for agent ${agentId}`);
           return { messages: [], sessionId: null };
         }
 
@@ -402,10 +438,6 @@ export class ClaudeHandlers {
             agentId
           );
 
-          log.info(
-            `[ClaudeHandlers] Session manifest lookup for agent ${agentId}: ${actualSessionId}`
-          );
-
           if (!actualSessionId) {
             return { messages: [], sessionId: null };
           }
@@ -425,7 +457,26 @@ export class ClaudeHandlers {
           return { messages: [], sessionId: null };
         }
 
-        const messages: ChatMessage[] = [];
+        // Load SDK messages from JSONL file
+        const sdkMessages: any[] = [];
+        const fileStream = createReadStream(jsonlFilePath);
+        const rl = readline.createInterface({
+          input: fileStream,
+          crlfDelay: Infinity,
+        });
+
+        for await (const line of rl) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
+            sdkMessages.push(data);
+          } catch (e) {
+            log.warn(`[ClaudeHandlers] Failed to parse JSONL line: ${e}`);
+          }
+        }
+
+        // Transform SDK messages to ChatMessage format
+        const messages: ComputedMessage[] = [];
         const pendingPermissions = new Map<
           string,
           {
@@ -437,17 +488,10 @@ export class ClaudeHandlers {
           }
         >();
 
-        const fileStream = createReadStream(jsonlFilePath);
-        const rl = readline.createInterface({
-          input: fileStream,
-          crlfDelay: Infinity,
-        });
-
-        for await (const line of rl) {
-          if (!line.trim()) continue;
-
+        for (const sdkMsg of sdkMessages) {
           try {
-            const data = JSON.parse(line);
+            // Use sdkMsg directly (already typed as any from JSONL parsing)
+            const data = sdkMsg;
 
             if (data.type === 'system' && data.subtype === 'init') {
               continue;
@@ -596,7 +640,7 @@ export class ClaudeHandlers {
                       ) {
                         const permissionInfo = pendingPermissions.get(item.tool_use_id)!;
 
-                        const permissionActionMessage: ChatMessage = {
+                        const permissionActionMessage: ComputedMessage = {
                           id: `permission-approved-${data.uuid || Date.now()}`,
                           role: 'assistant',
                           content: '',
@@ -660,7 +704,7 @@ export class ClaudeHandlers {
                       return null;
                     }
 
-                    const description = MessageConverter.formatToolDescription(tc.name, tc.input);
+                    const description = formatToolDescription(tc.name, tc.input);
 
                     return {
                       type: 'tool_use' as const,
@@ -783,7 +827,7 @@ export class ClaudeHandlers {
                 content = '';
               }
 
-              const message: ChatMessage = {
+              const message: ComputedMessage = {
                 id: data.uuid || `msg-${Date.now()}-${Math.random()}`,
                 role: role,
                 content: content,
@@ -824,11 +868,22 @@ export class ClaudeHandlers {
                 }
               }
 
-              messages.push(message);
+              // Validate message structure (only in development)
+              if (this.validateChatMessage(message)) {
+                messages.push(message);
+              }
             }
           } catch (e) {
             log.warn(`[ClaudeHandlers] Failed to parse line in JSONL file: ${e}`);
           }
+        }
+
+        // Log validation summary (only in development)
+        if (isValidationEnabled()) {
+          log.info('[ClaudeHandlers] Chat history loaded with validation', {
+            totalMessages: messages.length,
+            sessionId: actualSessionId,
+          });
         }
 
         return { messages, sessionId: actualSessionId };
@@ -933,8 +988,6 @@ export class ClaudeHandlers {
         if (baseDir.startsWith('~')) {
           baseDir = path.join(os.homedir(), baseDir.slice(1));
         }
-
-        log.info(`[ClaudeHandlers] Loading slash commands from base directory: ${baseDir}`);
 
         const localCommandsPath = path.join(baseDir, '.claude', 'commands');
         const localCommands = await this.loadCommandsFromDirectory(

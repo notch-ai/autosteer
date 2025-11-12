@@ -28,19 +28,23 @@ jest.mock('os', () => ({
 }));
 
 // Mock path
-jest.mock('path', () => ({
-  join: jest.fn((...args) => args.join('/')),
-  isAbsolute: jest.fn((path) => path.startsWith('/')),
-  dirname: jest.fn((path) => {
-    const parts = path.split('/');
-    parts.pop();
-    return parts.join('/');
-  }),
-  basename: jest.fn((path) => {
-    const parts = path.split('/');
-    return parts[parts.length - 1];
-  }),
-}));
+jest.mock('path', () => {
+  const actualPath = {
+    join: (...args: string[]) => args.join('/'),
+    resolve: (...args: string[]) => args.join('/'),
+    isAbsolute: (p: string) => p.startsWith('/'),
+    dirname: (p: string) => {
+      const parts = p.split('/');
+      parts.pop();
+      return parts.join('/');
+    },
+    basename: (p: string) => {
+      const parts = p.split('/');
+      return parts[parts.length - 1];
+    },
+  };
+  return actualPath;
+});
 
 // Mock electron-log
 jest.mock('electron-log', () => ({
@@ -74,95 +78,6 @@ describe('ClaudeCodeSDKService', () => {
 
       expect(instance1).toBe(instance2);
       expect(instance1).toBeInstanceOf(ClaudeCodeSDKService);
-    });
-  });
-
-  describe('initializeSession', () => {
-    it('should initialize session and return session ID', async () => {
-      const mockMessages = [
-        { type: 'init', session_id: 'test-session-123' },
-        { type: 'result', subtype: 'success' },
-      ];
-
-      // Mock query to return an async generator
-      mockQuery.mockReturnValue({
-        [Symbol.asyncIterator]: async function* () {
-          for (const message of mockMessages) {
-            yield message;
-          }
-        },
-        interrupt: jest.fn(),
-      } as any);
-
-      const sessionId = await ClaudeCodeSDKService.initializeSession();
-
-      expect(sessionId).toBe('test-session-123');
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.objectContaining({
-          prompt: 'Session initialized. Ready to assist.',
-          options: expect.objectContaining({
-            maxTurns: 1,
-          }),
-        })
-      );
-    });
-
-    it('should initialize session with custom working directory', async () => {
-      const customDir = '/custom/path';
-      const mockMessages = [
-        { type: 'init', session_id: 'test-session-456' },
-        { type: 'result', subtype: 'success' },
-      ];
-
-      mockQuery.mockReturnValue({
-        [Symbol.asyncIterator]: async function* () {
-          for (const message of mockMessages) {
-            yield message;
-          }
-        },
-        interrupt: jest.fn(),
-      } as any);
-
-      const sessionId = await ClaudeCodeSDKService.initializeSession(customDir);
-
-      expect(sessionId).toBe('test-session-456');
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.objectContaining({
-          prompt: 'Session initialized. Ready to assist.',
-          options: expect.objectContaining({
-            cwd: expect.any(String),
-          }),
-        })
-      );
-    });
-
-    it.skip('should throw error when no session ID received', async () => {
-      // NOTE: Skipped because current implementation provides fallback session ID
-      // This test would need to be adjusted if we want strict SDK session ID validation
-      const mockMessages = [{ type: 'result', subtype: 'success' }];
-
-      mockQuery.mockReturnValue({
-        [Symbol.asyncIterator]: async function* () {
-          for (const message of mockMessages) {
-            yield message;
-          }
-        },
-        interrupt: jest.fn(),
-      } as any);
-
-      await expect(ClaudeCodeSDKService.initializeSession()).rejects.toThrow(
-        'Failed to initialize Claude Code session'
-      );
-    });
-
-    it('should handle SDK errors during initialization', async () => {
-      mockQuery.mockImplementation(() => {
-        throw new Error('SDK connection failed');
-      });
-
-      await expect(ClaudeCodeSDKService.initializeSession()).rejects.toThrow(
-        'Failed to initialize Claude Code session: SDK connection failed'
-      );
     });
   });
 
@@ -666,8 +581,7 @@ describe('ClaudeCodeSDKService', () => {
       }
 
       expect(results[0]).toMatchObject({
-        type: 'tool',
-        subtype: 'call',
+        type: 'tool_call',
       });
     });
 

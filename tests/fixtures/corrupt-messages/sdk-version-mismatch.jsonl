@@ -1,0 +1,3 @@
+{"type":"user","uuid":"msg-1","message":{"role":"user","content":[{"type":"text","text":"Old SDK format"}]},"timestamp":1699000000000,"sdk_version":"0.1.0"}
+{"type":"assistant","uuid":"msg-2","message":{"role":"assistant","content":[{"type":"text","text":"New SDK format"}]},"timestamp":1699000001000,"sdk_version":"1.0.0"}
+{"type":"user","uuid":"msg-3","message":{"role":"user","content":[{"type":"text","text":"Future SDK"}]},"timestamp":1699000002000,"sdk_version":"2.0.0","new_field":"unknown"}

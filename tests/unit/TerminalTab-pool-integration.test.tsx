@@ -112,6 +112,8 @@ let mockTerminalState = {
   saveTerminalSession: jest.fn(),
   getTerminalSession: jest.fn(),
   getLastTerminalForProject: jest.fn(),
+  getTerminalsForProject: jest.fn().mockReturnValue([]),
+  setActiveTerminal: jest.fn(),
   terminals: new Map([[mockTerminal.id, mockTerminal]]),
   addTerminal: jest.fn(),
   getTerminal: jest.fn().mockReturnValue(mockTerminal),
@@ -270,10 +272,14 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
 
       // Act
       const { container } = render(<TerminalTab />);
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Assert - should display error state
-      expect(container.textContent).toContain('Terminal Error');
+      await waitFor(
+        () => {
+          expect(container.textContent).toContain('Terminal Error');
+        },
+        { timeout: 1000 }
+      );
     });
 
     it('should log errors when terminal creation fails', async () => {

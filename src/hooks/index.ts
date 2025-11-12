@@ -6,15 +6,24 @@
 // Agent Management Hooks
 export * from './useAgents';
 export * from './useAgentActions';
+export * from './useAgentChatInstances';
+export * from './useContentEditor';
 
 // Chat Management Hooks
 export * from './useChatMessages';
 export * from './useChatActions';
 export * from './useChatInput';
+export * from './useChatInputFocus';
+export * from './usePermissionHandling';
+export * from './useMessageMetadata';
+export * from './useAgentChatState';
+export * from './useChatMessageHandlers';
+export * from './useResourceAttachment';
 
 // Project Management Hooks
 export * from './useProjects';
 export * from './useProjectActions';
+export * from './useProjectHeader';
 
 // Resource Management Hooks
 export * from './useResourceActions';
@@ -22,6 +31,9 @@ export * from './useResourceActions';
 // Git Management Hooks
 export * from './useGitStatus';
 export * from './useGitActions';
+export * from './useGitStats';
+export * from './useFileDiff';
+export * from './useGitWatcher';
 
 // Terminal Management Hooks
 export * from './useTerminals';
@@ -41,3 +53,13 @@ export * from './useSessionTabs';
 export * from './useTerminal';
 export * from './use-toast';
 export * from './useVimMode';
+
+// Scroll Management Hooks
+export * from './useChatScroll';
+export * from './useTerminalScrollPreservation';
+export * from './useChangesTabScrollPreservation';
+export * from './useVirtualScrollState';
+
+// Content State Hooks
+export * from './useMainContentState';
+export * from './useAgentContentRenderer';

@@ -235,6 +235,24 @@ const electronAPI = {
     isSupported: () => ipcRenderer.invoke('badge:isSupported'),
   },
 
+  // Session Cache API
+  cache: {
+    load: (sessionId: string, worktreeId: string, agentId: string) =>
+      ipcRenderer.invoke('cache:load', sessionId, worktreeId, agentId),
+    validate: (sessionId: string, jsonlMtime: number) =>
+      ipcRenderer.invoke('cache:validate', sessionId, jsonlMtime),
+    rebuild: (sessionId: string, worktreeId: string, agentId: string, messages: any[]) =>
+      ipcRenderer.invoke('cache:rebuild', sessionId, worktreeId, agentId, messages),
+    invalidate: (sessionId: string) => ipcRenderer.invoke('cache:invalidate', sessionId),
+    clearAll: () => ipcRenderer.invoke('cache:clearAll'),
+    clearWorktree: (worktreeId: string) => ipcRenderer.invoke('cache:clearWorktree', worktreeId),
+    cleanupOrphaned: (activeSessions: string[]) =>
+      ipcRenderer.invoke('cache:cleanupOrphaned', activeSessions),
+    getMetadata: (sessionId: string) => ipcRenderer.invoke('cache:getMetadata', sessionId),
+    getSize: (sessionId: string) => ipcRenderer.invoke('cache:getSize', sessionId),
+    monitorSize: (sessionId: string) => ipcRenderer.invoke('cache:monitorSize', sessionId),
+  },
+
   // Environment variables (safe subset)
   env: {
     NODE_ENV: process.env.NODE_ENV || 'development',

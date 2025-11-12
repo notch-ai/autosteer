@@ -1,5 +1,4 @@
 /**
- * Phase 8: Automated Metrics Collection System
  * Tracks velocity metrics and performance improvements
  */
 

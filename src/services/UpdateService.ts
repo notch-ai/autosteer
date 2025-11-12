@@ -103,7 +103,6 @@ export class UpdateService {
   async checkForUpdates(): Promise<void> {
     // Skip update checks in development mode
     if (app && !app.isPackaged) {
-      log.info('Skipping update check in development mode');
       return;
     }
 

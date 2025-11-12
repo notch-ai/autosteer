@@ -37,7 +37,7 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ onTerminalCreated, cla
 
   if (isLoading) {
     return (
-      <div className={`flex items-center justify-center h-full ${className}`}>
+      <div className={`flex items-center justify-center h-full bg-terminal-bg ${className}`}>
         <div className="flex items-center gap-2 text-muted-foreground">
           <RefreshCw className="h-4 w-4 animate-spin" />
           <span>Starting terminal...</span>
@@ -48,7 +48,7 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ onTerminalCreated, cla
 
   if (error) {
     return (
-      <div className={`flex items-center justify-center h-full ${className}`}>
+      <div className={`flex items-center justify-center h-full bg-terminal-bg ${className}`}>
         <div className="flex flex-col items-center gap-4 text-center max-w-md">
           <AlertTriangle className="h-8 w-8 text-destructive" />
           <div>
@@ -70,7 +70,7 @@ export const TerminalTab: React.FC<TerminalTabProps> = ({ onTerminalCreated, cla
   }
 
   return (
-    <div className={`flex flex-col h-full bg-terminal-bg ${className}`}>
+    <div className={`flex flex-col h-full bg-terminal-bg ${className} p-2`}>
       <div
         ref={terminalRef}
         className="flex-1 overflow-hidden text-sm bg-terminal-bg"

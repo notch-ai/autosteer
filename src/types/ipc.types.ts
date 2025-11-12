@@ -1,4 +1,6 @@
-import { Agent, Resource, ChatMessage } from '@/entities';
+import { Agent, Resource } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
+import {} from '@/stores/chat.selectors';
 import type {
   MessageBoxOptions,
   MessageBoxReturnValue,
@@ -110,7 +112,7 @@ export enum IpcChannelNames {
   FILE_LIST_DIRECTORY = 'file:list-directory',
   FILE_SEARCH_WORKSPACE = 'file:search-workspace',
 
-  // Badge Operations (Phase 1: Core Badge Implementation)
+  // Badge Operations
   BADGE_SHOW = 'badge:show',
   BADGE_HIDE = 'badge:hide',
   BADGE_IS_SUPPORTED = 'badge:isSupported',
@@ -123,7 +125,7 @@ export enum IpcChannelNames {
 }
 
 // ============================================================================
-// Badge IPC Types (Phase 1: Core Badge Implementation)
+// Badge IPC Types
 // ============================================================================
 
 export interface BadgeIpcChannels {
@@ -207,7 +209,6 @@ export interface SlashCommand {
   trigger: string; // The command trigger (e.g., 'pr', 'commit')
   description: string; // First non-empty line from the markdown file
   content: string; // Full markdown content for Claude Code
-  source: 'local' | 'user'; // Whether from .claude/commands or ~/.claude/commands
 }
 
 // File system interfaces for directory listing
@@ -257,7 +258,7 @@ export interface IpcHandlers {
   [IPC_CHANNELS.AGENTS_SEARCH]: (query: string) => Promise<Agent[]>;
   [IPC_CHANNELS.AGENTS_LOAD_CHAT_HISTORY]: (
     agentId: string
-  ) => Promise<ChatMessage[] | { messages: ChatMessage[]; sessionId: string | null }>;
+  ) => Promise<ComputedMessage[] | { messages: ComputedMessage[]; sessionId: string | null }>;
   [IPC_CHANNELS.AGENTS_UPDATE_SESSION]: (
     worktreeId: string,
     agentId: string,
@@ -673,3 +674,64 @@ IpcChannelRegistry.registerChannel(IpcChannels.SystemTheme);
 IpcChannelRegistry.registerChannel(IpcChannels.DataSave);
 IpcChannelRegistry.registerChannel(IpcChannels.DataLoad);
 IpcChannelRegistry.registerChannel(IpcChannels.DevSlashCommands);
+
+// ============================================================================
+// Cache IPC Types 
+// ============================================================================
+
+/**
+ * Cache operation response wrapper
+ */
+export interface CacheResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+/**
+ * Cache metadata for session validation
+ */
+export interface CacheMetadata {
+  sessionId: string;
+  worktreeId: string;
+  agentId: string;
+  sdkVersion: string;
+  lastJsonlMtime: number;
+  createdAt: string;
+  lastAccessedAt: string;
+  messageCount: number;
+}
+
+/**
+ * Loaded cache data with metadata
+ */
+export interface CacheData {
+  messages: any[];
+  metadata: CacheMetadata;
+  loadTime: number;
+}
+
+/**
+ * Cache IPC channel definitions
+ */
+export interface CacheIpcChannels {
+  'cache:load': (
+    sessionId: string,
+    worktreeId: string,
+    agentId: string
+  ) => Promise<CacheResponse<CacheData>>;
+  'cache:validate': (sessionId: string, jsonlMtime: number) => Promise<CacheResponse<boolean>>;
+  'cache:rebuild': (
+    sessionId: string,
+    worktreeId: string,
+    agentId: string,
+    messages: any[]
+  ) => Promise<CacheResponse<{ duration: number; messageCount: number }>>;
+  'cache:invalidate': (sessionId: string) => Promise<CacheResponse>;
+  'cache:clearAll': () => Promise<CacheResponse>;
+  'cache:clearWorktree': (worktreeId: string) => Promise<CacheResponse>;
+  'cache:cleanupOrphaned': (activeSessions: string[]) => Promise<CacheResponse>;
+  'cache:getMetadata': (sessionId: string) => Promise<CacheResponse<CacheMetadata>>;
+  'cache:getSize': (sessionId: string) => Promise<CacheResponse<number>>;
+  'cache:monitorSize': (sessionId: string) => Promise<CacheResponse>;
+}

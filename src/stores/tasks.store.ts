@@ -23,7 +23,12 @@ import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 
 // DevTools configuration - only in development
-const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
+// DevTools configuration - only in development
+// Support both main process (Node.js) and renderer process (Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development');
+const withDevtools = isDevelopment ? devtools : (f: any) => f;
 
 /**
  * TasksStore Interface
@@ -75,8 +80,6 @@ export const useTasksStore = create<TasksStore>()(
         set((state) => {
           state.tasks.push(task);
         });
-
-        logger.debug(`[TasksStore] Added task: ${task.id}`);
       },
 
       updateTask: (id: string, updates: Partial<Task>) => {
@@ -101,8 +104,6 @@ export const useTasksStore = create<TasksStore>()(
             }
           }
         });
-
-        logger.debug(`[TasksStore] Updated task: ${id}`, updates);
       },
 
       deleteTask: (id: string) => {
@@ -112,16 +113,12 @@ export const useTasksStore = create<TasksStore>()(
             state.focusedTodoId = null;
           }
         });
-
-        logger.debug(`[TasksStore] Deleted task: ${id}`);
       },
 
       setFocusedTodo: (id: string | null) => {
         set((state) => {
           state.focusedTodoId = id;
         });
-
-        logger.debug(`[TasksStore] Set focused todo: ${id}`);
       },
 
       clearAllTasks: () => {
@@ -129,8 +126,6 @@ export const useTasksStore = create<TasksStore>()(
           state.tasks = [];
           state.focusedTodoId = null;
         });
-
-        logger.info('[TasksStore] Cleared all tasks');
       },
     })),
     { name: 'tasks-store', trace: true }

@@ -1,4 +1,6 @@
-import { ChatMessage, Agent } from '@/entities';
+import { Agent } from '@/entities';
+import { ComputedMessage } from '@/stores/chat.selectors';
+import {} from '@/stores/chat.selectors';
 import { LLMConfig, LLMProvider, StreamingCallbacks } from '../LLMService';
 import { MockLLMService } from '../MockLLMService';
 
@@ -11,7 +13,7 @@ export class MockLLMProvider implements LLMProvider {
     userMessage: string,
     agent: Agent,
     attachedResourceIds: string[],
-    _chatHistory: ChatMessage[] = [],
+    _chatHistory: ComputedMessage[] = [],
     streamingCallbacks?: StreamingCallbacks
   ): Promise<string> {
     // Simulate streaming for mock provider

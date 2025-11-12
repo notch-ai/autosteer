@@ -13,13 +13,17 @@
  * @see docs/guides-architecture.md - Store Architecture
  */
 
-import { logger } from '@/commons/utils/logger';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 
 // DevTools configuration - only in development
-const withDevtools = process.env.NODE_ENV === 'development' ? devtools : (f: any) => f;
+// DevTools configuration - only in development
+// Support both main process (Node.js) and renderer process (Vite)
+const isDevelopment =
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') ||
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development');
+const withDevtools = isDevelopment ? devtools : (f: any) => f;
 
 /**
  * WorktreeStats Interface
@@ -118,11 +122,6 @@ export const useWorktreeStatsStore = create<WorktreeStatsStore>()(
             stats.lastMessageTokens = lastMessageTokens;
           }
         });
-
-        logger.debug(
-          `[WorktreeStatsStore] Updated stats for project ${projectId}:`,
-          get().worktreeStats[projectId]
-        );
       },
 
       updateWorktreeCost: (projectId: string, cost: number) => {
@@ -150,8 +149,6 @@ export const useWorktreeStatsStore = create<WorktreeStatsStore>()(
             };
           }
         });
-
-        logger.info(`[WorktreeStatsStore] Reset stats for project ${projectId}`);
       },
 
       getWorktreeStats: (projectId: string) => {

@@ -74,8 +74,21 @@ export function useChatInputFocus({
       chatInterfaceRefs.current.set(agentId, ref);
       // Register in global registry for keyboard shortcuts
       GlobalChatRefs.set(agentId, ref);
+
+      // Auto-focus when a new chat interface is ready for the selected agent
+      if (
+        ref &&
+        agentId === selectedAgentId &&
+        agentId !== TERMINAL_TAB_ID &&
+        agentId !== CHANGES_TAB_ID
+      ) {
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
+          ref.focus();
+        });
+      }
     },
-    [chatInterfaceRefs]
+    [chatInterfaceRefs, selectedAgentId]
   );
 
   return {

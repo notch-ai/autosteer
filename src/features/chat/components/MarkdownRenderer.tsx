@@ -81,6 +81,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
     // Custom link renderer
     a({ href, children, ...props }: any) {
+      // Regular link handling
       const handleClick = (e: React.MouseEvent) => {
         if (linkTarget === '_blank' && href) {
           e.preventDefault();
@@ -158,51 +159,51 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
     // Headings with proper styling
     h1: ({ children, ...props }: any) => (
-      <h1 className="text-base font-bold mt-2 mb-1 text-text" {...props}>
+      <h1 className="text-base font-bold mt-2 mb-1 text-foreground" {...props}>
         {children}
       </h1>
     ),
     h2: ({ children, ...props }: any) => (
-      <h2 className="text-base font-semibold mt-1.5 mb-1 text-text" {...props}>
+      <h2 className="text-base font-semibold mt-1.5 mb-1 text-foreground" {...props}>
         {children}
       </h2>
     ),
     h3: ({ children, ...props }: any) => (
-      <h3 className="text-sm font-semibold mt-1 mb-0.5 text-text" {...props}>
+      <h3 className="text-sm font-semibold mt-1 mb-0.5 text-foreground" {...props}>
         {children}
       </h3>
     ),
     h4: ({ children, ...props }: any) => (
-      <h4 className="text-sm font-medium mt-1 mb-0.5 text-text" {...props}>
+      <h4 className="text-sm font-medium mt-1 mb-0.5 text-foreground" {...props}>
         {children}
       </h4>
     ),
     h5: ({ children, ...props }: any) => (
-      <h5 className="text-sm font-medium mt-1 mb-0.5 text-text" {...props}>
+      <h5 className="text-sm font-medium mt-1 mb-0.5 text-foreground" {...props}>
         {children}
       </h5>
     ),
     h6: ({ children, ...props }: any) => (
-      <h6 className="text-sm font-medium mt-1 mb-0.5 text-text-muted" {...props}>
+      <h6 className="text-sm font-medium mt-1 mb-0.5 text-muted-foreground" {...props}>
         {children}
       </h6>
     ),
 
     // Paragraphs
     p: ({ children, ...props }: any) => (
-      <p className="my-0.5 leading-relaxed text-text break-words" {...props}>
+      <p className="my-0.5 leading-relaxed text-foreground break-words" {...props}>
         {children}
       </p>
     ),
 
     // Lists
     ul: ({ children, ...props }: any) => (
-      <ul className="my-1 ml-6 list-disc space-y-1 text-text" {...props}>
+      <ul className="my-1 ml-6 list-disc space-y-1 text-foreground" {...props}>
         {children}
       </ul>
     ),
     ol: ({ children, ...props }: any) => (
-      <ol className="my-1 ml-6 list-decimal space-y-1 text-text" {...props}>
+      <ol className="my-1 ml-6 list-decimal space-y-1 text-foreground" {...props}>
         {children}
       </ol>
     ),
@@ -215,7 +216,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     // Blockquotes
     blockquote: ({ children, ...props }: any) => (
       <Alert className="my-0.5 border-l-4 border-border" {...props}>
-        <AlertDescription className="text-text-muted italic">{children}</AlertDescription>
+        <AlertDescription className="text-muted-foreground italic">{children}</AlertDescription>
       </Alert>
     ),
 
@@ -246,12 +247,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       </tr>
     ),
     th: ({ children, ...props }: any) => (
-      <th className="px-4 py-2 text-left font-semibold text-text" {...props}>
+      <th className="px-4 py-2 text-left font-semibold text-foreground" {...props}>
         {children}
       </th>
     ),
     td: ({ children, ...props }: any) => (
-      <td className="px-4 py-2 text-text" {...props}>
+      <td className="px-4 py-2 text-foreground" {...props}>
         {children}
       </td>
     ),
@@ -269,7 +270,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
     // Strong/Bold
     strong: ({ children, ...props }: any) => (
-      <strong className="font-semibold text-text" {...props}>
+      <strong className="font-semibold text-foreground" {...props}>
         {children}
       </strong>
     ),
@@ -283,7 +284,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
     // Strikethrough
     del: ({ children, ...props }: any) => (
-      <del className="line-through text-text-muted" {...props}>
+      <del className="line-through text-muted-foreground" {...props}>
         {children}
       </del>
     ),

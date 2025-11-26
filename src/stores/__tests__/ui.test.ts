@@ -384,4 +384,125 @@ describe('UIStore', () => {
       expect(useUIStore.getState().selectedModel).toEqual(customModel);
     });
   });
+
+  describe('ActiveTabId Persistence', () => {
+    it('should update activeTabId in tabState when setActiveTab is called', () => {
+      const { setActiveTab, updateTabState } = useUIStore.getState();
+
+      // Initialize tab state with multiple tabs
+      updateTabState([
+        {
+          id: 'tab-1',
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          agentName: 'Tab 1',
+          agentType: 'text',
+          isActive: false,
+          lastAccessed: new Date(),
+        },
+        {
+          id: 'tab-2',
+          agentId: 'agent-2',
+          sessionId: 'session-2',
+          agentName: 'Tab 2',
+          agentType: 'text',
+          isActive: false,
+          lastAccessed: new Date(),
+        },
+      ]);
+
+      // Set active tab
+      setActiveTab('tab-2');
+
+      // Verify activeTabId is updated
+      const state = useUIStore.getState();
+      expect(state.tabState?.activeTabId).toBe('tab-2');
+    });
+
+    it('should retrieve activeTabId for current project', () => {
+      const { updateTabState } = useUIStore.getState();
+
+      // Initialize tab state with active tab
+      updateTabState([
+        {
+          id: 'tab-1',
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          agentName: 'Tab 1',
+          agentType: 'text',
+          isActive: false,
+          lastAccessed: new Date(),
+        },
+      ]);
+
+      useUIStore.setState({
+        tabState: {
+          ...useUIStore.getState().tabState!,
+          activeTabId: 'tab-1',
+        },
+      });
+
+      // Verify we can retrieve activeTabId
+      const state = useUIStore.getState();
+      expect(state.tabState?.activeTabId).toBe('tab-1');
+    });
+
+    it('should update tabs isActive property when activeTabId changes', () => {
+      const { setActiveTab, updateTabState } = useUIStore.getState();
+
+      // Initialize with tab-1 active
+      updateTabState([
+        {
+          id: 'tab-1',
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          agentName: 'Tab 1',
+          agentType: 'text',
+          isActive: true,
+          lastAccessed: new Date(),
+        },
+        {
+          id: 'tab-2',
+          agentId: 'agent-2',
+          sessionId: 'session-2',
+          agentName: 'Tab 2',
+          agentType: 'text',
+          isActive: false,
+          lastAccessed: new Date(),
+        },
+      ]);
+
+      useUIStore.setState({
+        tabState: {
+          ...useUIStore.getState().tabState!,
+          activeTabId: 'tab-1',
+        },
+      });
+
+      // Switch to tab-2
+      setActiveTab('tab-2');
+
+      // Verify both activeTabId and isActive are updated correctly
+      const state = useUIStore.getState();
+      expect(state.tabState?.activeTabId).toBe('tab-2');
+      expect(state.tabState?.tabs[0].isActive).toBe(false);
+      expect(state.tabState?.tabs[1].isActive).toBe(true);
+    });
+
+    it('should initialize tabState when setting active tab on null tabState', () => {
+      const { setActiveTab } = useUIStore.getState();
+
+      // Reset to null tabState
+      useUIStore.setState({ tabState: null });
+
+      // Attempt to set active tab
+      setActiveTab('tab-1');
+
+      // Verify tabState is initialized with the active tab
+      const state = useUIStore.getState();
+      expect(state.tabState).not.toBeNull();
+      expect(state.tabState?.activeTabId).toBe('tab-1');
+      expect(state.tabState?.tabs).toEqual([]);
+    });
+  });
 });

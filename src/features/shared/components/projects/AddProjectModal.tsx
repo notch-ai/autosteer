@@ -250,7 +250,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose }): JS
           <div className="relative">
             <label
               htmlFor="github-repo"
-              className="block text-sm font-semibold text-text tracking-wide mb-1"
+              className="block text-sm font-semibold text-foreground tracking-wide mb-1"
             >
               GitHub URL
             </label>
@@ -297,7 +297,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose }): JS
                   >
                     <CommandList className="bg-transparent max-h-[200px] overflow-y-auto">
                       {filteredRepos.length === 0 ? (
-                        <div className="p-2 text-sm text-text-muted text-center">
+                        <div className="p-2 text-sm text-muted-foreground text-center">
                           No matching repositories found
                         </div>
                       ) : (
@@ -332,7 +332,7 @@ export const AddProjectModal: React.FC<AddProjectModalProps> = ({ onClose }): JS
           <div className="relative">
             <label
               htmlFor="branch-name"
-              className="block text-sm font-semibold text-text tracking-wide mb-1"
+              className="block text-sm font-semibold text-foreground tracking-wide mb-1"
             >
               Branch
             </label>

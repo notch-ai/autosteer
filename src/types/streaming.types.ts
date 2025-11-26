@@ -3,6 +3,7 @@
  */
 
 import { PermissionRequest } from '@/stores/types';
+import { PermissionMode } from './permission.types';
 
 export interface StreamingChunk {
   type: 'partial' | 'complete' | 'error';
@@ -99,7 +100,7 @@ export interface ConversationOptions {
   allowed_tools?: string[];
   max_turns?: number;
   max_thinking_tokens?: number;
-  permission_mode?: 'default' | 'acceptEdits' | 'rejectAll' | 'bypassPermissions' | 'plan';
+  permission_mode?: PermissionMode; // SDK permission mode (not frontend PermissionMode)
   model?: string;
   cwd?: string;
 }

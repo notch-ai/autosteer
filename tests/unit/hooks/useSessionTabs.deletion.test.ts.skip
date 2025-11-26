@@ -1,0 +1,654 @@
+/**
+ * useSessionTabs Hook Tests - Tab Deletion Fixes
+ * Work Package 1: Tab Deletion Fix & Tests
+ *
+ * Tests cover three critical bugs:
+ * 1. Remove blocking condition preventing deletion at max capacity
+ * 2. Add project-scoped tab filtering
+ * 3. Add debug logging for tab deletion events
+ *
+ * @see autosteer/src/hooks/useSessionTabs.ts
+ */
+
+import { renderHook, act } from '@testing-library/react';
+import { useSessionTabs } from '@/hooks/useSessionTabs';
+import { useAgentsStore } from '@/stores/agents.store';
+import { useProjectsStore } from '@/stores/projects.store';
+import { useUIStore } from '@/stores/ui';
+import { useSettingsStore } from '@/stores/settings';
+import { createTestAgent, createTestAgents } from '@/tests/factories';
+import { setupMockElectron, cleanupMockElectron } from '@/tests/setup/test-utils';
+import { logger } from '@/commons/utils/logger';
+import { MAX_TABS } from '@/constants/tabs';
+import { AgentStatus, AgentType } from '@/entities/Agent';
+
+// Mock logger
+jest.mock('@/commons/utils/logger', () => ({
+  logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+// Mock window.electron
+const mockElectronAPI = {
+  worktree: {
+    setActiveTab: jest.fn().mockResolvedValue({ success: true }),
+    getVimMode: jest.fn().mockResolvedValue(false),
+    setVimMode: jest.fn().mockResolvedValue({ success: true }),
+    getDataDirectory: jest.fn().mockResolvedValue('~/.autosteer'),
+  },
+  ipcRenderer: {
+    invoke: jest.fn(),
+    on: jest.fn(),
+    once: jest.fn(),
+    removeListener: jest.fn(),
+  },
+};
+
+describe('useSessionTabs - Tab Deletion Fixes', () => {
+  beforeEach(() => {
+    // Reset all stores
+    useAgentsStore.setState({
+      agents: new Map(),
+      selectedAgentId: null,
+      agentsLoading: false,
+      agentsError: null,
+    });
+    useProjectsStore.setState({
+      projects: new Map(),
+      selectedProjectId: null,
+      projectsLoading: false,
+      projectsError: null,
+    });
+    useUIStore.setState({
+      sidebarCollapsed: false,
+      detailPanelCollapsed: false,
+      activeView: 'list',
+      leftPanelWidth: 300,
+      rightPanelWidth: 400,
+      activePanel: 'chat',
+      showProjectCreation: false,
+      searchQuery: '',
+      searchResults: [],
+      isSearching: false,
+      tabState: null,
+      maximizeTabs: new Map(),
+      maximizeTabsVersion: 0,
+    });
+    useSettingsStore.setState({
+      preferences: {
+        theme: 'system',
+        fontSize: 'medium',
+        fontFamily: 'monospace',
+        autoSave: true,
+        compactOnTokenLimit: true,
+        maxTokens: 4000,
+        badgeNotifications: true,
+        autoSelectFirstTab: true,
+        confirmSessionTabDeletion: true,
+      },
+      isInitialized: true,
+      initializationError: null,
+    });
+
+    // Clear all mocks
+    jest.clearAllMocks();
+
+    // Setup mock Electron API
+    setupMockElectron(mockElectronAPI);
+  });
+
+  afterEach(() => {
+    cleanupMockElectron();
+  });
+
+  describe('Bug Fix 1: Tab Deletion at Max Capacity', () => {
+    it('should allow tab deletion even when at max capacity', async () => {
+      const projectId = 'test-project-1';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Test Project',
+                localPath: '/test/path',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create MAX_TABS agents (10 total)
+      const agents = createTestAgents(MAX_TABS, {
+        projectId,
+        status: AgentStatus.DRAFT,
+        type: AgentType.TEXT,
+      });
+
+      // Add all agents to store
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Verify we have max tabs (10 agents)
+      const agentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(agentTabs.length).toBe(MAX_TABS);
+
+      // Select first agent tab
+      const firstAgentTab = agentTabs[0];
+      await act(async () => {
+        await result.current.switchToTab(firstAgentTab.id);
+      });
+
+      // BUG FIX: Should allow deletion even at max capacity
+      // Old behavior: tabs.length <= 1 prevented deletion
+      // New behavior: Should successfully close the tab
+      await act(async () => {
+        await result.current.closeTab(firstAgentTab.id);
+      });
+
+      // Verify tab was removed from UI store
+      const uiState = useUIStore.getState();
+      expect(uiState.tabState?.tabs.find((t) => t.id === firstAgentTab.id)).toBeUndefined();
+
+      // Verify we now have one less tab visible
+      const updatedAgentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(updatedAgentTabs.length).toBe(MAX_TABS - 1);
+    });
+
+    it('should decrement session count after deletion', async () => {
+      const projectId = 'test-project-2';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Test Project 2',
+                localPath: '/test/path2',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create 5 agents
+      const agents = createTestAgents(5, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      const initialAgentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      const initialCount = initialAgentTabs.length;
+
+      // Close first agent tab
+      const tabToClose = initialAgentTabs[0];
+      await act(async () => {
+        await result.current.switchToTab(tabToClose.id);
+        await result.current.closeTab(tabToClose.id);
+      });
+
+      // Verify count decreased
+      const finalAgentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(finalAgentTabs.length).toBe(initialCount - 1);
+    });
+
+    it('should handle deletion of last tab gracefully', async () => {
+      const projectId = 'test-project-3';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Test Project 3',
+                localPath: '/test/path3',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create only 1 agent
+      const agent = createTestAgent({ projectId, id: 'single-agent' });
+
+      act(() => {
+        const agentsMap = new Map([[agent.id, agent]]);
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      const agentTab = result.current.tabs.find((tab) => tab.id === 'single-agent');
+      expect(agentTab).toBeDefined();
+
+      // Try to close the only tab - should be blocked by tabs.length <= 1 guard
+      await act(async () => {
+        await result.current.switchToTab(agentTab!.id);
+        await result.current.closeTab(agentTab!.id);
+      });
+
+      // Tab should still exist (last tab protection)
+      const remainingAgentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(remainingAgentTabs.length).toBe(1);
+    });
+  });
+
+  describe('Bug Fix 2: Project-Scoped Tab Filtering', () => {
+    it('should only show tabs for current project', async () => {
+      const project1Id = 'project-alpha';
+      const project2Id = 'project-beta';
+
+      // Setup two projects
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              project1Id,
+              {
+                id: project1Id,
+                name: 'Project Alpha',
+                localPath: '/alpha',
+                folderName: project1Id,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+            [
+              project2Id,
+              {
+                id: project2Id,
+                name: 'Project Beta',
+                localPath: '/beta',
+                folderName: project2Id,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: project1Id,
+        });
+      });
+
+      // Create agents for both projects
+      const project1Agents = createTestAgents(3, { projectId: project1Id });
+      const project2Agents = createTestAgents(4, { projectId: project2Id });
+
+      act(() => {
+        const allAgents = [...project1Agents, ...project2Agents];
+        const agentsMap = new Map(allAgents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result, rerender } = renderHook(() => useSessionTabs());
+
+      // Should only show project 1 agent tabs
+      let agentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(agentTabs.length).toBe(3);
+      expect(agentTabs.every((tab) => project1Agents.some((a) => a.id === tab.id))).toBe(true);
+
+      // Switch to project 2
+      await act(async () => {
+        useProjectsStore.setState({ selectedProjectId: project2Id });
+      });
+
+      rerender();
+
+      // Should now only show project 2 agent tabs
+      agentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(agentTabs.length).toBe(4);
+      expect(agentTabs.every((tab) => project2Agents.some((a) => a.id === tab.id))).toBe(true);
+    });
+
+    it('should prevent cross-project tab leakage', async () => {
+      const project1Id = 'secure-project';
+      const project2Id = 'other-project';
+
+      // Setup projects
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              project1Id,
+              {
+                id: project1Id,
+                name: 'Secure Project',
+                localPath: '/secure',
+                folderName: project1Id,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+            [
+              project2Id,
+              {
+                id: project2Id,
+                name: 'Other Project',
+                localPath: '/other',
+                folderName: project2Id,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: project1Id,
+        });
+      });
+
+      // Create agents with specific IDs
+      const secureAgent = createTestAgent({
+        id: 'secure-agent',
+        projectId: project1Id,
+        title: 'Secure Agent',
+      });
+
+      const otherAgent = createTestAgent({
+        id: 'other-agent',
+        projectId: project2Id,
+        title: 'Other Agent',
+      });
+
+      act(() => {
+        const agentsMap = new Map([
+          [secureAgent.id, secureAgent],
+          [otherAgent.id, otherAgent],
+        ]);
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Verify only secure agent is visible
+      const agentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(agentTabs.length).toBe(1);
+      expect(agentTabs[0].id).toBe('secure-agent');
+
+      // BUG FIX: Other project's agent should NOT leak into tabs
+      expect(agentTabs.find((tab) => tab.id === 'other-agent')).toBeUndefined();
+    });
+
+    it('should update tabs when project changes', async () => {
+      const project1Id = 'proj-1';
+      const project2Id = 'proj-2';
+
+      // Setup projects
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              project1Id,
+              {
+                id: project1Id,
+                name: 'Project 1',
+                localPath: '/proj1',
+                folderName: project1Id,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+            [
+              project2Id,
+              {
+                id: project2Id,
+                name: 'Project 2',
+                localPath: '/proj2',
+                folderName: project2Id,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: project1Id,
+        });
+      });
+
+      // Create agents for both projects
+      const proj1Agents = createTestAgents(2, { projectId: project1Id });
+      const proj2Agents = createTestAgents(3, { projectId: project2Id });
+
+      act(() => {
+        const allAgents = [...proj1Agents, ...proj2Agents];
+        const agentsMap = new Map(allAgents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result, rerender } = renderHook(() => useSessionTabs());
+
+      // Initial state - project 1 tabs
+      let agentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(agentTabs.length).toBe(2);
+
+      // Switch to project 2
+      await act(async () => {
+        useProjectsStore.setState({ selectedProjectId: project2Id });
+      });
+
+      rerender();
+
+      // Should now show project 2 tabs
+      agentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(agentTabs.length).toBe(3);
+    });
+  });
+
+  describe('Bug Fix 3: Debug Logging for Tab Deletion', () => {
+    it('should log deletion events with correct metadata', async () => {
+      const projectId = 'logging-project';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Logging Project',
+                localPath: '/logging',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create agents
+      const agents = createTestAgents(3, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      const agentTab = result.current.tabs.filter((tab) => tab.tabType === 'agent')[0];
+
+      // Clear logger mock calls
+      jest.clearAllMocks();
+
+      // Close tab
+      await act(async () => {
+        await result.current.switchToTab(agentTab.id);
+        await result.current.closeTab(agentTab.id);
+      });
+
+      // BUG FIX: Should log deletion with agentId, projectId, and tab count
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Deleting tab'),
+        expect.objectContaining({
+          agentId: agentTab.agentId,
+          projectId: projectId,
+          tabCount: expect.any(Number),
+        })
+      );
+    });
+
+    it('should log when tab not found during deletion', async () => {
+      const projectId = 'error-project';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Error Project',
+                localPath: '/error',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Clear logger mock calls
+      jest.clearAllMocks();
+
+      // Try to close non-existent tab
+      await act(async () => {
+        await result.current.closeTab('non-existent-tab-id');
+      });
+
+      // Should log error when tab not found
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Tab not found'),
+        expect.objectContaining({
+          tabId: 'non-existent-tab-id',
+        })
+      );
+    });
+
+    it('should include tab count in deletion logs', async () => {
+      const projectId = 'count-project';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Count Project',
+                localPath: '/count',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create 5 agents
+      const agents = createTestAgents(5, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      const initialTabCount = result.current.tabs.length;
+      const agentTab = result.current.tabs.filter((tab) => tab.tabType === 'agent')[0];
+
+      // Clear logger mock calls
+      jest.clearAllMocks();
+
+      // Close tab
+      await act(async () => {
+        await result.current.switchToTab(agentTab.id);
+        await result.current.closeTab(agentTab.id);
+      });
+
+      // Verify tab count was logged
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          tabCount: initialTabCount,
+        })
+      );
+    });
+  });
+});

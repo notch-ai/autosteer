@@ -7,9 +7,9 @@ const textareaVariants = cva(
     // Base styles matching chat input
     'flex w-full rounded-lg text-sm',
     'px-3 py-2',
-    'text-text',
+    'text-foreground',
     'transition-shadow duration-150', // Only transition shadow
-    'placeholder:text-text-muted',
+    'placeholder:text-muted-foreground',
     // Disabled styles
     'disabled:cursor-default disabled:opacity-60',
     // Default resize behavior
@@ -29,7 +29,7 @@ const textareaVariants = cva(
           'focus-visible:ring-0', // No focus-visible ring
           // No hover effect
         ],
-        filled: 'bg-surface border border-border',
+        filled: 'bg-card border border-border',
         ghost: 'bg-transparent border-transparent',
       },
       size: {

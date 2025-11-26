@@ -92,9 +92,8 @@ export const useTerminalStore = create<TerminalStore>()(
     // Actions
     addTerminal: (terminal: Terminal) =>
       set((state) => {
-        if (state.terminals.size >= state.maxTerminals) {
-          throw new Error(`Maximum terminal limit reached (${state.maxTerminals})`);
-        }
+        // Note: Pool limit check happens in TerminalPoolManager.createTerminal()
+        // This store only tracks metadata, so we don't duplicate the limit check here
         state.terminals.set(terminal.id, terminal);
         if (!state.activeTerminalId) {
           state.activeTerminalId = terminal.id;

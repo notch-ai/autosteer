@@ -437,10 +437,12 @@ describe('GitService', () => {
   });
 
   describe('removeWorktree', () => {
-    it('should successfully remove worktree', async () => {
-      console.log('[GitService.test] Testing removeWorktree - success');
+    it('should successfully remove worktree without deleting branch', async () => {
+      console.log('[GitService.test] Testing removeWorktree - success without branch deletion');
       // git worktree remove
       mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // fs.rm for directory
+      fsPromises.rm.mockResolvedValueOnce(undefined);
       // git worktree prune
       mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
 
@@ -450,12 +452,18 @@ describe('GitService', () => {
       });
 
       expect(result.success).toBe(true);
+      expect(mockExecAsync).not.toHaveBeenCalledWith(
+        expect.stringContaining('git push origin --delete'),
+        expect.any(Object)
+      );
     });
 
-    it('should remove worktree and delete local branch', async () => {
-      console.log('[GitService.test] Testing removeWorktree - with branch deletion');
+    it('should remove worktree and delete local branch only when branchName provided and deleteBranch is false', async () => {
+      console.log('[GitService.test] Testing removeWorktree - with local branch deletion only');
       // git worktree remove
       mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // fs.rm for directory
+      fsPromises.rm.mockResolvedValueOnce(undefined);
       // git worktree prune
       mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
       // git branch -D
@@ -465,6 +473,129 @@ describe('GitService', () => {
         mainRepoPath: '/test/main',
         worktreePath: '/test/worktree',
         branchName: 'feature-branch',
+        deleteBranch: false,
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExecAsync).toHaveBeenCalledWith(
+        'git branch -D "feature-branch"',
+        expect.any(Object)
+      );
+      expect(mockExecAsync).not.toHaveBeenCalledWith(
+        expect.stringContaining('git push origin --delete'),
+        expect.any(Object)
+      );
+    });
+
+    it('should remove worktree and delete both local and remote branch when deleteBranch is true', async () => {
+      console.log('[GitService.test] Testing removeWorktree - with remote branch deletion');
+      // git worktree remove
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // fs.rm for directory
+      fsPromises.rm.mockResolvedValueOnce(undefined);
+      // git worktree prune
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // git branch -D
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Deleted branch', stderr: '' });
+      // git ls-remote (check if branch exists)
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: 'abc123\trefs/heads/feature-branch',
+        stderr: '',
+      });
+      // git push origin --delete
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Deleted remote branch', stderr: '' });
+
+      const result = await gitService.removeWorktree({
+        mainRepoPath: '/test/main',
+        worktreePath: '/test/worktree',
+        branchName: 'feature-branch',
+        deleteBranch: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExecAsync).toHaveBeenCalledWith(
+        'git branch -D "feature-branch"',
+        expect.any(Object)
+      );
+      expect(mockExecAsync).toHaveBeenCalledWith(
+        'git push origin --delete "feature-branch"',
+        expect.any(Object)
+      );
+    });
+
+    it('should handle remote branch deletion when branch does not exist on remote', async () => {
+      console.log('[GitService.test] Testing removeWorktree - remote branch does not exist');
+      // git worktree remove
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // fs.rm for directory
+      fsPromises.rm.mockResolvedValueOnce(undefined);
+      // git worktree prune
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // git branch -D
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Deleted branch', stderr: '' });
+      // git ls-remote (branch does not exist)
+      mockExecAsync.mockResolvedValueOnce({ stdout: '', stderr: '' });
+
+      const result = await gitService.removeWorktree({
+        mainRepoPath: '/test/main',
+        worktreePath: '/test/worktree',
+        branchName: 'feature-branch',
+        deleteBranch: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExecAsync).not.toHaveBeenCalledWith(
+        expect.stringContaining('git push origin --delete'),
+        expect.any(Object)
+      );
+    });
+
+    it('should continue despite remote branch deletion failure', async () => {
+      console.log(
+        '[GitService.test] Testing removeWorktree - remote deletion failure non-blocking'
+      );
+      // git worktree remove
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // fs.rm for directory
+      fsPromises.rm.mockResolvedValueOnce(undefined);
+      // git worktree prune
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // git branch -D
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Deleted branch', stderr: '' });
+      // git ls-remote (check if branch exists)
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: 'abc123\trefs/heads/feature-branch',
+        stderr: '',
+      });
+      // git push origin --delete fails
+      mockExecAsync.mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await gitService.removeWorktree({
+        mainRepoPath: '/test/main',
+        worktreePath: '/test/worktree',
+        branchName: 'feature-branch',
+        deleteBranch: true,
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should continue despite local branch deletion failure', async () => {
+      console.log('[GitService.test] Testing removeWorktree - local deletion failure non-blocking');
+      // git worktree remove
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // fs.rm for directory
+      fsPromises.rm.mockResolvedValueOnce(undefined);
+      // git worktree prune
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // git branch -D fails
+      mockExecAsync.mockRejectedValueOnce(new Error('Branch not found'));
+
+      const result = await gitService.removeWorktree({
+        mainRepoPath: '/test/main',
+        worktreePath: '/test/worktree',
+        branchName: 'feature-branch',
+        deleteBranch: true,
       });
 
       expect(result.success).toBe(true);
@@ -499,6 +630,398 @@ describe('GitService', () => {
       });
 
       expect(result.success).toBe(false);
+    });
+
+    it('should maintain backward compatibility - no deleteBranch parameter defaults to false', async () => {
+      console.log('[GitService.test] Testing removeWorktree - backward compatibility');
+      // git worktree remove
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // fs.rm for directory
+      fsPromises.rm.mockResolvedValueOnce(undefined);
+      // git worktree prune
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Success', stderr: '' });
+      // git branch -D
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'Deleted branch', stderr: '' });
+
+      const result = await gitService.removeWorktree({
+        mainRepoPath: '/test/main',
+        worktreePath: '/test/worktree',
+        branchName: 'feature-branch',
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockExecAsync).toHaveBeenCalledWith(
+        'git branch -D "feature-branch"',
+        expect.any(Object)
+      );
+      expect(mockExecAsync).not.toHaveBeenCalledWith(
+        expect.stringContaining('git push origin --delete'),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('localBranchExists', () => {
+    it('should return true when local branch exists', async () => {
+      console.log('[GitService.test] Testing localBranchExists - exists');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: '  main\n* feature-branch\n  develop',
+        stderr: '',
+      });
+
+      const result = await gitService.localBranchExists('/test/repo', 'feature-branch');
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false when local branch does not exist', async () => {
+      console.log('[GitService.test] Testing localBranchExists - not exists');
+      mockExecAsync.mockResolvedValueOnce({ stdout: '  main\n* develop', stderr: '' });
+
+      const result = await gitService.localBranchExists('/test/repo', 'non-existent');
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false on error', async () => {
+      console.log('[GitService.test] Testing localBranchExists - error');
+      mockExecAsync.mockRejectedValueOnce(new Error('Not a git repository'));
+
+      const result = await gitService.localBranchExists('/test/repo', 'feature-branch');
+
+      expect(result).toBe(false);
+    });
+
+    it('should handle branches with special characters', async () => {
+      console.log('[GitService.test] Testing localBranchExists - special characters');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: '  main\n* feature/test-123\n  bugfix/issue-456',
+        stderr: '',
+      });
+
+      const result = await gitService.localBranchExists('/test/repo', 'feature/test-123');
+
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('getUnpushedCommitCount', () => {
+    it('should return commit count when unpushed commits exist', async () => {
+      console.log('[GitService.test] Testing getUnpushedCommitCount - has unpushed commits');
+      mockExecAsync.mockResolvedValueOnce({ stdout: '3', stderr: '' });
+
+      const result = await gitService.getUnpushedCommitCount('/test/repo', 'feature-branch');
+
+      expect(result).toBe(3);
+    });
+
+    it('should return 0 when no unpushed commits', async () => {
+      console.log('[GitService.test] Testing getUnpushedCommitCount - no unpushed commits');
+      mockExecAsync.mockResolvedValueOnce({ stdout: '0', stderr: '' });
+
+      const result = await gitService.getUnpushedCommitCount('/test/repo', 'feature-branch');
+
+      expect(result).toBe(0);
+    });
+
+    it('should return 0 when branch does not exist on remote', async () => {
+      console.log('[GitService.test] Testing getUnpushedCommitCount - branch not on remote');
+      mockExecAsync.mockRejectedValueOnce(
+        new Error("fatal: ambiguous argument 'origin/feature-branch'")
+      );
+
+      const result = await gitService.getUnpushedCommitCount('/test/repo', 'feature-branch');
+
+      expect(result).toBe(0);
+    });
+
+    it('should return 0 on error', async () => {
+      console.log('[GitService.test] Testing getUnpushedCommitCount - error');
+      mockExecAsync.mockRejectedValueOnce(new Error('Not a git repository'));
+
+      const result = await gitService.getUnpushedCommitCount('/test/repo', 'feature-branch');
+
+      expect(result).toBe(0);
+    });
+
+    it('should handle invalid output gracefully', async () => {
+      console.log('[GitService.test] Testing getUnpushedCommitCount - invalid output');
+      mockExecAsync.mockResolvedValueOnce({ stdout: 'invalid\n', stderr: '' });
+
+      const result = await gitService.getUnpushedCommitCount('/test/repo', 'feature-branch');
+
+      expect(result).toBe(0);
+    });
+  });
+
+  describe('isProtectedBranch', () => {
+    it('should return true for main branch', () => {
+      console.log('[GitService.test] Testing isProtectedBranch - main');
+      expect(gitService.isProtectedBranch('main')).toBe(true);
+    });
+
+    it('should return true for master branch', () => {
+      console.log('[GitService.test] Testing isProtectedBranch - master');
+      expect(gitService.isProtectedBranch('master')).toBe(true);
+    });
+
+    it('should return true for develop branch', () => {
+      console.log('[GitService.test] Testing isProtectedBranch - develop');
+      expect(gitService.isProtectedBranch('develop')).toBe(true);
+    });
+
+    it('should return false for feature branch', () => {
+      console.log('[GitService.test] Testing isProtectedBranch - feature');
+      expect(gitService.isProtectedBranch('feature-branch')).toBe(false);
+    });
+
+    it('should return false for undefined', () => {
+      console.log('[GitService.test] Testing isProtectedBranch - undefined');
+      expect(gitService.isProtectedBranch(undefined)).toBe(false);
+    });
+
+    it('should be case-insensitive', () => {
+      console.log('[GitService.test] Testing isProtectedBranch - case insensitive');
+      expect(gitService.isProtectedBranch('MAIN')).toBe(true);
+      expect(gitService.isProtectedBranch('Master')).toBe(true);
+      expect(gitService.isProtectedBranch('DEVELOP')).toBe(true);
+    });
+  });
+
+  describe('checkBranchMerged', () => {
+    it('should return true when branch is merged', async () => {
+      console.log('[GitService.test] Testing checkBranchMerged - branch is merged');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: '  main\n  feature-branch\n  develop\n',
+        stderr: '',
+      });
+
+      const result = await gitService.checkBranchMerged('/test/repo', 'feature-branch');
+
+      expect(result).toBe(true);
+      expect(mockExecAsync).toHaveBeenCalledWith('git branch --merged', {
+        cwd: '/test/repo',
+      });
+    });
+
+    it('should return false when branch is not merged', async () => {
+      console.log('[GitService.test] Testing checkBranchMerged - branch not merged');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: '  main\n  develop\n',
+        stderr: '',
+      });
+
+      const result = await gitService.checkBranchMerged('/test/repo', 'feature-branch');
+
+      expect(result).toBe(false);
+    });
+
+    it('should handle asterisk prefix for current branch', async () => {
+      console.log('[GitService.test] Testing checkBranchMerged - asterisk prefix');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: '* main\n  feature-branch\n',
+        stderr: '',
+      });
+
+      const result = await gitService.checkBranchMerged('/test/repo', 'feature-branch');
+
+      expect(result).toBe(true);
+    });
+
+    it('should handle branch names with slashes', async () => {
+      console.log('[GitService.test] Testing checkBranchMerged - branch with slashes');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: '  main\n  feature/test-123\n',
+        stderr: '',
+      });
+
+      const result = await gitService.checkBranchMerged('/test/repo', 'feature/test-123');
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false on error', async () => {
+      console.log('[GitService.test] Testing checkBranchMerged - error handling');
+      mockExecAsync.mockRejectedValueOnce(new Error('Not a git repository'));
+
+      const result = await gitService.checkBranchMerged('/test/repo', 'feature-branch');
+
+      expect(result).toBe(false);
+    });
+
+    it('should handle empty output', async () => {
+      console.log('[GitService.test] Testing checkBranchMerged - empty output');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: '',
+        stderr: '',
+      });
+
+      const result = await gitService.checkBranchMerged('/test/repo', 'feature-branch');
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('deleteBranch', () => {
+    it('should delete branch with safe deletion', async () => {
+      console.log('[GitService.test] Testing deleteBranch - safe deletion');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: 'Deleted branch feature-branch',
+        stderr: '',
+      });
+
+      await gitService.deleteBranch('/test/repo', 'feature-branch');
+
+      expect(mockExecAsync).toHaveBeenCalledWith('git branch -d "feature-branch"', {
+        cwd: '/test/repo',
+      });
+    });
+
+    it('should delete branch with force option', async () => {
+      console.log('[GitService.test] Testing deleteBranch - force deletion');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: 'Deleted branch feature-branch',
+        stderr: '',
+      });
+
+      await gitService.deleteBranch('/test/repo', 'feature-branch', true);
+
+      expect(mockExecAsync).toHaveBeenCalledWith('git branch -D "feature-branch"', {
+        cwd: '/test/repo',
+      });
+    });
+
+    it('should handle branch names with slashes', async () => {
+      console.log('[GitService.test] Testing deleteBranch - branch with slashes');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: 'Deleted branch feature/test-123',
+        stderr: '',
+      });
+
+      await gitService.deleteBranch('/test/repo', 'feature/test-123');
+
+      expect(mockExecAsync).toHaveBeenCalledWith('git branch -d "feature/test-123"', {
+        cwd: '/test/repo',
+      });
+    });
+
+    it('should throw error when branch is not merged', async () => {
+      console.log('[GitService.test] Testing deleteBranch - not merged error');
+      mockExecAsync.mockRejectedValueOnce(new Error('error: The branch is not fully merged'));
+
+      await expect(gitService.deleteBranch('/test/repo', 'feature-branch')).rejects.toThrow(
+        'not fully merged'
+      );
+    });
+
+    it('should throw error when branch does not exist', async () => {
+      console.log('[GitService.test] Testing deleteBranch - branch not found');
+      mockExecAsync.mockRejectedValueOnce(new Error('error: branch not found'));
+
+      await expect(gitService.deleteBranch('/test/repo', 'non-existent')).rejects.toThrow(
+        'branch not found'
+      );
+    });
+
+    it('should handle deletion errors', async () => {
+      console.log('[GitService.test] Testing deleteBranch - general error');
+      mockExecAsync.mockRejectedValueOnce(new Error('Permission denied'));
+
+      await expect(gitService.deleteBranch('/test/repo', 'feature-branch')).rejects.toThrow(
+        'Permission denied'
+      );
+    });
+  });
+
+  describe('checkUnpushedCommits', () => {
+    it('should return 0 when no unpushed commits', async () => {
+      console.log('[GitService.test] Testing checkUnpushedCommits - no unpushed commits');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: '',
+        stderr: '',
+      });
+
+      const result = await gitService.checkUnpushedCommits('/test/repo', 'feature-branch');
+
+      expect(result).toBe(0);
+      expect(mockExecAsync).toHaveBeenCalledWith(
+        'git log origin/feature-branch..feature-branch --oneline',
+        {
+          cwd: '/test/repo',
+        }
+      );
+    });
+
+    it('should return correct count for single unpushed commit', async () => {
+      console.log('[GitService.test] Testing checkUnpushedCommits - single commit');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: 'abc123 feat: add new feature\n',
+        stderr: '',
+      });
+
+      const result = await gitService.checkUnpushedCommits('/test/repo', 'feature-branch');
+
+      expect(result).toBe(1);
+    });
+
+    it('should return correct count for multiple unpushed commits', async () => {
+      console.log('[GitService.test] Testing checkUnpushedCommits - multiple commits');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: 'abc123 feat: add feature 1\ndef456 feat: add feature 2\nghi789 fix: bug fix\n',
+        stderr: '',
+      });
+
+      const result = await gitService.checkUnpushedCommits('/test/repo', 'feature-branch');
+
+      expect(result).toBe(3);
+    });
+
+    it('should handle branch names with slashes', async () => {
+      console.log('[GitService.test] Testing checkUnpushedCommits - branch with slashes');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: 'abc123 feat: add feature\n',
+        stderr: '',
+      });
+
+      const result = await gitService.checkUnpushedCommits('/test/repo', 'feature/test-123');
+
+      expect(result).toBe(1);
+      expect(mockExecAsync).toHaveBeenCalledWith(
+        'git log origin/feature/test-123..feature/test-123 --oneline',
+        {
+          cwd: '/test/repo',
+        }
+      );
+    });
+
+    it('should return 0 when remote branch does not exist', async () => {
+      console.log('[GitService.test] Testing checkUnpushedCommits - no remote branch');
+      mockExecAsync.mockRejectedValueOnce(new Error('unknown revision or path'));
+
+      const result = await gitService.checkUnpushedCommits('/test/repo', 'new-branch');
+
+      expect(result).toBe(0);
+    });
+
+    it('should return 0 on error', async () => {
+      console.log('[GitService.test] Testing checkUnpushedCommits - error handling');
+      mockExecAsync.mockRejectedValueOnce(new Error('Not a git repository'));
+
+      const result = await gitService.checkUnpushedCommits('/test/repo', 'feature-branch');
+
+      expect(result).toBe(0);
+    });
+
+    it('should handle output with trailing newlines', async () => {
+      console.log('[GitService.test] Testing checkUnpushedCommits - trailing newlines');
+      mockExecAsync.mockResolvedValueOnce({
+        stdout: 'abc123 feat: add feature\n\n\n',
+        stderr: '',
+      });
+
+      const result = await gitService.checkUnpushedCommits('/test/repo', 'feature-branch');
+
+      expect(result).toBe(1);
     });
   });
 });

@@ -307,11 +307,11 @@ export const IconVariants: Story = {
             onClick={() => toastSuccess('Task completed successfully!')}
             className="justify-start"
           >
-            <FaCheckCircle className="w-4 h-4 mr-2 text-green" />
+            <FaCheckCircle className="w-4 h-4 mr-2 text-success" />
             Success Toast
           </Button>
           <Button onClick={() => toastError('An error occurred')} className="justify-start">
-            <FaTimesCircle className="w-4 h-4 mr-2 text-red" />
+            <FaTimesCircle className="w-4 h-4 mr-2 text-danger" />
             Error Toast
           </Button>
         </div>

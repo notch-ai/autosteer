@@ -54,30 +54,46 @@ export class LLMService {
    * Initialize the LLM service with a specific provider
    */
   static async initialize(config?: LLMConfig): Promise<void> {
+    console.log('[LLMService] Initializing LLM service...', { configProvided: !!config });
+
     // Load saved config if not provided
     let finalConfig: LLMConfig;
     if (!config) {
+      console.log('[LLMService] No config provided, loading from ConfigService...');
       const savedConfig = ConfigService.loadLLMConfig();
+      console.log('[LLMService] Loaded config:', savedConfig);
       finalConfig = savedConfig || { provider: 'claude-code' };
+      console.log('[LLMService] Final config:', finalConfig);
     } else {
+      console.log('[LLMService] Using provided config:', config);
       finalConfig = config;
     }
 
     this.config = finalConfig;
+    console.log('[LLMService] Saving config to ConfigService...');
     ConfigService.saveLLMConfig(finalConfig);
+    console.log('[LLMService] Config saved');
 
+    console.log('[LLMService] Initializing provider:', finalConfig.provider);
     switch (finalConfig.provider) {
       case 'claude-code':
+        console.log('[LLMService] Loading ClaudeCodeProvider...');
         const { ClaudeCodeProvider } = await import('./providers/ClaudeCodeProvider');
+        console.log('[LLMService] ClaudeCodeProvider loaded, creating instance...');
         this.provider = new ClaudeCodeProvider(finalConfig);
+        console.log('[LLMService] ClaudeCodeProvider instance created');
         break;
 
       case 'mock':
       default:
+        console.log('[LLMService] Loading MockLLMProvider...');
         const { MockLLMProvider } = await import('./providers/MockLLMProvider');
+        console.log('[LLMService] MockLLMProvider loaded, creating instance...');
         this.provider = new MockLLMProvider(finalConfig);
+        console.log('[LLMService] MockLLMProvider instance created');
         break;
     }
+    console.log('[LLMService] LLM service initialization complete');
   }
 
   /**

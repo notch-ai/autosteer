@@ -9,7 +9,7 @@ type ToasterProps = React.ComponentProps<typeof Sonner>;
 const toastSuccess = (message: string, data?: any) =>
   toast(
     <div className="flex items-center gap-3">
-      <CheckCircle2 className="w-5 h-5 text-green flex-shrink-0" />
+      <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
       <span>{message}</span>
     </div>,
     {
@@ -22,7 +22,7 @@ const toastSuccess = (message: string, data?: any) =>
 const toastError = (message: string, data?: any) =>
   toast(
     <div className="flex items-center gap-3">
-      <XCircle className="w-5 h-5 text-red flex-shrink-0" />
+      <XCircle className="w-5 h-5 text-danger flex-shrink-0" />
       <span>{message}</span>
     </div>,
     {
@@ -35,7 +35,7 @@ const toastError = (message: string, data?: any) =>
 const toastWarning = (message: string, data?: any) =>
   toast(
     <div className="flex items-center gap-3">
-      <AlertTriangle className="w-5 h-5 text-orange flex-shrink-0" />
+      <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
       <span>{message}</span>
     </div>,
     {
@@ -75,13 +75,13 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast:
-            'group toast group-[.toaster]:bg-button-special group-[.toaster]:text-text group-[.toaster]:border group-[.toaster]:border-border group-[.toaster]:rounded-md',
-          description: 'group-[.toast]:text-text-secondary',
+            'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border group-[.toaster]:border-border group-[.toaster]:rounded-md',
+          description: 'group-[.toast]:text-foreground-secondary',
           actionButton:
-            'group-[.toast]:bg-surface-hover group-[.toast]:text-text group-[.toast]:border group-[.toast]:border-border hover:group-[.toast]:bg-surface-active',
+            'group-[.toast]:bg-card-hover group-[.toast]:text-foreground group-[.toast]:border group-[.toast]:border-border hover:group-[.toast]:bg-card-active',
           cancelButton:
-            'group-[.toast]:bg-transparent group-[.toast]:text-text-secondary group-[.toast]:border group-[.toast]:border-border hover:group-[.toast]:bg-surface-hover',
-          // Remove variant-specific background colors since we're using button-special background for all
+            'group-[.toast]:bg-transparent group-[.toast]:text-foreground-secondary group-[.toast]:border group-[.toast]:border-border hover:group-[.toast]:bg-card-hover',
+          // Remove variant-specific background colors since we're using white background for all
           success: '',
           error: '',
           warning: '',

@@ -1,6 +1,7 @@
 import { cn } from '@/commons/utils/ui/cn';
 import { ChatInterface } from '@/features/chat/components/ChatInterface';
 import { useAgentChatState, useChatMessageHandlers, useResourceAttachment } from '@/hooks';
+import { useUIStore } from '@/stores';
 import React, { useRef } from 'react';
 
 interface AgentChatInterfaceProps {
@@ -15,7 +16,7 @@ interface AgentChatInterfaceProps {
  * This ensures the component re-renders when messages are added/updated
  */
 export const AgentChatInterface: React.FC<AgentChatInterfaceProps> = React.memo(
-  ({ agentId, selectedAgentId, useMockPermission = false, onRefReady }) => {
+  ({ agentId, selectedAgentId: _selectedAgentId, useMockPermission = false, onRefReady }) => {
     const chatInterfaceRef = useRef<{ focus: () => void } | null>(null);
 
     // Notify parent when ref is ready (after mount or update)
@@ -26,7 +27,7 @@ export const AgentChatInterface: React.FC<AgentChatInterfaceProps> = React.memo(
     }, [agentId, onRefReady]);
 
     // Custom hooks - all logic extracted
-    const { messages, attachedResourceIds, isLoading } = useAgentChatState({
+    const { messages, attachedResourceIds } = useAgentChatState({
       agentId,
       useMockPermission,
     });
@@ -35,7 +36,12 @@ export const AgentChatInterface: React.FC<AgentChatInterfaceProps> = React.memo(
 
     const { handleAttachResources, handleRemoveResource } = useResourceAttachment();
 
-    const isActive = selectedAgentId === agentId;
+    const activeTabId = useUIStore((state) => state.tabState?.activeTabId);
+
+    // Agent is active if:
+    // 1. Its ID matches the active tab ID (for regular agent tabs)
+    // 2. OR its ID matches selectedAgentId AND activeTabId doesn't start with 'maximize-'
+    const isActive = activeTabId === agentId;
 
     return (
       <div
@@ -52,7 +58,6 @@ export const AgentChatInterface: React.FC<AgentChatInterfaceProps> = React.memo(
           ref={chatInterfaceRef}
           messages={messages}
           onSendMessage={handleSendMessage}
-          isLoading={isLoading}
           attachedResourceIds={attachedResourceIds}
           onRemoveResource={handleRemoveResource}
           onAttachResources={handleAttachResources}

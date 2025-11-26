@@ -22,12 +22,12 @@ const SelectTrigger = React.forwardRef<
         'flex h-10 w-full items-center justify-between rounded px-3 py-2 text-sm',
         'border border-border',
         'transition-colors duration-150', // Only transition colors, not layout
-        'placeholder:text-text-muted',
+        'placeholder:text-muted-foreground',
         // Background: gray by default, white when value is selected
         // Radix UI adds data-placeholder when showing placeholder (no value selected)
-        'bg-surface',
+        'bg-card',
         'data-[state=open]:bg-background', // White when dropdown is open
-        'data-[placeholder]:bg-surface', // Gray when placeholder is shown
+        'data-[placeholder]:bg-card', // Gray when placeholder is shown
         '[&:not([data-placeholder])]:bg-background', // White when value is selected
         // Remove focus ring and outline
         'outline-none',
@@ -42,7 +42,7 @@ const SelectTrigger = React.forwardRef<
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDown className="h-4 w-4 opacity-60 text-text-muted" />
+        <ChevronDown className="h-4 w-4 opacity-60 text-muted-foreground" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -87,7 +87,7 @@ const SelectContent = React.forwardRef<
       className={cn(
         // AutoSteer styling - matching desktop app aesthetics
         // z-[1002] to appear above modal dialogs (which use z-[1001])
-        'relative z-[1002] max-h-96 min-w-[8rem] overflow-hidden rounded-md border border-border bg-surface text-text shadow-xs',
+        'relative z-[1002] max-h-96 min-w-[8rem] overflow-hidden rounded-md border border-border bg-card text-foreground shadow-xs',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
@@ -122,7 +122,7 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn('py-1.5 pl-8 pr-2 text-sm font-semibold text-text-muted', className)}
+    className={cn('py-1.5 pl-8 pr-2 text-sm font-semibold text-muted-foreground', className)}
     {...props}
   />
 ));
@@ -137,7 +137,7 @@ const SelectItem = React.forwardRef<
     className={cn(
       // AutoSteer styling - matching desktop app aesthetics
       'relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none',
-      'focus:bg-surface-hover focus:text-text',
+      'focus:bg-card-hover focus:text-foreground',
       'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className
     )}

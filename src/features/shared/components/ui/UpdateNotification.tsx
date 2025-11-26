@@ -75,17 +75,17 @@ export const UpdateNotification: React.FC = (): React.ReactElement | null => {
       </div>
 
       <div className="space-y-3">
-        <p className="text-sm text-text-muted">
+        <p className="text-sm text-muted-foreground">
           Version {updateInfo.newVersion} is available (current: {updateInfo.currentVersion})
         </p>
 
         {isDownloading && (
-          <div className="relative bg-surface rounded h-2">
+          <div className="relative bg-card rounded h-2">
             <div
               className="absolute h-full bg-primary rounded"
               style={{ width: `${downloadProgress}%` }}
             />
-            <span className="text-sm text-text-muted">{Math.round(downloadProgress)}%</span>
+            <span className="text-sm text-muted-foreground">{Math.round(downloadProgress)}%</span>
           </div>
         )}
 
@@ -100,8 +100,8 @@ export const UpdateNotification: React.FC = (): React.ReactElement | null => {
         </div>
 
         {showReleaseNotes && (
-          <div className="p-3 bg-surface rounded">
-            <pre className="text-sm text-text-muted whitespace-pre-wrap">{releaseNotes}</pre>
+          <div className="p-3 bg-card rounded">
+            <pre className="text-sm text-muted-foreground whitespace-pre-wrap">{releaseNotes}</pre>
           </div>
         )}
       </div>

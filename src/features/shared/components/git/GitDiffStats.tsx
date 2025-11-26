@@ -97,6 +97,14 @@ export const GitDiffStats: React.FC = () => {
     }
   }, [workingDirectory]);
 
+  // Use ref to store latest fetchGitStats without triggering effect re-runs
+  const fetchGitStatsRef = React.useRef(fetchGitStats);
+
+  // Update ref on every render to avoid stale closures
+  React.useEffect(() => {
+    fetchGitStatsRef.current = fetchGitStats;
+  });
+
   // Fetch stats on mount and when working directory changes
   useEffect(() => {
     void fetchGitStats();
@@ -105,13 +113,13 @@ export const GitDiffStats: React.FC = () => {
   // Polling fallback - refresh every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      void fetchGitStats();
+      void fetchGitStatsRef.current();
     }, 5000);
 
     return () => {
       clearInterval(interval);
     };
-  }, [fetchGitStats]);
+  }, []);
 
   // Setup file watching for automatic updates
   useEffect(() => {
@@ -145,8 +153,8 @@ export const GitDiffStats: React.FC = () => {
       const data = args[0] as { repoPath: string };
 
       if (data.repoPath === workingDirectory) {
-        // Refresh git stats when changes are detected
-        void fetchGitStats();
+        // Refresh git stats when changes are detected using ref
+        void fetchGitStatsRef.current();
       }
     };
 
@@ -184,9 +192,6 @@ export const GitDiffStats: React.FC = () => {
         // Ignore errors on cleanup
       });
     };
-    // fetchGitStats is intentionally omitted from deps to prevent listener leaks
-    // It only changes when workingDirectory changes, which already triggers this effect
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingDirectory]);
 
   const fetchFileDiff = useCallback(

@@ -33,6 +33,9 @@
  * ```
  */
 
+import { logger } from '@/commons/utils/logger';
+import type { FileChange, FileChangeDebugInfo, FileChangeMessage } from '@/types/fileChange.types';
+import { extractFileChanges, isFileChangeMessage } from '@/types/fileChange.types';
 import { ChildProcessWithoutNullStreams, execSync, spawn } from 'child_process';
 import log from 'electron-log';
 import fixPath from 'fix-path';
@@ -42,9 +45,6 @@ import * as os from 'os';
 import * as path from 'path';
 import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
-import { logger } from '@/commons/utils/logger';
-import type { FileChangeMessage, FileChange, FileChangeDebugInfo } from '@/types/fileChange.types';
-import { isFileChangeMessage, extractFileChanges } from '@/types/fileChange.types';
 
 /**
  * File attachment for Claude Code queries
@@ -480,15 +480,31 @@ export class ClaudeCodeCLIService {
       // Track stderr and process errors to throw after the stream completes
       let stderrError: Error | null = null;
       let processError: Error | null = null;
+      let stderrBuffer = ''; // Accumulate stderr output for better error messages
 
       child.stderr.on('data', (data) => {
         const stderr = data.toString();
+        stderrBuffer += stderr;
         logger.debug('[DEBUG queryClaudeCode] stderr:', stderr);
+
+        // Check for specific known errors
         if (stderr.includes('No conversation found with session ID')) {
           if (sessionId) {
             this.sessionMap.delete(sessionId);
           }
           stderrError = new Error(`No conversation found with session ID: ${sessionId}`);
+        }
+        // Check for other critical errors
+        else if (
+          stderr.includes('Error:') ||
+          stderr.includes('FATAL') ||
+          stderr.includes('Exception')
+        ) {
+          logger.error('[Claude Code] Error in stderr:', stderr);
+          if (!stderrError) {
+            // Only set if we haven't already captured an error
+            stderrError = new Error(`Claude Code error: ${stderr.trim()}`);
+          }
         }
       });
 
@@ -522,6 +538,23 @@ export class ClaudeCodeCLIService {
           signal
         );
         this.activeProcesses.delete(queryId);
+
+        // If process exited with non-zero code and no other error was captured, create a descriptive error
+        if (code !== 0 && code !== null && !processError && !stderrError) {
+          const errorMsg = `Claude Code process exited with code ${code}${signal ? ` (signal: ${signal})` : ''}`;
+          logger.error('[Claude Code] Process exit error:', errorMsg);
+
+          // Include stderr output if available for better debugging
+          if (stderrBuffer.trim()) {
+            logger.error('[Claude Code] stderr output:', stderrBuffer);
+            processError = new Error(`${errorMsg}\nStderr: ${stderrBuffer.trim()}`);
+          } else {
+            processError = new Error(errorMsg);
+          }
+
+          // Close readline to exit the loop
+          rl.close();
+        }
       });
 
       try {
@@ -630,26 +663,55 @@ export class ClaudeCodeCLIService {
                 Array.isArray(message.permission_denials) &&
                 message.permission_denials.length > 0
               ) {
-                const editDenials = message.permission_denials.filter(
-                  (d) => d.tool_name === 'Edit' || d.tool_name === 'Write'
-                );
+                // Handle ALL permission denials
+                const denial = message.permission_denials[0];
 
-                if (editDenials.length > 0) {
-                  const denial = editDenials[0];
-                  message.__permissionRequest = {
-                    tool_name: denial.tool_name,
-                    tool_use_id: denial.tool_use_id,
-                    file_path: denial.tool_input.file_path,
-                    message: `Permission required to ${denial.tool_name.toLowerCase()} ${denial.tool_input.file_path}`,
-                    ...(denial.tool_input.old_string && {
-                      old_string: denial.tool_input.old_string,
-                    }),
-                    ...(denial.tool_input.new_string && {
-                      new_string: denial.tool_input.new_string,
-                    }),
-                    ...(denial.tool_input.content && { content: denial.tool_input.content }),
-                  };
+                // Build message based on tool type
+                let permissionMessage = `Permission required for ${denial.tool_name}`;
+                if (denial.tool_input.file_path) {
+                  permissionMessage = `Permission required to ${denial.tool_name.toLowerCase()} ${denial.tool_input.file_path}`;
+                } else if (denial.tool_input.command) {
+                  permissionMessage = `Permission required to run command`;
+                } else if (denial.tool_input.url) {
+                  permissionMessage = `Permission required to fetch URL`;
+                } else if (denial.tool_input.query) {
+                  permissionMessage = `Permission required to search web`;
                 }
+
+                const permissionRequest: PermissionRequest = {
+                  tool_name: denial.tool_name,
+                  tool_use_id: denial.tool_use_id,
+                  file_path: denial.tool_input.file_path || '',
+                  message: permissionMessage,
+                };
+
+                // Edit/Write specific fields
+                if (denial.tool_input.old_string) {
+                  permissionRequest.old_string = denial.tool_input.old_string;
+                }
+                if (denial.tool_input.new_string) {
+                  permissionRequest.new_string = denial.tool_input.new_string;
+                }
+                if (denial.tool_input.content) {
+                  permissionRequest.content = denial.tool_input.content;
+                }
+
+                // Bash specific fields
+                if (denial.tool_input.command && typeof denial.tool_input.command === 'string') {
+                  permissionRequest.command = denial.tool_input.command;
+                }
+
+                // WebFetch specific fields
+                if (denial.tool_input.url && typeof denial.tool_input.url === 'string') {
+                  permissionRequest.url = denial.tool_input.url;
+                }
+
+                // WebSearch specific fields
+                if (denial.tool_input.query && typeof denial.tool_input.query === 'string') {
+                  permissionRequest.query = denial.tool_input.query;
+                }
+
+                message.__permissionRequest = permissionRequest;
               }
 
               if (

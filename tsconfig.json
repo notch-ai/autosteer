@@ -37,7 +37,8 @@
       "@/stores/*": ["src/stores/*"],
       "@/commons/*": ["src/commons/*"],
       "@/types/*": ["src/types/*"],
-      "@/hooks/*": ["src/hooks/*"]
+      "@/hooks/*": ["src/hooks/*"],
+      "@/tests/*": ["tests/*"]
     }
   },
   "include": [
@@ -56,6 +57,9 @@
     "tests/integration",
     "tests/performance",
     "tests/e2e",
+    "tests/factories",
+    "tests/fixtures",
+    "tests/manual",
     "tests/__mocks__",
     "tests/mocks",
     "tests/factories",

@@ -76,6 +76,10 @@ const mockHasPoolTerminal = jest.fn().mockReturnValue(false);
 const mockAttachPoolTerminal = jest.fn();
 const mockDetachPoolTerminal = jest.fn();
 const mockFitPoolTerminal = jest.fn();
+const mockGetPoolSize = jest.fn().mockReturnValue(1);
+const mockGetMaxPoolSize = jest.fn().mockReturnValue(10);
+const mockGetTerminalId = jest.fn().mockReturnValue(mockTerminal.id);
+const mockGetTerminalMetadata = jest.fn().mockReturnValue(mockTerminal);
 
 jest.mock('../../src/hooks/useTerminal', () => ({
   useTerminal: () => ({
@@ -98,13 +102,33 @@ jest.mock('../../src/renderer/hooks/useTerminalPool', () => ({
     attachTerminal: mockAttachPoolTerminal,
     detachTerminal: mockDetachPoolTerminal,
     fitTerminal: mockFitPoolTerminal,
+    getPoolSize: mockGetPoolSize,
+    getMaxPoolSize: mockGetMaxPoolSize,
+    getTerminalId: mockGetTerminalId,
+    getTerminalMetadata: mockGetTerminalMetadata,
+  }),
+}));
+
+// Mock useTerminalScrollPreservation hook
+jest.mock('../../src/hooks/useTerminalScrollPreservation', () => ({
+  useTerminalScrollPreservation: () => ({
+    saveTerminalScrollPosition: jest.fn(),
+    restoreTerminalScrollPosition: jest.fn(),
   }),
 }));
 
 let mockProjectsState = {
-  selectedProjectId: 'test-project',
+  selectedProjectId: 'test-project-123',
   projects: new Map([
-    ['test-project', { id: 'test-project', localPath: '/test/path', name: 'Test Project' }],
+    [
+      'test-project-123',
+      {
+        id: 'test-project-123',
+        localPath: '/test/path',
+        name: 'Test Project',
+        folderName: 'test-project',
+      },
+    ],
   ]),
 };
 
@@ -164,7 +188,7 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
       mockCreateTerminal.mockRejectedValueOnce(new Error('Test error'));
 
       // Act
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-123" />);
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Assert - component should use logger.error for errors (component doesn't use logger.info)
@@ -180,7 +204,7 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
       mockCreateTerminal.mockRejectedValueOnce(new Error('Test error'));
 
       // Act
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-123" />);
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Assert - check log format includes message and context object
@@ -195,7 +219,7 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
   describe('Terminal Creation via Pool', () => {
     it('should create terminal when component mounts', async () => {
       // Act
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-123" />);
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Assert
@@ -204,7 +228,7 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
 
     it('should create pool terminal after terminal metadata is created', async () => {
       // Act
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-123" />);
 
       // Wait for pool terminal creation
       await waitFor(
@@ -214,8 +238,9 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
         { timeout: 500 }
       );
 
-      // Assert - pool terminal should be created with terminal metadata
+      // Assert - pool terminal should be created with projectId, terminal metadata, and terminalRef
       expect(mockCreatePoolTerminal).toHaveBeenCalledWith(
+        'test-project', // projectId (folderName)
         mockTerminal,
         expect.any(Object) // terminalRef.current
       );
@@ -225,7 +250,7 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
   describe('Terminal Lifecycle', () => {
     it('should setup listeners after terminal creation', async () => {
       // Act
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-123" />);
 
       // Wait for listeners to be set up
       await waitFor(
@@ -245,7 +270,7 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
 
     it('should preserve terminal in pool on unmount', async () => {
       // Act
-      const { unmount } = render(<TerminalTab />);
+      const { unmount } = render(<TerminalTab projectId="test-project-123" />);
 
       // Wait for initialization
       await waitFor(
@@ -271,7 +296,7 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
       mockCreateTerminal.mockRejectedValueOnce(new Error('Creation failed'));
 
       // Act
-      const { container } = render(<TerminalTab />);
+      const { container } = render(<TerminalTab projectId="test-project-123" />);
 
       // Assert - should display error state
       await waitFor(
@@ -287,7 +312,7 @@ describe('TerminalTab - Pool Integration (TDD)', () => {
       mockCreateTerminal.mockRejectedValueOnce(new Error('Creation failed'));
 
       // Act
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-123" />);
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Assert

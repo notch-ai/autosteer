@@ -37,10 +37,10 @@ const buttonVariants = cva(
           'hover:bg-primary-hover hover:shadow-sm',
           'disabled:hover:bg-primary disabled:hover:shadow-none',
         ],
-        secondary: ['bg-surface text-text', 'hover:bg-surface-hover', 'disabled:hover:bg-surface'],
+        secondary: ['bg-card text-foreground', 'hover:bg-card-hover', 'disabled:hover:bg-card'],
         ghost: [
-          'bg-transparent text-text',
-          'hover:bg-surface-hover',
+          'bg-transparent text-foreground',
+          'hover:bg-card-hover',
           'disabled:hover:bg-transparent',
         ],
         danger: ['bg-danger text-white', 'hover:bg-danger/90', 'disabled:hover:bg-danger'],

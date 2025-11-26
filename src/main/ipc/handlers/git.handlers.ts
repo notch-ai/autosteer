@@ -90,7 +90,7 @@ export class GitHandlers {
         const service = new GitDiffService(params.repoPath);
         return await service.getUncommittedDiff(params.filePath);
       },
-      { operationName: 'Get uncommitted changes' }
+      { operationName: 'Get uncommitted changes', suppressNotification: true }
     );
 
     // Get staged changes

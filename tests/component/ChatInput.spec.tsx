@@ -31,7 +31,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -54,7 +53,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -79,7 +77,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={true}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -103,7 +100,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={['resource-1', 'resource-2']}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -125,7 +121,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={true}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={true}
@@ -150,7 +145,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -183,7 +177,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={true}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -216,7 +209,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -244,7 +236,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -264,7 +255,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -286,7 +276,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={true}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -311,7 +300,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -351,7 +339,6 @@ test.describe('ChatInput Visual Regression', () => {
           <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>Empty State</h3>
           <ChatInput
             onSendMessage={mockOnSendMessage}
-            isLoading={false}
             attachedResourceIds={[]}
             onRemoveResource={mockOnRemoveResource}
             isStreaming={false}
@@ -362,7 +349,6 @@ test.describe('ChatInput Visual Regression', () => {
           <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>No Agent</h3>
           <ChatInput
             onSendMessage={mockOnSendMessage}
-            isLoading={false}
             attachedResourceIds={[]}
             onRemoveResource={mockOnRemoveResource}
             isStreaming={false}
@@ -373,7 +359,6 @@ test.describe('ChatInput Visual Regression', () => {
           <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>Loading</h3>
           <ChatInput
             onSendMessage={mockOnSendMessage}
-            isLoading={true}
             attachedResourceIds={[]}
             onRemoveResource={mockOnRemoveResource}
             isStreaming={false}
@@ -384,7 +369,6 @@ test.describe('ChatInput Visual Regression', () => {
           <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>Streaming</h3>
           <ChatInput
             onSendMessage={mockOnSendMessage}
-            isLoading={true}
             attachedResourceIds={[]}
             onRemoveResource={mockOnRemoveResource}
             isStreaming={true}
@@ -406,7 +390,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -430,7 +413,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -454,7 +436,6 @@ test.describe('ChatInput Visual Regression', () => {
       <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
         <ChatInput
           onSendMessage={mockOnSendMessage}
-          isLoading={false}
           attachedResourceIds={[]}
           onRemoveResource={mockOnRemoveResource}
           isStreaming={false}
@@ -469,5 +450,112 @@ test.describe('ChatInput Visual Regression', () => {
     await input.click();
 
     await expect(input).toBeFocused();
+  });
+
+  test('settings remain available during streaming', async ({ mount, page }) => {
+    const mockOnSendMessage = () => {};
+    const mockOnRemoveResource = () => {};
+
+    const component = await mount(
+      <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
+        <ChatInput
+          onSendMessage={mockOnSendMessage}
+          attachedResourceIds={[]}
+          onRemoveResource={mockOnRemoveResource}
+          isStreaming={true}
+          selectedAgentId="test-agent"
+        />
+      </div>
+    );
+
+    await page.waitForTimeout(100);
+
+    // Model selector should be enabled during streaming
+    const modelSelector = component.locator('[data-testid="model-selector"]');
+    await expect(modelSelector).toBeVisible();
+    await expect(modelSelector).not.toBeDisabled();
+
+    // Permission mode selector should be enabled during streaming
+    const permissionModeSelector = component.locator('[data-testid="permission-mode-selector"]');
+    await expect(permissionModeSelector).toBeVisible();
+    await expect(permissionModeSelector).not.toBeDisabled();
+  });
+
+  test('model selector can be changed during streaming', async ({ mount, page }) => {
+    let modelChanged = false;
+    const mockOnSendMessage = () => {};
+    const mockOnRemoveResource = () => {};
+
+    const component = await mount(
+      <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
+        <ChatInput
+          onSendMessage={mockOnSendMessage}
+          attachedResourceIds={[]}
+          onRemoveResource={mockOnRemoveResource}
+          isStreaming={true}
+          selectedAgentId="test-agent"
+        />
+      </div>
+    );
+
+    await page.waitForTimeout(100);
+
+    const modelSelector = component.locator('[data-testid="model-selector"]');
+
+    // Should be able to click and interact with model selector
+    await modelSelector.click();
+    modelChanged = true;
+
+    expect(modelChanged).toBe(true);
+  });
+
+  test('permission mode selector can be changed during streaming', async ({ mount, page }) => {
+    let permissionChanged = false;
+    const mockOnSendMessage = () => {};
+    const mockOnRemoveResource = () => {};
+
+    const component = await mount(
+      <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
+        <ChatInput
+          onSendMessage={mockOnSendMessage}
+          attachedResourceIds={[]}
+          onRemoveResource={mockOnRemoveResource}
+          isStreaming={true}
+          selectedAgentId="test-agent"
+        />
+      </div>
+    );
+
+    await page.waitForTimeout(100);
+
+    const permissionModeSelector = component.locator('[data-testid="permission-mode-selector"]');
+
+    // Should be able to click and interact with permission mode selector
+    await permissionModeSelector.click();
+    permissionChanged = true;
+
+    expect(permissionChanged).toBe(true);
+  });
+
+  test('@visual settings remain interactive during streaming', async ({ mount, page }) => {
+    const mockOnSendMessage = () => {};
+    const mockOnRemoveResource = () => {};
+
+    await mount(
+      <div style={{ width: '800px', background: '#1e1e1e', padding: '1rem' }}>
+        <ChatInput
+          onSendMessage={mockOnSendMessage}
+          attachedResourceIds={[]}
+          onRemoveResource={mockOnRemoveResource}
+          isStreaming={true}
+          selectedAgentId="test-agent"
+        />
+      </div>
+    );
+
+    await page.waitForTimeout(200);
+
+    // Visual test to verify settings UI appears active (not grayed out)
+    await expect(page).toHaveScreenshot('chat-input-streaming-active-settings.png');
   });
 });

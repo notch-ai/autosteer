@@ -7,7 +7,13 @@
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useChatInputHandler } from '@/hooks/useChatInputHandler';
-import { useAgentsStore, useChatStore, useProjectsStore, useUIStore } from '@/stores';
+import {
+  useAgentsStore,
+  useChatStore,
+  useProjectsStore,
+  useSettingsStore,
+  useUIStore,
+} from '@/stores';
 import { COMPACT_PROMPT } from '@/commons/constants/compactPrompt';
 import { todoActivityMonitor } from '@/renderer/services/TodoActivityMonitor';
 
@@ -16,6 +22,7 @@ jest.mock('@/stores', () => ({
   useAgentsStore: jest.fn(),
   useChatStore: jest.fn(),
   useProjectsStore: jest.fn(),
+  useSettingsStore: jest.fn(),
   useUIStore: jest.fn(),
 }));
 
@@ -102,6 +109,11 @@ describe('useChatInputHandler', () => {
         clearDraftInput: mockClearDraftInput,
         getDraftCursorPosition: mockGetDraftCursorPosition,
         setDraftCursorPosition: mockSetDraftCursorPosition,
+        streamingStates: new Map(),
+        cancelAndSend: jest.fn(),
+        getSessionPermissionMode: jest.fn(() => null),
+        setSessionPermissionMode: jest.fn(),
+        loadSessionSettings: jest.fn().mockResolvedValue(undefined),
       };
       return selector(store);
     });
@@ -118,15 +130,48 @@ describe('useChatInputHandler', () => {
       return selector(store);
     });
 
+    (useSettingsStore as unknown as jest.Mock).mockImplementation((selector) => {
+      const store = {
+        preferences: {
+          defaultPermissionMode: 'acceptEdits',
+        },
+      };
+      return selector(store);
+    });
+
+    (useSettingsStore as any).getState = jest.fn(() => ({
+      preferences: {
+        defaultPermissionMode: 'acceptEdits',
+      },
+    }));
+
     mockElectron.ipcRenderer.invoke.mockResolvedValue(undefined);
   });
 
   describe('Initial State', () => {
-    it('should initialize with empty message', () => {
+    it('should initialize with empty message when no activeChat', () => {
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: null,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
       const { result } = renderHook(() =>
         useChatInputHandler({
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
           selectedAgentId: mockAgentId,
         })
       );
@@ -137,12 +182,46 @@ describe('useChatInputHandler', () => {
       expect(result.current.error).toBeNull();
     });
 
+    it('should initialize with draft input when activeChat exists', () => {
+      const mockActiveChatId = 'chat-123';
+      mockGetDraftInput.mockReturnValue('Existing draft text');
+
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: mockActiveChatId,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      const { result } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      expect(result.current.message).toBe('Existing draft text');
+      expect(mockGetDraftInput).toHaveBeenCalledWith(mockActiveChatId);
+    });
+
     it('should initialize with default permission mode', () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -154,7 +233,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -168,7 +247,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -184,7 +263,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -200,7 +279,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -215,7 +294,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -229,7 +308,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -246,7 +325,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -263,7 +342,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -279,7 +358,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -295,7 +374,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -311,7 +390,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -329,7 +408,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -348,12 +427,33 @@ describe('useChatInputHandler', () => {
       expect(result.current.message).toBe('');
     });
 
-    it('should not submit when loading', () => {
+    it('should use cancelAndSend when query is active', () => {
+      // Setup mock for cancelAndSend
+      const mockCancelAndSend = jest.fn();
+
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          activeChat: mockAgentId,
+          streamingStates: new Map([[mockAgentId, true]]), // Active query
+          cancelAndSend: mockCancelAndSend,
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
       const { result } = renderHook(() =>
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: true,
+          isStreaming: true,
         })
       );
 
@@ -365,6 +465,16 @@ describe('useChatInputHandler', () => {
         result.current.handleSubmit();
       });
 
+      // Should call cancelAndSend when query is active, not onSendMessage
+      expect(mockCancelAndSend).toHaveBeenCalledWith(
+        'Hello',
+        undefined,
+        undefined,
+        expect.objectContaining({
+          permissionMode: expect.any(String),
+          model: expect.any(String),
+        })
+      );
       expect(mockOnSendMessage).not.toHaveBeenCalled();
     });
 
@@ -373,7 +483,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -389,7 +499,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -413,7 +523,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -433,7 +543,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -456,7 +566,7 @@ describe('useChatInputHandler', () => {
           useChatInputHandler({
             selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
-            isLoading: false,
+            isStreaming: false,
           })
         );
 
@@ -492,7 +602,7 @@ describe('useChatInputHandler', () => {
           useChatInputHandler({
             selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
-            isLoading: false,
+            isStreaming: false,
           })
         );
 
@@ -515,7 +625,7 @@ describe('useChatInputHandler', () => {
           useChatInputHandler({
             selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
-            isLoading: false,
+            isStreaming: false,
           })
         );
 
@@ -538,7 +648,7 @@ describe('useChatInputHandler', () => {
           useChatInputHandler({
             selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
-            isLoading: false,
+            isStreaming: false,
           })
         );
 
@@ -567,7 +677,7 @@ describe('useChatInputHandler', () => {
           useChatInputHandler({
             selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
-            isLoading: false,
+            isStreaming: false,
           })
         );
 
@@ -592,7 +702,7 @@ describe('useChatInputHandler', () => {
           useChatInputHandler({
             selectedAgentId: mockAgentId,
             onSendMessage: mockOnSendMessage,
-            isLoading: false,
+            isStreaming: false,
           })
         );
 
@@ -615,7 +725,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -634,7 +744,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -650,7 +760,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -666,7 +776,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -685,7 +795,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -701,7 +811,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -727,7 +837,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -751,7 +861,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -780,7 +890,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -801,7 +911,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -839,7 +949,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -855,13 +965,335 @@ describe('useChatInputHandler', () => {
     });
   });
 
+  describe('Active Chat Integration', () => {
+    it('should load draft when activeChat changes', async () => {
+      const mockActiveChatId = 'chat-456';
+      mockGetDraftInput.mockReturnValue('Draft for chat 456');
+
+      const { rerender } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      // Change activeChat via mock
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: mockActiveChatId,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      await act(async () => {
+        rerender();
+      });
+
+      expect(mockGetDraftInput).toHaveBeenCalled();
+    });
+
+    it('should save draft input when message changes with activeChat', async () => {
+      const mockActiveChatId = 'chat-789';
+
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: mockActiveChatId,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      const { result } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      await act(async () => {
+        result.current.setMessage('New message');
+      });
+
+      expect(mockSetDraftInput).toHaveBeenCalledWith(mockActiveChatId, 'New message');
+    });
+
+    it('should not save draft when no activeChat', async () => {
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: null,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      const { result } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      await act(async () => {
+        result.current.setMessage('New message');
+      });
+
+      expect(mockSetDraftInput).not.toHaveBeenCalled();
+    });
+
+    it('should handle cursor position changes with activeChat', async () => {
+      const mockActiveChatId = 'chat-cursor';
+
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: mockActiveChatId,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      const { result } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      act(() => {
+        result.current.handleCursorPositionChange(42);
+      });
+
+      expect(mockSetDraftCursorPosition).toHaveBeenCalledWith(mockActiveChatId, 42);
+    });
+
+    it('should not set cursor position when no activeChat', async () => {
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: null,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      const { result } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      act(() => {
+        result.current.handleCursorPositionChange(42);
+      });
+
+      expect(mockSetDraftCursorPosition).not.toHaveBeenCalled();
+    });
+
+    it('should clear draft when slash command sent with activeChat', async () => {
+      const mockActiveChatId = 'chat-slash';
+
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: mockActiveChatId,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      const { result } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      act(() => {
+        result.current.handleSlashCommand('/commit message');
+      });
+
+      expect(mockClearDraftInput).toHaveBeenCalledWith(mockActiveChatId);
+    });
+
+    it('should not clear draft when slash command sent without activeChat', async () => {
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: null,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      const { result } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      act(() => {
+        result.current.handleSlashCommand('/commit message');
+      });
+
+      expect(mockClearDraftInput).not.toHaveBeenCalled();
+    });
+
+    it('should clear draft when regular message submitted with activeChat', async () => {
+      const mockActiveChatId = 'chat-submit';
+
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: mockActiveChatId,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      const { result } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      await act(async () => {
+        result.current.setMessage('Regular message');
+        await result.current.handleSubmit();
+      });
+
+      expect(mockClearDraftInput).toHaveBeenCalledWith(mockActiveChatId);
+    });
+
+    it('should not clear draft when message submitted without activeChat', async () => {
+      (useChatStore as unknown as jest.Mock).mockImplementation((selector) => {
+        const store = {
+          activeChat: null,
+          clearChat: mockClearChat,
+          getDraftInput: mockGetDraftInput,
+          setDraftInput: mockSetDraftInput,
+          clearDraftInput: mockClearDraftInput,
+          getDraftCursorPosition: mockGetDraftCursorPosition,
+          setDraftCursorPosition: mockSetDraftCursorPosition,
+          streamingStates: new Map(),
+          cancelAndSend: jest.fn(),
+          getSessionPermissionMode: jest.fn(() => null),
+          setSessionPermissionMode: jest.fn(),
+          loadSessionSettings: jest.fn().mockResolvedValue(undefined),
+        };
+        return selector(store);
+      });
+
+      const { result } = renderHook(() =>
+        useChatInputHandler({
+          onSendMessage: mockOnSendMessage,
+          isStreaming: false,
+          selectedAgentId: mockAgentId,
+        })
+      );
+
+      await act(async () => {
+        result.current.setMessage('Regular message');
+        await result.current.handleSubmit();
+      });
+
+      expect(mockClearDraftInput).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Edge Cases', () => {
     it('should handle HTML with nested tags', async () => {
       const { result } = renderHook(() =>
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -877,7 +1309,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -897,7 +1329,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -915,7 +1347,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 
@@ -935,7 +1367,7 @@ describe('useChatInputHandler', () => {
         useChatInputHandler({
           selectedAgentId: mockAgentId,
           onSendMessage: mockOnSendMessage,
-          isLoading: false,
+          isStreaming: false,
         })
       );
 

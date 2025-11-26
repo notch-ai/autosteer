@@ -289,23 +289,13 @@ export const useAgentsStore = create<AgentsStore>()(
           }
         }
 
-        // Persist active tab to config.json
-        if (id) {
-          const { useProjectsStore } = await import('./projects.store');
-          const projectsStore = useProjectsStore.getState();
-          const selectedProjectId = projectsStore.selectedProjectId;
-          const projects = projectsStore.projects;
-          const currentProject = selectedProjectId ? projects.get(selectedProjectId) : undefined;
-          const projectId = currentProject?.folderName || currentProject?.id;
+        // NOTE: Maximize tab auto-creation moved to useSessionTabs to avoid
+        // interfering with tab restoration when switching projects
 
-          if (projectId && window.electron?.worktree?.setActiveTab) {
-            try {
-              await window.electron.worktree.setActiveTab(projectId, id);
-            } catch (error) {
-              logger.error('Failed to persist active tab:', error);
-            }
-          }
-        }
+        // NOTE: Tab persistence moved to useSessionTabs.switchToTab()
+        // selectAgent() is called both during restoration (shouldn't persist)
+        // and during explicit tab switches (handled by switchToTab)
+        // Persisting here would overwrite restored system tab selections like Tools
 
         // NOW set selectedAgentId after all async setup is complete
         // This ensures React renders the component with all data ready

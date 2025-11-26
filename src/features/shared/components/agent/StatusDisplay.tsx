@@ -7,12 +7,17 @@ import React, { useState } from 'react';
 // Version is hardcoded for simplicity - update when package.json version changes
 const APP_VERSION = '1.0.0';
 
+export interface StatusDisplayProps {
+  agentId?: string;
+}
+
 /**
  * StatusDisplay component shows session information in the Session Info panel
  * Displays: Session ID, Working Directory, Model, and Version
  */
-export const StatusDisplay: React.FC = () => {
-  const selectedAgentId = useAgentsStore((state) => state.selectedAgentId);
+export const StatusDisplay: React.FC<StatusDisplayProps> = ({ agentId: propAgentId }) => {
+  const storeSelectedAgentId = useAgentsStore((state) => state.selectedAgentId);
+  const selectedAgentId = propAgentId || storeSelectedAgentId;
   const selectedAgent = useAgentsStore((state) =>
     selectedAgentId ? state.agents.get(selectedAgentId) : null
   );
@@ -211,7 +216,7 @@ export const StatusDisplay: React.FC = () => {
 
   if (!selectedAgent) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm">
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         No active session
       </div>
     );
@@ -232,15 +237,15 @@ export const StatusDisplay: React.FC = () => {
     <div ref={containerRef} className="space-y-6 text-sm status-display-selectable">
       {/* Session Information */}
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-text tracking-wide">Session Info</h3>
+        <h3 className="text-sm font-semibold text-foreground tracking-wide">Session Info</h3>
         <div className="space-y-1">
           {claudeSessionId ? (
             <div className="flex flex-col gap-0.5">
-              <p className="text-sm text-text m-0" style={{ userSelect: 'text' }}>
+              <p className="text-sm text-foreground m-0" style={{ userSelect: 'text' }}>
                 Session ID
               </p>
               <p
-                className="font-mono text-sm text-text break-all m-0"
+                className="font-mono text-sm text-foreground break-all m-0"
                 style={{ userSelect: 'text', WebkitUserSelect: 'text' } as React.CSSProperties}
               >
                 {claudeSessionId}
@@ -248,13 +253,13 @@ export const StatusDisplay: React.FC = () => {
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
-              <p className="text-sm text-text m-0">Session ID</p>
-              <p className="text-sm text-text m-0">Not available</p>
+              <p className="text-sm text-foreground m-0">Session ID</p>
+              <p className="text-sm text-foreground m-0">Not available</p>
             </div>
           )}
           <div className="flex flex-col gap-0.5 mt-2">
-            <p className="text-sm text-text m-0">Created</p>
-            <p className="text-sm text-text m-0">{formatDate(selectedAgent.createdAt)}</p>
+            <p className="text-sm text-foreground m-0">Created</p>
+            <p className="text-sm text-foreground m-0">{formatDate(selectedAgent.createdAt)}</p>
           </div>
         </div>
       </div>
@@ -262,26 +267,28 @@ export const StatusDisplay: React.FC = () => {
       {/* Working Directory */}
       {selectedProject && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-text tracking-wide">Working Directory</h3>
+          <h3 className="text-sm font-semibold text-foreground tracking-wide">Working Directory</h3>
           <div className="space-y-1">
             <div className="flex flex-col gap-0.5">
-              <p className="text-sm text-text m-0">Path</p>
-              <p className="font-mono text-sm text-text break-all m-0">
+              <p className="text-sm text-foreground m-0">Path</p>
+              <p className="font-mono text-sm text-foreground break-all m-0">
                 {selectedProject.localPath}
               </p>
             </div>
             {selectedProject.folderName && (
               <div className="flex flex-col gap-0.5 mt-2">
-                <p className="text-sm text-text m-0">Folder</p>
-                <p className="font-mono text-sm text-text m-0">{selectedProject.folderName}</p>
+                <p className="text-sm text-foreground m-0">Folder</p>
+                <p className="font-mono text-sm text-foreground m-0">
+                  {selectedProject.folderName}
+                </p>
               </div>
             )}
 
             {/* Additional Directories Input */}
             <div className="flex flex-col gap-0.5 mt-3">
-              <p className="text-sm text-text m-0">Additional Directories</p>
+              <p className="text-sm text-foreground m-0">Additional Directories</p>
               <textarea
-                className="font-mono text-sm text-text bg-background-secondary border border-border rounded px-2 py-1.5 resize-none focus:outline-none focus:border-border-focus"
+                className="font-mono text-sm text-foreground bg-background-secondary border border-border rounded px-2 py-1.5 resize-none focus:outline-none focus:border-border-focus"
                 rows={2}
                 placeholder="/path/to/dir1, /path/to/dir2"
                 value={additionalDirectoriesValue}
@@ -289,7 +296,7 @@ export const StatusDisplay: React.FC = () => {
                 onKeyDown={handleAdditionalDirectoriesKeyDown}
                 style={{ minHeight: '3.5rem' }}
               />
-              <p className="text-xs text-text-muted mt-0.5 m-0">
+              <p className="text-xs text-muted-foreground mt-0.5 m-0">
                 Comma-separated paths. Press Enter to save.
               </p>
             </div>
@@ -299,23 +306,23 @@ export const StatusDisplay: React.FC = () => {
 
       {/* Model Information */}
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-text tracking-wide">Model</h3>
+        <h3 className="text-sm font-semibold text-foreground tracking-wide">Model</h3>
         <div className="space-y-1">
-          <p className="text-sm text-text m-0">{modelLabel}</p>
+          <p className="text-sm text-foreground m-0">{modelLabel}</p>
         </div>
       </div>
 
       {/* Version Information */}
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-text tracking-wide">Version</h3>
+        <h3 className="text-sm font-semibold text-foreground tracking-wide">Version</h3>
         <div className="space-y-1">
-          <p className="text-sm text-text m-0">{APP_VERSION}</p>
+          <p className="text-sm text-foreground m-0">{APP_VERSION}</p>
         </div>
       </div>
 
       {/* MCP Servers */}
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-text tracking-wide">MCP Servers</h3>
+        <h3 className="text-sm font-semibold text-foreground tracking-wide">MCP Servers</h3>
         <div className="space-y-1.5">
           {mcpServers && mcpServers.length > 0 ? (
             mcpServers.map((server) => {
@@ -339,7 +346,7 @@ export const StatusDisplay: React.FC = () => {
                       ? 'text-yellow-500'
                       : server.status === 'needs-auth'
                         ? 'text-blue-500'
-                        : 'text-text-muted';
+                        : 'text-muted-foreground';
 
               const needsAuth = server.status === 'needs-auth' || server.status === 'failed';
               const isAuthenticating = authenticatingServers.has(server.name);
@@ -348,7 +355,7 @@ export const StatusDisplay: React.FC = () => {
                 <div key={server.name} className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm">
                     <span className={statusColor}>{statusIcon}</span>
-                    <span className="text-text">{server.name}</span>
+                    <span className="text-foreground">{server.name}</span>
                   </div>
                   {needsAuth && (
                     <Button
@@ -356,7 +363,7 @@ export const StatusDisplay: React.FC = () => {
                       disabled={isAuthenticating}
                       variant="outline"
                       size="sm"
-                      className="bg-button-special shadow-xs"
+                      className="bg-primary shadow-xs"
                     >
                       {isAuthenticating ? 'Authenticating...' : 'Authenticate'}
                     </Button>
@@ -365,7 +372,9 @@ export const StatusDisplay: React.FC = () => {
               );
             })
           ) : (
-            <p className="text-xs text-text-muted m-0">Send a message to initialize MCP Servers</p>
+            <p className="text-xs text-muted-foreground m-0">
+              Send a message to initialize MCP Servers
+            </p>
           )}
         </div>
       </div>

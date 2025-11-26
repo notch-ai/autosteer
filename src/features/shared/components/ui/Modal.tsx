@@ -77,13 +77,7 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
-        className={cn(
-          sizeClasses[size],
-          'max-h-[80vh]',
-          // Hide the default close button if showCloseButton is false
-          !showCloseButton && '[&>button]:hidden',
-          className
-        )}
+        className={cn(sizeClasses[size], 'max-h-[80vh]', '[&>button]:hidden', className)}
         // Prevent backdrop close if configured
         {...(preventCloseOnBackdrop && {
           onPointerDownOutside: (e) => e.preventDefault(),
@@ -94,9 +88,9 @@ export const Modal: React.FC<ModalProps> = ({
       >
         {title && (
           <DialogHeader className="px-6 py-4 pr-16">
-            <DialogTitle className="text-lg font-semibold text-text">{title}</DialogTitle>
+            <DialogTitle className="text-lg font-semibold text-foreground">{title}</DialogTitle>
             {description && (
-              <DialogDescription className="text-sm text-text-muted mt-2">
+              <DialogDescription className="text-sm text-muted-foreground mt-2">
                 {description}
               </DialogDescription>
             )}

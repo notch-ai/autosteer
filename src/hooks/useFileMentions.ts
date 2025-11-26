@@ -173,26 +173,6 @@ export const useFileMentions = ({
     return files;
   }, [files]);
 
-  // Custom backspace handler for directory navigation
-  const handleBackspace = useCallback(
-    (event: KeyboardEvent) => {
-      if (currentPath && currentPath.includes('/')) {
-        event.preventDefault();
-        const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
-        setCurrentPath(parentPath);
-        const parentFullPath = parentPath ? `${basePath}/${parentPath}` : basePath;
-        loadFiles(parentFullPath);
-        onSelect({
-          name: parentPath ? parentPath + '/' : '',
-          path: parentFullPath,
-          isDirectory: true,
-          icon: '',
-        });
-      }
-    },
-    [currentPath, basePath, loadFiles, onSelect]
-  );
-
   // Wrap onSelect and onTabSelect to handle directory navigation
   const handleSelect = useCallback(
     (file: FileMention) => {
@@ -245,7 +225,8 @@ export const useFileMentions = ({
     [currentPath, loadFiles, onSelect, onTabSelect]
   );
 
-  // Keyboard navigation with custom Backspace handler
+  // Keyboard navigation
+  // Note: Backspace is NOT registered as an additional key to allow normal text editing
   const { selectedIndex, setSelectedIndex } = usePickerKeyboardNav({
     items: filteredFiles,
     isOpen,
@@ -253,12 +234,6 @@ export const useFileMentions = ({
     onSelect: handleSelect,
     onClose,
     ...(onTabSelect && { onTabSelect: handleTabSelect }),
-    additionalKeys: [
-      {
-        key: 'Backspace',
-        handler: handleBackspace,
-      },
-    ],
     enableLogging: false,
     componentName: 'FileMentions',
   });

@@ -147,7 +147,7 @@ export type Theme = 'light' | 'dark' | 'system';
 // User preferences
 export interface UserPreferences {
   theme: Theme;
-  fontSize: number;
+  fontSize: 'small' | 'medium' | 'large';
   fontFamily: string;
   autoSave: boolean;
   compactOnTokenLimit: boolean;
@@ -155,6 +155,13 @@ export interface UserPreferences {
   badgeNotifications: boolean;
   maxTurns?: number | null; // Maximum turns per Claude Code session (null = unlimited, default: null)
   defaultModel?: ModelOption; // Default model for new conversations (see DEFAULT_MODEL in model.types.ts)
+  confirmSessionTabDeletion?: boolean; // Show confirmation dialog when deleting session tabs (default: true)
+  /** Allow Claude to autonomously invoke custom skills (default: true) */
+  enableSkills?: boolean;
+  /** Automatically select first tab when no activeTabId or tab not found (default: true) */
+  autoSelectFirstTab?: boolean;
+  /** Default permission mode for Claude Code sessions (default: 'edit') */
+  defaultPermissionMode?: PermissionMode;
 }
 
 // Custom command

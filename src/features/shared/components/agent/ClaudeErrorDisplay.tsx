@@ -217,11 +217,11 @@ export function ClaudeErrorDisplay({
       <div className={`flex gap-2 ${className || ''}`}>
         <CircleAlert className="h-4 w-4 text-red flex-shrink-0 mt-0" />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium leading-none tracking-tight text-text mb-1">
+          <div className="text-sm font-medium leading-none tracking-tight text-foreground mb-1">
             {error.message || errorInfo.description}
           </div>
           {isConcurrencyError && (
-            <div className="mt-2 space-y-2 text-sm text-text">
+            <div className="mt-2 space-y-2 text-sm text-foreground">
               <p className="font-medium">What happened?</p>
               <p>
                 Claude tried to use multiple tools at once, which isn't currently supported. This
@@ -265,7 +265,7 @@ export function ClaudeErrorDisplay({
         <AlertTitle className="flex items-center gap-2">
           {stopInfo.title}
           {requestId && (
-            <Badge variant="outline" className="text-[10px] font-mono">
+            <Badge variant="outline" className="text-xs font-mono">
               {requestId}
             </Badge>
           )}

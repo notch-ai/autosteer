@@ -7,6 +7,7 @@ import type { IconName } from '@/features/shared/components/ui/Icon';
 export type ModelOption =
   | 'claude-opus-4-20250514'
   | 'claude-opus-4-1-20250805'
+  | 'claude-opus-4-5-20251101'
   | 'claude-sonnet-4-20250514'
   | 'claude-sonnet-4-5-20250929'
   | 'claude-haiku-4-5-20251001';
@@ -23,6 +24,12 @@ export const MODEL_OPTIONS: ModelConfig[] = [
     value: 'claude-sonnet-4-5-20250929',
     label: 'Sonnet 4.5',
     description: 'Best model for complex agents and coding',
+    icon: 'circle',
+  },
+  {
+    value: 'claude-opus-4-5-20251101',
+    label: 'Opus 4.5',
+    description: 'Latest Opus model with improved performance and efficiency',
     icon: 'circle',
   },
   {

@@ -86,10 +86,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => handleDropdownSelect(option.value)}
-                  className={cn(
-                    'w-full justify-start',
-                    isActive && 'bg-surface-active text-primary'
-                  )}
+                  className={cn('w-full justify-start', isActive && 'bg-card-active text-primary')}
                 >
                   {option.icon && <Icon name={option.icon} size={16} />}
                   <span className="ml-2">{option.label}</span>

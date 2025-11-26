@@ -63,7 +63,7 @@ export function DropdownSelector<T extends string = string>({
           {buttonContent || (
             <Icon
               name={buttonIcon || currentOption?.icon || 'chevron-down'}
-              className="text-text-muted hover:text-text"
+              className="text-muted-foreground hover:text-foreground"
             />
           )}
         </button>
@@ -77,7 +77,7 @@ export function DropdownSelector<T extends string = string>({
             className="flex items-center gap-2 cursor-pointer"
           >
             {option.icon && (
-              <span className="text-text-muted">
+              <span className="text-muted-foreground">
                 <Icon name={option.icon} size={16} />
               </span>
             )}

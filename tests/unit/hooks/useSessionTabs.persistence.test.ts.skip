@@ -1,0 +1,1095 @@
+/**
+ * useSessionTabs Hook Tests - Tab State Persistence
+ * Work Package 2: Tab State Persistence
+ *
+ * Tests cover activeTabId restoration on project switch:
+ * 1. Load activeTabId from WorktreeConfig on project switch
+ * 2. Restore correct tab when activeTabId matches
+ * 3. Fall back to first tab when activeTabId doesn't match
+ * 4. Persist activeTabId when tab selection changes
+ * 5. Handle missing WorktreeConfig gracefully
+ *
+ * @see autosteer/src/hooks/useSessionTabs.ts
+ */
+
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { useSessionTabs } from '@/hooks/useSessionTabs';
+import { useAgentsStore } from '@/stores/agents.store';
+import { useProjectsStore } from '@/stores/projects.store';
+import { useUIStore } from '@/stores/ui';
+import { useSettingsStore } from '@/stores/settings';
+import { createTestAgents } from '@/tests/factories';
+import { setupMockElectron, cleanupMockElectron } from '@/tests/setup/test-utils';
+import { logger } from '@/commons/utils/logger';
+import { TERMINAL_TAB_ID, CHANGES_TAB_ID } from '@/constants/tabs';
+
+// Mock logger
+jest.mock('@/commons/utils/logger', () => ({
+  logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+describe('useSessionTabs - Tab State Persistence', () => {
+  let mockElectronAPI: any;
+
+  beforeEach(() => {
+    // Reset all stores
+    useAgentsStore.setState({
+      agents: new Map(),
+      selectedAgentId: null,
+      agentsLoading: false,
+      agentsError: null,
+    });
+    useProjectsStore.setState({
+      projects: new Map(),
+      selectedProjectId: null,
+      projectsLoading: false,
+      projectsError: null,
+    });
+    useUIStore.setState({
+      tabState: null,
+      maximizeTabs: new Map(),
+      maximizeTabsVersion: 0,
+    });
+    useSettingsStore.setState({
+      preferences: {
+        theme: 'system',
+        fontSize: 'medium',
+        fontFamily: 'monospace',
+        autoSave: true,
+        compactOnTokenLimit: true,
+        maxTokens: 4000,
+        badgeNotifications: true,
+        autoSelectFirstTab: true,
+        confirmSessionTabDeletion: true,
+      },
+      isInitialized: true,
+      initializationError: null,
+    });
+
+    // Clear all mocks
+    jest.clearAllMocks();
+
+    // Setup mock Electron API
+    mockElectronAPI = {
+      worktree: {
+        setActiveTab: jest.fn().mockResolvedValue({ success: true }),
+        getActiveTab: jest.fn().mockResolvedValue(null),
+        getVimMode: jest.fn().mockResolvedValue(false),
+        setVimMode: jest.fn().mockResolvedValue({ success: true }),
+        getDataDirectory: jest.fn().mockResolvedValue('~/.autosteer'),
+      },
+      ipcRenderer: {
+        invoke: jest.fn(),
+        on: jest.fn(),
+        once: jest.fn(),
+        removeListener: jest.fn(),
+      },
+    };
+
+    setupMockElectron(mockElectronAPI);
+  });
+
+  afterEach(() => {
+    cleanupMockElectron();
+  });
+
+  describe('Test 1: Load activeTabId from WorktreeConfig on project switch', () => {
+    it('should load activeTabId from config when project is selected', async () => {
+      const projectId = 'persistence-project-1';
+      const storedActiveTabId = 'agent-stored-123';
+
+      // Setup mock to return stored activeTabId
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(storedActiveTabId);
+
+      // Create project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Persistence Project',
+                localPath: '/test/persistence',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create agents including the stored one
+      const agents = createTestAgents(3, { projectId });
+      agents[0].id = storedActiveTabId; // Ensure first agent matches stored ID
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      // Render hook
+      renderHook(() => useSessionTabs());
+
+      // Wait for async getActiveTab to complete
+      await waitFor(() => {
+        expect(mockElectronAPI.worktree.getActiveTab).toHaveBeenCalledWith(projectId);
+      });
+
+      // Verify logger was called with loading message
+      await waitFor(() => {
+        expect(logger.debug).toHaveBeenCalledWith(
+          '[useSessionTabs] Loaded activeTabId from config',
+          expect.objectContaining({
+            projectId,
+            storedActiveTabId,
+          })
+        );
+      });
+
+      // Verify logger was called with restoration message
+      await waitFor(() => {
+        expect(logger.info).toHaveBeenCalledWith(
+          '[useSessionTabs] Restoring active tab from config',
+          expect.objectContaining({
+            projectId,
+            tabId: storedActiveTabId,
+          })
+        );
+      });
+    });
+
+    it('should call getActiveTab with correct projectId', async () => {
+      const projectId = 'test-project-call';
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Test Project',
+                localPath: '/test',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      renderHook(() => useSessionTabs());
+
+      await waitFor(() => {
+        expect(mockElectronAPI.worktree.getActiveTab).toHaveBeenCalledWith(projectId);
+      });
+    });
+
+    it('should handle project switch and load new activeTabId', async () => {
+      const project1Id = 'project-1';
+      const project2Id = 'project-2';
+      const project1ActiveTab = 'agent-p1';
+      const project2ActiveTab = 'agent-p2';
+
+      // Setup mock to return different activeTabIds for different projects
+      mockElectronAPI.worktree.getActiveTab.mockImplementation((projId: string) => {
+        if (projId === project1Id) return Promise.resolve(project1ActiveTab);
+        if (projId === project2Id) return Promise.resolve(project2ActiveTab);
+        return Promise.resolve(null);
+      });
+
+      // Setup both projects
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              project1Id,
+              {
+                id: project1Id,
+                name: 'Project 1',
+                localPath: '/project1',
+                folderName: project1Id,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+            [
+              project2Id,
+              {
+                id: project2Id,
+                name: 'Project 2',
+                localPath: '/project2',
+                folderName: project2Id,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: project1Id,
+        });
+      });
+
+      // Create agents for both projects
+      const p1Agents = createTestAgents(2, { projectId: project1Id });
+      p1Agents[0].id = project1ActiveTab;
+
+      const p2Agents = createTestAgents(3, { projectId: project2Id });
+      p2Agents[0].id = project2ActiveTab;
+
+      act(() => {
+        const allAgents = [...p1Agents, ...p2Agents];
+        const agentsMap = new Map(allAgents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { rerender } = renderHook(() => useSessionTabs());
+
+      // Wait for project 1 load
+      await waitFor(() => {
+        expect(mockElectronAPI.worktree.getActiveTab).toHaveBeenCalledWith(project1Id);
+      });
+
+      // Clear mocks before switching projects
+      jest.clearAllMocks();
+
+      // Switch to project 2
+      act(() => {
+        useProjectsStore.setState({ selectedProjectId: project2Id });
+      });
+
+      rerender();
+
+      // Wait for project 2 load
+      await waitFor(() => {
+        expect(mockElectronAPI.worktree.getActiveTab).toHaveBeenCalledWith(project2Id);
+      });
+
+      // Verify logger called for project 2 restoration
+      await waitFor(() => {
+        expect(logger.info).toHaveBeenCalledWith(
+          '[useSessionTabs] Restoring active tab from config',
+          expect.objectContaining({
+            projectId: project2Id,
+            tabId: project2ActiveTab,
+          })
+        );
+      });
+    });
+  });
+
+  describe('Test 2: Restore correct tab when activeTabId matches', () => {
+    it('should restore agent tab when activeTabId matches agent', async () => {
+      const projectId = 'restore-project';
+      const targetAgentId = 'agent-restore-target';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(targetAgentId);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Restore Project',
+                localPath: '/restore',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create agents with target agent in the middle
+      const agents = createTestAgents(5, { projectId });
+      agents[2].id = targetAgentId;
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for restoration
+      await waitFor(() => {
+        const activeTab = result.current.activeTab;
+        expect(activeTab?.id).toBe(targetAgentId);
+      });
+
+      // Verify selectAgent was called
+      await waitFor(() => {
+        const selectedAgentId = useAgentsStore.getState().selectedAgentId;
+        expect(selectedAgentId).toBe(targetAgentId);
+      });
+    });
+
+    it('should restore terminal tab when activeTabId matches terminal', async () => {
+      const projectId = 'terminal-restore';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(TERMINAL_TAB_ID);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Terminal Restore',
+                localPath: '/terminal',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create some agents
+      const agents = createTestAgents(2, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for restoration
+      await waitFor(() => {
+        const activeTab = result.current.activeTab;
+        expect(activeTab?.id).toBe(TERMINAL_TAB_ID);
+      });
+    });
+
+    it('should restore changes tab when activeTabId matches changes', async () => {
+      const projectId = 'changes-restore';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(CHANGES_TAB_ID);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Changes Restore',
+                localPath: '/changes',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(2, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      await waitFor(() => {
+        const activeTab = result.current.activeTab;
+        expect(activeTab?.id).toBe(CHANGES_TAB_ID);
+      });
+    });
+
+    it('should restore maximize tab when activeTabId matches maximize', async () => {
+      const projectId = 'maximize-restore';
+      const sessionId = 'session-max';
+      const maximizeTabId = `maximize-${sessionId}`;
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(maximizeTabId);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Maximize Restore',
+                localPath: '/maximize',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(2, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      // Add maximize tab
+      act(() => {
+        useUIStore
+          .getState()
+          .addMaximizeTab(sessionId, 'test-project-1', '', { sessionName: 'Test Session' });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      await waitFor(() => {
+        const activeTab = result.current.activeTab;
+        expect(activeTab?.id).toBe(maximizeTabId);
+      });
+    });
+  });
+
+  describe('Test 3: Fall back to first tab when activeTabId does not match', () => {
+    it('should select first agent tab when stored tab not found and autoSelect enabled', async () => {
+      const projectId = 'fallback-project';
+      const invalidTabId = 'non-existent-tab';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(invalidTabId);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Fallback Project',
+                localPath: '/fallback',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(3, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for fallback
+      await waitFor(() => {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Stored activeTabId not found in current tabs'),
+          expect.objectContaining({
+            storedActiveTabId: invalidTabId,
+            autoSelectFirstTab: true,
+          })
+        );
+      });
+
+      // Should select first agent tab
+      await waitFor(() => {
+        const activeTab = result.current.activeTab;
+        expect(activeTab?.id).toBe(agents[0].id);
+      });
+
+      // Should persist the fallback tab
+      await waitFor(() => {
+        expect(mockElectronAPI.worktree.setActiveTab).toHaveBeenCalledWith(projectId, agents[0].id);
+      });
+    });
+
+    it('should not select any tab when autoSelectFirstTab is disabled and stored tab not found', async () => {
+      const projectId = 'no-auto-select';
+      const invalidTabId = 'invalid-tab';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(invalidTabId);
+
+      // Disable autoSelectFirstTab
+      act(() => {
+        useSettingsStore.setState({
+          preferences: {
+            theme: 'system',
+            fontSize: 'medium',
+            fontFamily: 'monospace',
+            autoSave: true,
+            compactOnTokenLimit: true,
+            maxTokens: 4000,
+            badgeNotifications: true,
+            autoSelectFirstTab: false,
+            confirmSessionTabDeletion: true,
+          },
+        });
+      });
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'No Auto Select',
+                localPath: '/no-auto',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(3, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      renderHook(() => useSessionTabs());
+
+      // Wait for warning log
+      await waitFor(() => {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Stored activeTabId not found'),
+          expect.objectContaining({
+            autoSelectFirstTab: false,
+          })
+        );
+      });
+
+      // Should NOT have an active tab
+      await waitFor(() => {
+        expect(logger.debug).toHaveBeenCalledWith(
+          '[useSessionTabs] Auto-select disabled, no tab selected',
+          expect.objectContaining({ projectId })
+        );
+      });
+    });
+
+    it('should log warning with available tab IDs when falling back', async () => {
+      const projectId = 'logging-fallback';
+      const invalidTabId = 'invalid';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(invalidTabId);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Logging Fallback',
+                localPath: '/logging',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(2, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      renderHook(() => useSessionTabs());
+
+      await waitFor(() => {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            storedActiveTabId: invalidTabId,
+            availableTabIds: expect.arrayContaining([agents[0].id, agents[1].id]),
+          })
+        );
+      });
+    });
+  });
+
+  describe('Test 4: Persist activeTabId when tab selection changes', () => {
+    it('should persist activeTabId when switching tabs', async () => {
+      const projectId = 'persist-project';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Persist Project',
+                localPath: '/persist',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(3, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for initial load
+      await waitFor(() => {
+        expect(result.current.tabs.length).toBeGreaterThan(0);
+      });
+
+      // Clear mocks
+      jest.clearAllMocks();
+
+      // Switch to second agent tab
+      const targetTab = agents[1];
+      await act(async () => {
+        await result.current.switchToTab(targetTab.id);
+      });
+
+      // Should persist the tab switch
+      expect(mockElectronAPI.worktree.setActiveTab).toHaveBeenCalledWith(projectId, targetTab.id);
+    });
+
+    it('should persist when switching to terminal tab', async () => {
+      const projectId = 'persist-terminal';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Persist Terminal',
+                localPath: '/persist-term',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(1, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      await waitFor(() => {
+        expect(result.current.tabs.length).toBeGreaterThan(0);
+      });
+
+      jest.clearAllMocks();
+
+      // Switch to terminal tab
+      await act(async () => {
+        await result.current.switchToTab(TERMINAL_TAB_ID);
+      });
+
+      expect(mockElectronAPI.worktree.setActiveTab).toHaveBeenCalledWith(
+        projectId,
+        TERMINAL_TAB_ID
+      );
+    });
+
+    it('should persist when switching to changes tab', async () => {
+      const projectId = 'persist-changes';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Persist Changes',
+                localPath: '/persist-changes',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(1, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      await waitFor(() => {
+        expect(result.current.tabs.length).toBeGreaterThan(0);
+      });
+
+      jest.clearAllMocks();
+
+      await act(async () => {
+        await result.current.switchToTab(CHANGES_TAB_ID);
+      });
+
+      expect(mockElectronAPI.worktree.setActiveTab).toHaveBeenCalledWith(projectId, CHANGES_TAB_ID);
+    });
+
+    it('should not persist if projectId is missing', async () => {
+      // No project selected
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map(),
+          selectedProjectId: null,
+        });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // No tabs available without project
+      expect(result.current.tabs.length).toBe(0);
+
+      // Verify no persistence calls
+      expect(mockElectronAPI.worktree.setActiveTab).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Test 5: Handle missing WorktreeConfig gracefully', () => {
+    it('should handle null activeTabId from config', async () => {
+      const projectId = 'null-config';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Null Config',
+                localPath: '/null',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(2, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      renderHook(() => useSessionTabs());
+
+      // Should log that no stored activeTabId exists
+      await waitFor(() => {
+        expect(logger.debug).toHaveBeenCalledWith(
+          expect.stringContaining('No stored activeTabId, auto-selecting first tab'),
+          expect.objectContaining({
+            projectId,
+            autoSelectFirstTab: true,
+          })
+        );
+      });
+    });
+
+    it('should handle config read errors gracefully', async () => {
+      const projectId = 'error-config';
+
+      // Simulate config read error
+      mockElectronAPI.worktree.getActiveTab.mockRejectedValue(new Error('Config read failed'));
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Error Config',
+                localPath: '/error',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(2, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      renderHook(() => useSessionTabs());
+
+      // Should log error
+      await waitFor(() => {
+        expect(logger.error).toHaveBeenCalledWith(
+          '[useSessionTabs] Failed to load activeTab from config',
+          expect.objectContaining({
+            projectId,
+            error: expect.stringContaining('Config read failed'),
+          })
+        );
+      });
+    });
+
+    it('should skip load when projectId is missing', async () => {
+      // No project selected
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map(),
+          selectedProjectId: null,
+        });
+      });
+
+      renderHook(() => useSessionTabs());
+
+      // Should log skip message
+      await waitFor(() => {
+        expect(logger.debug).toHaveBeenCalledWith(
+          '[useSessionTabs] No projectId available, skipping activeTab load'
+        );
+      });
+
+      // Should not call getActiveTab
+      expect(mockElectronAPI.worktree.getActiveTab).not.toHaveBeenCalled();
+    });
+
+    it('should auto-select first agent when no stored tab and autoSelect enabled', async () => {
+      const projectId = 'auto-select-first';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'Auto Select First',
+                localPath: '/auto',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(3, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Should auto-select first agent
+      await waitFor(() => {
+        expect(logger.debug).toHaveBeenCalledWith(
+          expect.stringContaining('Auto-selected first agent tab'),
+          expect.objectContaining({
+            projectId,
+            tabId: agents[0].id,
+          })
+        );
+      });
+
+      // Should persist the auto-selected tab
+      await waitFor(() => {
+        expect(mockElectronAPI.worktree.setActiveTab).toHaveBeenCalledWith(projectId, agents[0].id);
+      });
+
+      // Verify active tab
+      await waitFor(() => {
+        expect(result.current.activeTab?.id).toBe(agents[0].id);
+      });
+    });
+
+    it('should not auto-select when autoSelectFirstTab is disabled', async () => {
+      const projectId = 'no-auto-select-initial';
+
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      // Disable autoSelectFirstTab
+      act(() => {
+        useSettingsStore.setState({
+          preferences: {
+            theme: 'system',
+            fontSize: 'medium',
+            fontFamily: 'monospace',
+            autoSave: true,
+            compactOnTokenLimit: true,
+            maxTokens: 4000,
+            badgeNotifications: true,
+            autoSelectFirstTab: false,
+            confirmSessionTabDeletion: true,
+          },
+        });
+      });
+
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([
+            [
+              projectId,
+              {
+                id: projectId,
+                name: 'No Auto Initial',
+                localPath: '/no-auto-init',
+                folderName: projectId,
+                githubRepo: 'test-repo',
+                branchName: 'main',
+                isActive: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              },
+            ],
+          ]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      const agents = createTestAgents(2, { projectId });
+
+      act(() => {
+        const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+        useAgentsStore.setState({ agents: agentsMap });
+      });
+
+      renderHook(() => useSessionTabs());
+
+      // Should log that auto-select is disabled
+      await waitFor(() => {
+        expect(logger.debug).toHaveBeenCalledWith(
+          '[useSessionTabs] Auto-select disabled, no initial tab selected',
+          expect.objectContaining({ projectId })
+        );
+      });
+
+      // Should not persist any tab
+      expect(mockElectronAPI.worktree.setActiveTab).not.toHaveBeenCalled();
+    });
+  });
+});

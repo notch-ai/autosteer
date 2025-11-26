@@ -1,6 +1,6 @@
 /**
  * Cache Handlers - IPC handlers for session cache operations
- * Part of Smart Session Cache System 
+ * Part of Smart Session Cache System
  *
  * Responsibilities:
  * - Session cache validation and loading

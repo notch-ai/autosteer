@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 type ActiveTheme = 'light' | 'dark';
@@ -24,40 +24,43 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [activeTheme, setActiveTheme] = useState<ActiveTheme>('dark');
   const isElectron = !!(window as any).electron;
 
-  // Apply theme class to document element
-  const applyThemeClass = (isDark: boolean) => {
+  // Apply theme class to document element (no dependencies - stable function)
+  const applyThemeClass = useCallback((isDark: boolean) => {
     if (isDark) {
-      // Night theme (default) - remove the day class and add dark class for Tailwind
+      // Night theme (default) - add theme-night and dark class
+      document.documentElement.classList.add('theme-night', 'dark');
       document.documentElement.classList.remove('theme-day');
-      document.documentElement.classList.add('dark');
     } else {
-      // Day theme - add the day class and remove dark class
+      // Day theme - add theme-day and remove dark/theme-night classes
       document.documentElement.classList.add('theme-day');
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.remove('theme-night', 'dark');
     }
-  };
+  }, []);
 
   // Update active theme and apply CSS class
-  const updateActiveTheme = async (themeMode: ThemeMode) => {
-    let newActiveTheme: ActiveTheme;
+  const updateActiveTheme = useCallback(
+    async (themeMode: ThemeMode) => {
+      let newActiveTheme: ActiveTheme;
 
-    if (themeMode === 'system') {
-      // Get system preference
-      if (isElectron) {
-        const systemPref = await (window as any).electron.theme.getSystemPreference();
-        newActiveTheme = systemPref as ActiveTheme;
+      if (themeMode === 'system') {
+        // Get system preference
+        if (isElectron) {
+          const systemPref = await (window as any).electron.theme.getSystemPreference();
+          newActiveTheme = systemPref as ActiveTheme;
+        } else {
+          // Fallback to browser API
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          newActiveTheme = prefersDark ? 'dark' : 'light';
+        }
       } else {
-        // Fallback to browser API
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        newActiveTheme = prefersDark ? 'dark' : 'light';
+        newActiveTheme = themeMode as ActiveTheme;
       }
-    } else {
-      newActiveTheme = themeMode as ActiveTheme;
-    }
 
-    setActiveTheme(newActiveTheme);
-    applyThemeClass(newActiveTheme === 'dark');
-  };
+      setActiveTheme(newActiveTheme);
+      applyThemeClass(newActiveTheme === 'dark');
+    },
+    [isElectron, applyThemeClass]
+  );
 
   // Initialize theme on mount
   useEffect(() => {
@@ -100,31 +103,38 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       mediaQuery.addEventListener('change', handleChange);
       return () => mediaQuery.removeEventListener('change', handleChange);
     }
-  }, [isElectron]);
+  }, [isElectron, updateActiveTheme, applyThemeClass, theme]);
 
   // Update when theme mode changes
   useEffect(() => {
     updateActiveTheme(theme);
-  }, [theme]);
+  }, [theme, updateActiveTheme]);
 
-  const setTheme = async (newTheme: ThemeMode) => {
-    setThemeState(newTheme);
-    await updateActiveTheme(newTheme);
+  // Wrap setTheme in useCallback to maintain stable reference
+  const setTheme = useCallback(
+    async (newTheme: ThemeMode) => {
+      setThemeState(newTheme);
+      await updateActiveTheme(newTheme);
 
-    if (isElectron) {
-      await (window as any).electron.theme.set(newTheme);
-    }
-  };
+      if (isElectron) {
+        await (window as any).electron.theme.set(newTheme);
+      }
+    },
+    [isElectron, updateActiveTheme]
+  );
 
-  const toggleTheme = () => {
+  // Wrap toggleTheme in useCallback to maintain stable reference
+  const toggleTheme = useCallback(() => {
     // Simple toggle between light and dark
     const newTheme = activeTheme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-  };
+  }, [activeTheme, setTheme]);
 
-  return (
-    <ThemeContext.Provider value={{ theme, activeTheme, setTheme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({ theme, activeTheme, setTheme, toggleTheme }),
+    [theme, activeTheme, setTheme, toggleTheme]
   );
+
+  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
 };

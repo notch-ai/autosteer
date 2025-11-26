@@ -2,6 +2,7 @@
  * Service for interacting with Claude Code SDK via IPC
  */
 
+import { transformSDKMessage } from '@/commons/utils/message-transformers';
 import { toastError } from '@/components/ui/sonner';
 import { setupAutoBadgeClear, showBadgeIfNotFocused } from '@/renderer/utils/badgeUtils';
 import {
@@ -13,7 +14,6 @@ import {
   ToolUseMessage,
 } from '../../types/streaming.types';
 import { logger } from './LoggerService';
-import { MessageProcessor } from './MessageProcessor';
 import { getTodoMonitor } from './TodoActivityMonitorManager';
 
 // Type for IPC listener function - using any for event to avoid Electron dependency
@@ -266,13 +266,31 @@ export class ClaudeCodeService {
           };
 
           const errorListener: IpcListener = (_event, ...args) => {
-            const data = args[0] as { error: string };
-            const error = new Error(data.error);
+            try {
+              const data = args[0] as { error: string };
+              const error = new Error(data.error);
 
-            // Only call onError if we haven't already handled an error in the result message
-            // This prevents chatError from being set after onComplete has cleared it
-            if (callbacks.onError && !hasReceivedErrorInResult) {
-              callbacks.onError(error);
+              logger.error('[ClaudeCodeService] Error received from main process:', {
+                error: data.error,
+                hasReceivedErrorInResult,
+              });
+
+              // Only call onError if we haven't already handled an error in the result message
+              // This prevents chatError from being set after onComplete has cleared it
+              if (callbacks.onError && !hasReceivedErrorInResult) {
+                callbacks.onError(error);
+              }
+
+              // Cleanup to prevent memory leaks
+              cleanup();
+            } catch (err) {
+              logger.error('[ClaudeCodeService] Error in errorListener:', err);
+              // Still try to cleanup even if error handling fails
+              try {
+                cleanup();
+              } catch (cleanupErr) {
+                logger.error('[ClaudeCodeService] Error during cleanup:', cleanupErr);
+              }
             }
           };
 
@@ -379,6 +397,22 @@ export class ClaudeCodeService {
     parentMessageId?: string,
     sessionId?: string
   ): void {
+    // Early exit for ALL messages from recently interrupted sessions
+    // This prevents interrupt messages from reaching the UI when silentCancel is used
+    const messageSessionId = message.session_id || sessionId;
+    if (messageSessionId) {
+      const interruptedAt = this.interruptedSessions.get(messageSessionId);
+      if (interruptedAt && Date.now() - interruptedAt < 15000) {
+        logger.debug('[ClaudeCodeService] Filtering message from interrupted session:', {
+          sessionId: messageSessionId,
+          messageType: message.type,
+          subtype: message.subtype,
+          timeSinceInterrupt: Date.now() - interruptedAt,
+        });
+        return; // Skip ALL processing for interrupted sessions
+      }
+    }
+
     switch (message.type) {
       case 'system':
         if (callbacks.onSystem) {
@@ -406,94 +440,80 @@ export class ClaudeCodeService {
         break;
 
       case 'assistant':
-        // Handle assistant messages using MessageProcessor
-        logger.debug('[ClaudeCodeService] Assistant message received');
-
         // Clear interruption flag when we receive real content
         if (sessionId && this.interruptedSessions.has(sessionId)) {
           logger.debug('[ClaudeCodeService] Clearing interruption flag for session:', sessionId);
           this.interruptedSessions.delete(sessionId);
         }
 
-        let assistantProcessed;
-        try {
-          assistantProcessed = MessageProcessor.processSdkMessage(message);
-        } catch (error) {
-          logger.error('[ClaudeCodeService] Message processing failed:', error);
-          // Propagate error through onError callback to trigger ErrorBoundary
-          if (callbacks.onError) {
-            callbacks.onError(
-              error instanceof Error
-                ? error
-                : new Error(`Message processing failed: ${String(error)}`)
-            );
-          }
-          return; // Stop processing this message
+        // Transform SDK message with built-in synthetic filtering
+        const assistantMsg = transformSDKMessage(message);
+
+        // Skip if synthetic message was filtered (returns null)
+        if (!assistantMsg) {
+          logger.debug('[ClaudeCodeService] Synthetic assistant message filtered');
+          break;
         }
 
-        if (assistantProcessed.chatMessage) {
-          const chatMsg = assistantProcessed.chatMessage;
+        // Send token data if available
+        if (assistantMsg.tokenUsage && callbacks.onChunk) {
+          callbacks.onChunk({
+            type: 'partial',
+            content: currentContent,
+            done: false,
+            tokenUsage: assistantMsg.tokenUsage,
+            messageId: assistantMsg.id,
+            messageType: 'assistant',
+          });
+        }
 
-          // Send token data if available
-          if (chatMsg.tokenUsage && callbacks.onChunk) {
-            callbacks.onChunk({
-              type: 'partial',
-              content: currentContent,
-              done: false,
-              tokenUsage: chatMsg.tokenUsage,
-              messageId: chatMsg.id,
-              messageType: 'assistant',
-            });
-          }
+        // Send text content if available
+        if (assistantMsg.content && callbacks.onChunk) {
+          logger.debug('[ClaudeCodeService] Text content received:', {
+            textLength: assistantMsg.content.length,
+            textPreview: assistantMsg.content.substring(0, 100),
+            isInterruptedMessage: assistantMsg.content.includes('Request interrupted'),
+          });
 
-          // Send text content if available
-          if (chatMsg.content && callbacks.onChunk) {
-            logger.debug('[ClaudeCodeService] Text content received:', {
-              textLength: chatMsg.content.length,
-              textPreview: chatMsg.content.substring(0, 100),
-              isInterruptedMessage: chatMsg.content.includes('Request interrupted'),
-            });
+          callbacks.onChunk({
+            type: 'partial',
+            content: assistantMsg.content,
+            done: false,
+            isNewMessage: true,
+          });
 
-            callbacks.onChunk({
-              type: 'partial',
-              content: chatMsg.content,
-              done: false,
-              isNewMessage: true,
-            });
+          currentContent += assistantMsg.content;
+          updateContent(currentContent);
+        }
 
-            currentContent += chatMsg.content;
-            updateContent(currentContent);
-          }
+        // Handle tool uses from message content
+        if (message.message?.content && Array.isArray(message.message.content)) {
+          const contentArray = message.message.content;
+          for (const content of contentArray) {
+            if (content.type === 'tool_use') {
+              const toolData = content.tool_use || content;
 
-          // Handle tool uses from message content
-          if (message.message?.content && Array.isArray(message.message.content)) {
-            const contentArray = message.message.content;
-            for (const content of contentArray) {
-              if (content.type === 'tool_use') {
-                const toolData = content.tool_use || content;
+              if (callbacks.onToolUse) {
+                callbacks.onToolUse({
+                  type: 'tool_use',
+                  tool_id: toolData.id,
+                  tool_name: toolData.name,
+                  tool_input: toolData.input,
+                  parent_tool_use_id: message.parent_tool_use_id || null,
+                });
+              }
 
-                if (callbacks.onToolUse) {
-                  callbacks.onToolUse({
-                    type: 'tool_use',
-                    tool_id: toolData.id,
-                    tool_name: toolData.name,
-                    tool_input: toolData.input,
-                    parent_tool_use_id: message.parent_tool_use_id || null,
-                  });
-                }
-
-                // Process all tool uses for the activity monitor
-                if (todoMonitor && parentMessageId) {
-                  todoMonitor.onMessage({
-                    id: toolData.id,
-                    type: 'tool_use',
-                    timestamp: new Date().toISOString(),
-                    tool_name: toolData.name,
-                    tool_input: toolData.input,
-                    parent_tool_use_id: message.parent_tool_use_id || null,
-                    parent_message_id: parentMessageId,
-                  });
-                }
+              // Process all tool uses for the activity monitor
+              if (todoMonitor && parentMessageId) {
+                todoMonitor.onMessage({
+                  id: toolData.id,
+                  type: 'tool_use',
+                  timestamp: new Date().toISOString(),
+                  tool_name: toolData.name,
+                  tool_input: toolData.input,
+                  parent_tool_use_id: message.parent_tool_use_id || null,
+                  parent_message_id: parentMessageId,
+                });
               }
             }
           }
@@ -618,37 +638,39 @@ export class ClaudeCodeService {
           }
         }
 
-        const userProcessed = MessageProcessor.processSdkMessage(message);
+        // Transform SDK message with built-in synthetic filtering
+        const userMsg = transformSDKMessage(message);
+
+        // Skip if synthetic message was filtered (returns null)
+        if (!userMsg) {
+          logger.debug('[ClaudeCodeService] Synthetic user message filtered');
+          break;
+        }
+
         logger.debug('[ClaudeCodeService] User message processed:', {
-          hasMessage: !!userProcessed.chatMessage,
-          content: userProcessed.chatMessage?.content,
-          type: userProcessed.type,
+          hasMessage: true,
+          content: userMsg.content,
         });
 
-        if (userProcessed.chatMessage && callbacks.onChunk) {
+        if (callbacks.onChunk) {
           logger.debug('[ClaudeCodeService] Sending user message chunk:', {
-            content: userProcessed.chatMessage.content,
+            content: userMsg.content,
             isNewMessage: true,
           });
 
           callbacks.onChunk({
             type: 'partial',
-            content: userProcessed.chatMessage.content,
+            content: userMsg.content,
             done: false,
             isNewMessage: true,
             messageType: 'user',
-          });
-        } else {
-          logger.debug('[ClaudeCodeService] Not sending chunk:', {
-            hasMessage: !!userProcessed.chatMessage,
-            hasCallback: !!callbacks.onChunk,
           });
         }
         break;
 
       default:
         // Unhandled message type
-        logger.debug('[ClaudeCodeService] Unhandled message type:', message.type);
+        logger.warn('[ClaudeCodeService] Unhandled message type:', message.type);
         break;
     }
   }

@@ -64,6 +64,26 @@ export class GitDiffService {
   }
 
   /**
+   * Check if path has duplication (e.g., "ai-service-v2/ai-service-v2/")
+   */
+  private hasPathDuplication(filePath: string): boolean {
+    const parts = filePath.split('/').filter((p) => p && p !== '.');
+    if (parts.length < 2) return false;
+
+    // Check for consecutive duplicate segments
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (parts[i] === parts[i + 1]) {
+        logger.warn('[GitDiffService] Path duplication detected', {
+          filePath,
+          duplicateSegment: parts[i],
+        });
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Get diff between two commits/branches
    */
   async getDiff(options: DiffOptions): Promise<FileDiff[]> {
@@ -108,6 +128,32 @@ export class GitDiffService {
    */
   async getUncommittedDiff(filePath?: string): Promise<FileDiff[]> {
     try {
+      // Validate filePath - handle both null values and string "null"
+      if (filePath !== undefined && filePath !== null) {
+        // Convert to string to handle edge cases
+        const filePathStr = String(filePath);
+
+        // Check for invalid paths
+        if (
+          !filePathStr.trim() ||
+          filePathStr === 'null' ||
+          filePathStr === 'undefined' ||
+          filePathStr.includes('null') ||
+          filePathStr.includes('undefined') ||
+          // Check for path duplication patterns like "foo/foo/"
+          this.hasPathDuplication(filePathStr)
+        ) {
+          logger.error('[getUncommittedDiff] Invalid file path detected:', {
+            filePath: filePathStr,
+            type: typeof filePath,
+          });
+          // Return empty array instead of throwing to prevent toast errors
+          return [];
+        }
+        // Update filePath to the validated string
+        filePath = filePathStr;
+      }
+
       // Check if file is untracked
       if (filePath) {
         const status = await this.git.status();

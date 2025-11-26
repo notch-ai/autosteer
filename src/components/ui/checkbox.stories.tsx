@@ -46,13 +46,13 @@ export const Disabled: Story = {
     <div className="flex flex-col gap-3">
       <div className="flex items-center space-x-2">
         <Checkbox id="disabled-unchecked" disabled />
-        <Label htmlFor="disabled-unchecked" className="text-text-muted">
+        <Label htmlFor="disabled-unchecked" className="text-muted-foreground">
           Disabled unchecked
         </Label>
       </div>
       <div className="flex items-center space-x-2">
         <Checkbox id="disabled-checked" disabled checked />
-        <Label htmlFor="disabled-checked" className="text-text-muted">
+        <Label htmlFor="disabled-checked" className="text-muted-foreground">
           Disabled checked
         </Label>
       </div>
@@ -85,7 +85,7 @@ export const ThemeComparison: Story = {
   render: () => (
     <div className="grid grid-cols-2 gap-8">
       <div className="theme-day p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Day Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Day Theme</h3>
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
             <Checkbox id="day-1" defaultChecked />
@@ -97,14 +97,14 @@ export const ThemeComparison: Story = {
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="day-3" disabled />
-            <Label htmlFor="day-3" className="text-text-muted">
+            <Label htmlFor="day-3" className="text-muted-foreground">
               Disabled option
             </Label>
           </div>
         </div>
       </div>
       <div className="theme-night p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Night Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Night Theme</h3>
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
             <Checkbox id="night-1" defaultChecked />
@@ -116,7 +116,7 @@ export const ThemeComparison: Story = {
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="night-3" disabled />
-            <Label htmlFor="night-3" className="text-text-muted">
+            <Label htmlFor="night-3" className="text-muted-foreground">
               Disabled option
             </Label>
           </div>

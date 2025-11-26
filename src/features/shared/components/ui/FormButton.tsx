@@ -80,7 +80,7 @@ export const FormButton: React.FC<FormButtonProps> = ({
     >
       {loading ? (
         <>
-          <ClipLoader size={16} color="currentColor" />
+          <ClipLoader size={16} color="#ffffff" />
           {loadingText && <span>{loadingText}</span>}
         </>
       ) : (

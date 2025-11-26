@@ -14,9 +14,10 @@
 
 // Domain-based handlers consolidating specialized handlers
 
-// Domain handlers (All 5 completed ✅)
+// Domain handlers (All 6 completed ✅)
 export { CacheHandlers } from './cache.handlers';
 export { ClaudeHandlers } from './claude.handlers';
 export { ProjectHandlers } from './project.handlers';
 export { GitHandlers } from './git.handlers';
 export { SystemHandlers } from './system.handlers';
+export { IdeHandlers } from './ide.handlers';

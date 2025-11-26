@@ -24,7 +24,8 @@ export const FileDiffViewer: React.FC<FileDiffViewerProps> = ({
     );
   }
 
-  if (files.length === 0) {
+  // Defensive check: ensure files is an array
+  if (!Array.isArray(files) || files.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
         <p className="text-sm"></p>

@@ -1,5 +1,5 @@
 import { cn } from '@/commons/utils';
-import { ChevronRight, CircleStop } from 'lucide-react';
+import { ChevronUp } from 'lucide-react';
 import React from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -35,9 +35,16 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           size="icon-lg"
           onClick={onStopStreaming}
           title="Stop streaming"
-          className="bg-red text-white border-0 shadow-sm h-7 w-8 hover:bg-red-600 dark:hover:bg-red-700"
+          className="bg-danger text-white border-0 shadow-sm h-7 w-8 hover:bg-danger/90"
         >
-          <CircleStop className="h-5 w-5 stroke-2" />
+          <svg
+            className="h-5 w-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+          </svg>
         </Button>
       ) : (
         <Button
@@ -51,7 +58,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             canSend && 'bg-brand text-white hover:bg-brand-hover border-brand'
           )}
         >
-          <ChevronRight className="h-6 w-6" />
+          <ChevronUp className="h-6 w-6" />
         </Button>
       )}
     </div>

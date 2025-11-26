@@ -7,6 +7,9 @@ jest.mock('electron', () => ({
   screen: {
     getPrimaryDisplay: jest.fn(),
   },
+  shell: {
+    openExternal: jest.fn(),
+  },
 }));
 
 // Mock electron-log
@@ -55,6 +58,10 @@ describe('WindowManager', () => {
         }
       }),
       on: jest.fn(),
+      webContents: {
+        setWindowOpenHandler: jest.fn(),
+        on: jest.fn(),
+      },
     };
 
     (BrowserWindow as jest.MockedClass<typeof BrowserWindow>).mockImplementation(

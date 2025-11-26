@@ -277,4 +277,47 @@ describe('MarkdownCacheService', () => {
       expect(stats.size).toBe(0);
     });
   });
+
+  describe('List Normalization', () => {
+    it('should parse content successfully', () => {
+      const content = 'My list:\n1. First\n2. Second';
+      const result = service.parse(content);
+
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('string');
+    });
+
+    it('should cache normalized list content', () => {
+      service.clear();
+
+      const content = 'Items:\n- Apple\n- Banana';
+
+      const result1 = service.parse(content);
+      const result2 = service.parse(content);
+
+      expect(result1).toBe(result2);
+
+      const stats = service.getStats();
+      expect(stats.hits).toBe(1);
+      expect(stats.misses).toBe(1);
+    });
+
+    it('should maintain cache performance with varied content', () => {
+      service.clear();
+
+      const content1 = 'List:\n1. First\n2. Second';
+      const content2 = 'Items:\n- Apple\n- Banana';
+      const content3 = 'Steps:\n1. Do this\n2. Then that';
+
+      service.parse(content1);
+      service.parse(content1);
+      service.parse(content2);
+      service.parse(content1);
+      service.parse(content3);
+      service.parse(content2);
+
+      const stats = service.getStats();
+      expect(stats.hitRate).toBeGreaterThan(0.4);
+    });
+  });
 });

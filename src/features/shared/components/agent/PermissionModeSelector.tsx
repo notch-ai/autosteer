@@ -2,9 +2,10 @@ import { cn } from '@/commons/utils';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PERMISSION_MODES, PermissionMode } from '@/types/permission.types';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { IconName } from '@/features/shared/components/ui/Icon';
 import { Icon } from '@/features/shared/components/ui/Icon';
+import { logger } from '@/commons/utils/logger';
 
 interface PermissionModeSelectorProps {
   mode: PermissionMode;
@@ -22,7 +23,19 @@ export const PermissionModeSelector: React.FC<PermissionModeSelectorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const currentMode = PERMISSION_MODES.find((m) => m.value === mode) || PERMISSION_MODES[1]; // Default to Edit
 
+  useEffect(() => {
+    logger.debug('[PermissionModeSelector] Component initialized', {
+      mode,
+      currentMode: currentMode.value,
+      disabled,
+    });
+  }, []);
+
   const handleModeChange = (newMode: PermissionMode) => {
+    logger.debug('[PermissionModeSelector] Permission mode changed', {
+      from: mode,
+      to: newMode,
+    });
     onChange(newMode);
     setIsOpen(false);
   };
@@ -50,7 +63,7 @@ export const PermissionModeSelector: React.FC<PermissionModeSelectorProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => handleModeChange(option.value)}
-                className={cn('w-full justify-start', isActive && 'bg-surface-active text-primary')}
+                className={cn('w-full justify-start', isActive && 'bg-card-active text-primary')}
               >
                 <Icon name={option.icon as IconName} size={16} />
                 <span className="ml-2">{option.label}</span>

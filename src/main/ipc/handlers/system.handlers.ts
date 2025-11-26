@@ -28,9 +28,11 @@
 import { FileDataStoreService } from '@/services/FileDataStoreService';
 import { UpdateService } from '@/services/UpdateService';
 import { XtermService } from '@/services/XtermService';
+import { PythonRuntimeService } from '@/services/PythonRuntimeService';
 import { AutosteerConfig, CustomCommand } from '@/types/config.types';
 import { IPC_CHANNELS } from '@/types/ipc.types';
 import { TerminalCreateParams, TerminalResponse } from '@/types/terminal.types';
+import { TestPythonRuntimeResponse } from '@/types/python-runtime.types';
 import { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import log from 'electron-log';
 import { BadgeService } from '../../services/BadgeService';
@@ -72,6 +74,7 @@ export class SystemHandlers {
     this.registerConfigHandlers();
     this.registerLogHandlers();
     this.registerStoreHandlers();
+    this.registerPythonHandlers();
 
     // Only register update handlers if updateService is available
     if (this.updateService) {
@@ -252,6 +255,57 @@ export class SystemHandlers {
         }
       },
       { operationName: 'Update settings' }
+    );
+
+    // Save session settings
+    registerSafeHandler(
+      'config:saveSessionSettings',
+      async (
+        _event: IpcMainInvokeEvent,
+        agentId: string,
+        settings: { permissionMode?: string; model?: string | null }
+      ): Promise<void> => {
+        try {
+          const config = await this.fileDataStore.readConfig();
+
+          if (!config.sessionSettings) {
+            config.sessionSettings = {};
+          }
+
+          config.sessionSettings[agentId] = {
+            ...config.sessionSettings[agentId],
+            ...settings,
+          };
+
+          await this.fileDataStore.writeConfig(config);
+        } catch (error) {
+          ErrorHandler.log({
+            operation: 'save session settings',
+            error,
+            context: { agentId, settings },
+          });
+          throw error;
+        }
+      },
+      { operationName: 'Save session settings' }
+    );
+
+    // Get session settings
+    registerSafeHandler(
+      'config:getSessionSettings',
+      async (
+        _event: IpcMainInvokeEvent,
+        agentId: string
+      ): Promise<{ permissionMode?: string; model?: string | null } | null> => {
+        try {
+          const config = await this.fileDataStore.readConfig();
+          return config.sessionSettings?.[agentId] || null;
+        } catch (error) {
+          ErrorHandler.log({ operation: 'get session settings', error, context: { agentId } });
+          return null;
+        }
+      },
+      { operationName: 'Get session settings' }
     );
 
     // Set API key
@@ -749,6 +803,44 @@ export class SystemHandlers {
         }
       },
       { operationName: 'Clear store' }
+    );
+  }
+
+  /**
+   * Python Runtime Operations
+   */
+  private registerPythonHandlers(): void {
+    // Test Python runtime
+    registerSafeHandler(
+      'test-python-runtime',
+      async (): Promise<TestPythonRuntimeResponse> => {
+        try {
+          log.debug('[SystemHandlers] test-python-runtime invoked');
+
+          const pythonService = PythonRuntimeService.getInstance();
+          const result = await pythonService.testRuntime();
+
+          log.info('[SystemHandlers] test-python-runtime completed successfully', {
+            pythonVersion: result.pythonVersion,
+            sdkVersion: result.sdkVersion,
+            importStatus: result.importStatus,
+          });
+
+          return {
+            success: true,
+            result,
+          };
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          log.error('[SystemHandlers] test-python-runtime failed', { error: errorMessage });
+
+          return {
+            success: false,
+            error: errorMessage,
+          };
+        }
+      },
+      { operationName: 'Test Python runtime' }
     );
   }
 

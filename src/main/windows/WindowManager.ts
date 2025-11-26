@@ -1,5 +1,5 @@
 import { WindowState } from '@/entities/WindowState';
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, screen, shell } from 'electron';
 import log from 'electron-log';
 import path from 'path';
 
@@ -36,6 +36,35 @@ export class WindowManager {
     }
 
     const mainWindow = new BrowserWindow(windowOptions);
+
+    // Prevent navigation to external links - open in default browser instead
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+      // Allow navigation to our own dev server or local files
+      if (
+        url.startsWith('http://localhost') ||
+        url.startsWith('https://localhost') ||
+        url.startsWith('file://')
+      ) {
+        return;
+      }
+
+      // Block navigation and open in default browser
+      event.preventDefault();
+      shell.openExternal(url).catch((err) => {
+        log.error('[WINDOW-MANAGER] Failed to open external URL:', url, err);
+      });
+    });
+
+    // Handle new window requests (target="_blank", window.open, etc.)
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      // Open all new windows in default browser
+      shell.openExternal(url).catch((err) => {
+        log.error('[WINDOW-MANAGER] Failed to open external URL in new window:', url, err);
+      });
+
+      // Prevent Electron from creating a new window
+      return { action: 'deny' };
+    });
 
     // Save window state
     const windowId = 'main';

@@ -182,7 +182,7 @@ const iconMap: Record<IconName, LucideIcon> = {
 
 interface IconProps {
   name: IconName;
-  size?: number;
+  size?: number | 'auto';
   color?: string;
   className?: string;
   onClick?: () => void;
@@ -195,10 +195,17 @@ interface IconProps {
  * Feature component for Icon
  * Provides a consistent icon library with accessibility support
  * Maintains backward compatibility with legacy Icon API
+ *
+ * Icon sizing:
+ * - size={number}: Fixed pixel size (e.g., size={16})
+ * - size="auto": Scales with user's font size preference (1.25x base)
+ *   - Small (12px base): 15px icons
+ *   - Medium (13px base): 16.25px icons
+ *   - Large (14px base): 17.5px icons
  */
 export const Icon: React.FC<IconProps> = ({
   name,
-  size = 16,
+  size = 'auto',
   color,
   className,
   onClick,
@@ -213,11 +220,20 @@ export const Icon: React.FC<IconProps> = ({
     return null;
   }
 
+  const dynamicSizeClass =
+    size === 'auto'
+      ? '[width:calc(var(--font-size-base)*1.25)] [height:calc(var(--font-size-base)*1.25)]'
+      : '';
+
   const iconElement = (
     <IconComponent
-      size={size}
+      {...(size !== 'auto' && { size })}
       color={color}
-      className={cn('in-progress' === name && 'animate-spin', !color && 'currentColor')}
+      className={cn(
+        'in-progress' === name && 'animate-spin',
+        !color && 'currentColor',
+        dynamicSizeClass
+      )}
     />
   );
 

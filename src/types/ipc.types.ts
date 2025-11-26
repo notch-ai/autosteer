@@ -677,7 +677,7 @@ IpcChannelRegistry.registerChannel(IpcChannels.DataLoad);
 IpcChannelRegistry.registerChannel(IpcChannels.DevSlashCommands);
 
 // ============================================================================
-// Cache IPC Types 
+// Cache IPC Types
 // ============================================================================
 
 /**

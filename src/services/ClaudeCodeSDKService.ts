@@ -3,9 +3,10 @@
  * Replaces CLI-based implementation for better performance and reliability
  */
 
+import { getNodeOptions, getSettingsAsEnv, updateRuntimeSettings } from '@/config/settings';
+import { useSettingsStore } from '@/stores/settings';
 import type { ClaudeCodeMessage, ClaudeCodeQueryOptions } from '@/types/claudeCode.types';
 import type { FileChangeMessage } from '@/types/fileChange.types';
-import { getNodeOptions, getSettingsAsEnv, updateRuntimeSettings } from '@/config/settings';
 import { extractFileChanges, isFileChangeMessage } from '@/types/fileChange.types';
 import { getScopedMcpConfig } from '@/utils/scopedConfig';
 import { Options, Query, SDKMessage, query } from '@anthropic-ai/claude-agent-sdk';
@@ -208,9 +209,19 @@ export class ClaudeCodeSDKService {
         }
       }
 
+      // Check if skills are enabled from settings store
+      const settings = useSettingsStore.getState();
+      const skillsEnabled = settings.preferences.enableSkills;
+
+      log.info('[ClaudeCodeSDKService] Skills configuration:', {
+        enableSkills: skillsEnabled,
+        willControlViaAllowedTools: true,
+      });
+
       const sdkOptions: Options = {
         pathToClaudeCodeExecutable: cliPath,
-        // IMPORTANT: settingSources controls which settings/commands are loaded
+        // IMPORTANT: settingSources MUST include 'project' to load CLAUDE.md, commands, and settings
+        // We control Skills execution via allowedTools, NOT by removing 'project' from settingSources
         settingSources: ['project', 'local', 'user'],
         // Set MCP timeout to 5 seconds (authenticated servers should connect quickly)
         env: sdkEnv,
@@ -238,8 +249,28 @@ export class ClaudeCodeSDKService {
         sdkOptions.systemPrompt = options.systemPrompt;
       }
 
-      if (options.allowedTools && options.allowedTools.length > 0) {
-        sdkOptions.allowedTools = options.allowedTools;
+      // Configure allowedTools based on user preferences and options
+      // Per official SDK docs: Skills require BOTH settingSources: ['project'] AND allowedTools: ['Skill']
+      const allowedTools = options.allowedTools ? [...options.allowedTools] : [];
+
+      if (skillsEnabled && !allowedTools.includes('Skill')) {
+        allowedTools.push('Skill');
+        log.info('[ClaudeCodeSDKService] ✅ Skills ENABLED - Added "Skill" to allowedTools');
+      } else if (!skillsEnabled) {
+        // Remove 'Skill' from allowedTools if skills are disabled
+        const skillIndex = allowedTools.indexOf('Skill');
+        if (skillIndex > -1) {
+          allowedTools.splice(skillIndex, 1);
+          log.info('[ClaudeCodeSDKService] ❌ Skills DISABLED - Removed "Skill" from allowedTools');
+        }
+      }
+
+      if (allowedTools.length > 0) {
+        sdkOptions.allowedTools = allowedTools;
+        log.info('[ClaudeCodeSDKService] Final allowedTools:', {
+          allowedTools: sdkOptions.allowedTools,
+          hasSkill: sdkOptions.allowedTools?.includes('Skill'),
+        });
       }
 
       // ALWAYS set the model from options if provided (app's selected model takes precedence)
@@ -497,7 +528,7 @@ export class ClaudeCodeSDKService {
     // Determine message type and structure based on SDK message properties
     // Handle both old format (system/init) and new format (init)
     if (sdkMsg.type === 'init' || (sdkMsg.type === 'system' && sdkMsg.subtype === 'init')) {
-      return {
+      const initMessage = {
         type: 'system',
         subtype: 'init',
         session_id: sdkMsg.session_id || sdkMsg.sessionId,
@@ -511,6 +542,16 @@ export class ClaudeCodeSDKService {
         output_style: sdkMsg.output_style,
         agents: sdkMsg.agents,
       };
+
+      log.info('[ClaudeCodeSDKService] Init message received from SDK:', {
+        hasTools: !!sdkMsg.tools,
+        toolsList: sdkMsg.tools,
+        hasSkillTool: sdkMsg.tools?.includes('Skill'),
+        slashCommandsCount: sdkMsg.slash_commands?.length || 0,
+        agentsCount: sdkMsg.agents?.length || 0,
+      });
+
+      return initMessage;
     }
 
     if (sdkMsg.type === 'message' || sdkMsg.event === 'message') {

@@ -1,7 +1,13 @@
 import { COMPACT_PROMPT } from '@/commons/constants/compactPrompt';
 import { logger } from '@/commons/utils/logger';
 import { todoActivityMonitor } from '@/renderer/services/TodoActivityMonitor';
-import { useAgentsStore, useChatStore, useProjectsStore, useUIStore } from '@/stores';
+import {
+  useAgentsStore,
+  useChatStore,
+  useProjectsStore,
+  useSettingsStore,
+  useUIStore,
+} from '@/stores';
 import { ModelOption } from '@/types/model.types';
 import { DEFAULT_PERMISSION_MODE, PermissionMode } from '@/types/permission.types';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -47,7 +53,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
  *   handleCursorPositionChange,
  * } = useChatInputHandler({
  *   onSendMessage,
- *   isLoading,
+ *   isStreaming,
  *   selectedAgentId,
  * });
  * ```
@@ -60,8 +66,8 @@ export interface UseChatInputHandlerProps {
     content: string,
     options?: { permissionMode?: PermissionMode; model?: ModelOption }
   ) => void;
-  isLoading: boolean;
-  selectedAgentId: string | null;
+  isStreaming: boolean;
+  selectedAgentId: string | null; // Legacy prop - now using activeChat from store
 }
 
 export interface UseChatInputHandlerReturn {
@@ -87,23 +93,78 @@ export interface UseChatInputHandlerReturn {
 
 export const useChatInputHandler = ({
   onSendMessage,
-  isLoading,
-  selectedAgentId,
+  isStreaming: _isStreaming,
+  selectedAgentId: _selectedAgentId,
 }: UseChatInputHandlerProps): UseChatInputHandlerReturn => {
   // Core store subscriptions - must be called before useState
   const getDraftInput = useChatStore((state) => state.getDraftInput);
+  const activeChat = useChatStore((state) => state.activeChat);
+  const getSessionPermissionMode = useChatStore((state) => state.getSessionPermissionMode);
+  const setSessionPermissionModeStore = useChatStore((state) => state.setSessionPermissionMode);
+  const loadSessionSettings = useChatStore((state) => state.loadSessionSettings);
+
+  // Get defaults from settings
+  const defaultPermissionModeFromSettings = useSettingsStore(
+    (state) => state.preferences.defaultPermissionMode || DEFAULT_PERMISSION_MODE
+  );
 
   // Initialize message state with draft synchronously to avoid blank input on mount
+  // Use activeChat (unique chat ID) instead of selectedAgentId for proper per-tab isolation
   const [message, setMessageState] = useState(() => {
-    if (selectedAgentId) {
-      return getDraftInput(selectedAgentId);
+    if (activeChat) {
+      return getDraftInput(activeChat);
     }
     return '';
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>(DEFAULT_PERMISSION_MODE);
+
+  // Initialize permission mode from session or settings
+  const [permissionMode, setPermissionModeState] = useState<PermissionMode>(() => {
+    if (activeChat) {
+      const sessionMode = getSessionPermissionMode(activeChat);
+      if (sessionMode) return sessionMode;
+    }
+    return defaultPermissionModeFromSettings;
+  });
+
+  // Load session settings when activeChat changes (ONLY activeChat, not settings)
+  useEffect(() => {
+    if (!activeChat) return;
+
+    const loadSettings = async () => {
+      // First, try to load from config.json (persisted settings)
+      await loadSessionSettings(activeChat);
+
+      // Then check if we have a session mode (from memory or just loaded)
+      const sessionMode = getSessionPermissionMode(activeChat);
+
+      if (sessionMode) {
+        // Existing session - use saved mode
+        setPermissionModeState(sessionMode);
+        logger.debug('[useChatInputHandler] Loaded existing session permission mode', {
+          activeChat,
+          permissionMode: sessionMode,
+        });
+      } else {
+        // New session - initialize with settings default
+        const defaultMode =
+          useSettingsStore.getState().preferences.defaultPermissionMode || DEFAULT_PERMISSION_MODE;
+        setPermissionModeState(defaultMode);
+        setSessionPermissionModeStore(activeChat, defaultMode);
+        logger.debug(
+          '[useChatInputHandler] Initialized new session with permission mode from settings',
+          {
+            activeChat,
+            permissionMode: defaultMode,
+          }
+        );
+      }
+    };
+
+    void loadSettings();
+  }, [activeChat, getSessionPermissionMode, setSessionPermissionModeStore, loadSessionSettings]);
 
   // Use ref to track latest message value to avoid stale closure issues
   const messageRef = useRef(message);
@@ -114,45 +175,52 @@ export const useChatInputHandler = ({
   const clearDraftInput = useChatStore((state) => state.clearDraftInput);
   const setDraftCursorPosition = useChatStore((state) => state.setDraftCursorPosition);
   const getDraftCursorPosition = useChatStore((state) => state.getDraftCursorPosition);
+  const isStreaming = useChatStore((state) =>
+    activeChat ? state.streamingStates.get(activeChat) || false : false
+  );
+  const cancelAndSend = useChatStore((state) => state.cancelAndSend);
 
   // Get model from UI store
   const model = useUIStore((state) => state.selectedModel);
   const setModel = useUIStore((state) => state.setSelectedModel);
 
-  // Load draft input when agent changes (for subsequent switches)
+  // Load draft input when active chat changes (for subsequent switches)
+  // Use activeChat instead of selectedAgentId to ensure per-tab draft isolation
   useEffect(() => {
-    if (selectedAgentId) {
-      const draft = getDraftInput(selectedAgentId);
+    if (activeChat) {
+      const draft = getDraftInput(activeChat);
       setMessageState(draft);
       messageRef.current = draft;
     }
-  }, [selectedAgentId, getDraftInput]);
+  }, [activeChat, getDraftInput]);
 
-  // Get cursor position for current agent
-  const cursorPosition = selectedAgentId ? getDraftCursorPosition(selectedAgentId) : null;
+  // Get cursor position for current chat (use activeChat for proper per-tab isolation)
+  const cursorPosition = activeChat ? getDraftCursorPosition(activeChat) : null;
 
   // Wrap setMessage to update both local state and draft store
+  // Use activeChat instead of selectedAgentId for proper per-tab isolation
   const setMessage = useCallback(
     (msg: string) => {
       messageRef.current = msg;
       setMessageState(msg);
 
-      // Auto-save draft to store
-      if (selectedAgentId) {
-        setDraftInput(selectedAgentId, msg);
+      // Auto-save draft to store using activeChat for proper per-tab isolation
+      if (activeChat) {
+        setDraftInput(activeChat, msg);
       }
     },
-    [selectedAgentId, setDraftInput]
+    [activeChat, setDraftInput]
   );
 
   // Handle cursor position changes
+  // Use activeChat instead of selectedAgentId for proper per-tab isolation
   const handleCursorPositionChange = useCallback(
     (position: number) => {
-      if (selectedAgentId) {
-        setDraftCursorPosition(selectedAgentId, position);
+      if (activeChat) {
+        setDraftCursorPosition(activeChat, position);
       }
     },
-    [selectedAgentId, setDraftCursorPosition]
+    [activeChat, setDraftCursorPosition]
   );
 
   /**
@@ -289,13 +357,13 @@ export const useChatInputHandler = ({
         onSendMessage(commandContent, { permissionMode, model });
         setMessage('');
 
-        // Clear draft for current agent
-        if (selectedAgentId) {
-          clearDraftInput(selectedAgentId);
+        // Clear draft for current chat (use activeChat for proper per-tab isolation)
+        if (activeChat) {
+          clearDraftInput(activeChat);
         }
       }
     },
-    [onSendMessage, permissionMode, model, selectedAgentId, clearDraftInput]
+    [onSendMessage, permissionMode, model, activeChat, clearDraftInput]
   );
 
   /**
@@ -304,7 +372,7 @@ export const useChatInputHandler = ({
    * Flow:
    * 1. Validate input (non-empty after HTML stripping)
    * 2. Check if it's a built-in command (/clear, /compact)
-   * 3. Execute built-in command OR send to Claude
+   * 3. Execute built-in command OR send to Claude (with silent cancellation if query active)
    * 4. Clear input on success
    *
    * Error Cases:
@@ -316,7 +384,7 @@ export const useChatInputHandler = ({
     // Read latest message from ref to avoid stale closure issues
     const currentMessage = messageRef.current;
 
-    if (!currentMessage.trim() || isLoading) {
+    if (!currentMessage.trim()) {
       return;
     }
 
@@ -335,9 +403,9 @@ export const useChatInputHandler = ({
     setMessageState('');
     setIsSubmitting(true);
 
-    // Clear draft for current agent
-    if (selectedAgentId) {
-      clearDraftInput(selectedAgentId);
+    // Clear draft for current chat (use activeChat for proper per-tab isolation)
+    if (activeChat) {
+      clearDraftInput(activeChat);
     }
 
     try {
@@ -357,8 +425,16 @@ export const useChatInputHandler = ({
         return;
       }
 
-      // Not a built-in command, send normally
-      onSendMessage(messageToSend, { permissionMode, model });
+      // Use cancelAndSend if streaming is active (silent interruption)
+      // Otherwise, use regular sendMessage
+      if (isStreaming) {
+        logger.debug(
+          '[useChatInputHandler] Active stream detected, using cancelAndSend for silent interruption'
+        );
+        await cancelAndSend(messageToSend, undefined, undefined, { permissionMode, model });
+      } else {
+        onSendMessage(messageToSend, { permissionMode, model });
+      }
 
       // Clear error only on successful submit
       setError(null);
@@ -370,13 +446,14 @@ export const useChatInputHandler = ({
       setIsSubmitting(false);
     }
   }, [
-    isLoading,
+    isStreaming,
+    cancelAndSend,
     onSendMessage,
     permissionMode,
     model,
     handleClearChat,
     handleCompactChat,
-    selectedAgentId,
+    activeChat,
     clearDraftInput,
   ]);
 
@@ -393,6 +470,21 @@ export const useChatInputHandler = ({
 
     return plainText.trim().length > 0;
   }, [message]);
+
+  // Wrap setPermissionMode to also save to chat store
+  const setPermissionMode = useCallback(
+    (mode: PermissionMode) => {
+      setPermissionModeState(mode);
+      if (activeChat) {
+        setSessionPermissionModeStore(activeChat, mode);
+        logger.debug('[useChatInputHandler] Permission mode changed', {
+          activeChat,
+          permissionMode: mode,
+        });
+      }
+    },
+    [activeChat, setSessionPermissionModeStore]
+  );
 
   return {
     message,

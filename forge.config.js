@@ -16,14 +16,34 @@ module.exports = {
     icon: './assets/icon',
     appBundleId: 'com.autosteer.platform',
     appCategoryType: 'public.app-category.productivity',
-    extraResources: [],
+    extraResources: [
+      // Phase 3: Python runtime bundling
+      {
+        from: path.join(__dirname, '..', 'ai-service-v2', '.venv'),
+        to: path.join('ai-service-v2', '.venv'),
+        filter: [
+          '**/*',
+          // Exclude unnecessary files to reduce bundle size
+          '!**/__pycache__/**',
+          '!**/*.pyc',
+          '!**/*.pyo',
+          '!**/tests/**',
+          '!**/test/**',
+        ],
+      },
+      // Phase 3: Python bridge resources
+      {
+        from: path.join(__dirname, 'resources', 'python-bridge'),
+        to: 'python-bridge',
+      },
+    ],
     osxSign: process.env.APPLE_CERTIFICATE ? {} : false,
     osxNotarize:
       process.env.APPLE_ID && !process.env.SKIP_NOTARIZE
         ? {
-            tool: 'notarytool', 
+            tool: 'notarytool',
             appleId: process.env.APPLE_ID,
-            appleIdPassword: process.env.APPLE_ID_PASSWORD, 
+            appleIdPassword: process.env.APPLE_ID_PASSWORD,
             teamId: process.env.APPLE_TEAM_ID,
           }
         : undefined,

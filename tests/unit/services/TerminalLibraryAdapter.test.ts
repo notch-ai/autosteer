@@ -40,6 +40,47 @@ describe('TerminalLibraryAdapter', () => {
       return 0;
     });
 
+    // Mock getComputedStyle to return CSS variable values
+    const originalGetComputedStyle = window.getComputedStyle;
+    window.getComputedStyle = jest.fn((element: Element) => {
+      const style = originalGetComputedStyle(element);
+      return {
+        ...style,
+        getPropertyValue: (prop: string) => {
+          if (prop === '--font-family-mono') {
+            return '"Fira Code", "SF Mono", Monaco, Consolas, monospace';
+          }
+          // Return theme colors as RGB triplets for terminal theme
+          if (prop === '--background') return '2 5 12';
+          if (prop === '--foreground') return '248 250 252';
+          if (prop === '--accent') return '29 30 38';
+          if (prop === '--muted') return '22 22 28';
+          if (prop === '--destructive') return '156 23 23';
+          if (prop === '--primary') return '248 250 252';
+          if (prop === '--muted-foreground') return '139 140 145';
+          // Terminal-specific color variables
+          if (prop === '--color-terminal-bg') return '0 0 0';
+          if (prop === '--color-terminal-black') return '230 230 230';
+          if (prop === '--color-terminal-red') return '239 83 80';
+          if (prop === '--color-terminal-green') return '46 204 113';
+          if (prop === '--color-terminal-yellow') return '241 196 15';
+          if (prop === '--color-terminal-blue') return '52 152 219';
+          if (prop === '--color-terminal-magenta') return '189 147 249';
+          if (prop === '--color-terminal-cyan') return '22 160 133';
+          if (prop === '--color-terminal-white') return '248 250 252';
+          if (prop === '--color-terminal-bright-black') return '245 245 245';
+          if (prop === '--color-terminal-bright-red') return '255 105 97';
+          if (prop === '--color-terminal-bright-green') return '80 250 123';
+          if (prop === '--color-terminal-bright-yellow') return '255 231 76';
+          if (prop === '--color-terminal-bright-blue') return '97 175 239';
+          if (prop === '--color-terminal-bright-magenta') return '219 188 255';
+          if (prop === '--color-terminal-bright-cyan') return '95 226 209';
+          if (prop === '--color-terminal-bright-white') return '255 255 255';
+          return style.getPropertyValue(prop);
+        },
+      } as CSSStyleDeclaration;
+    });
+
     // Create mock DOM element for terminal
     const mockTerminalElement = document.createElement('div');
     const mockParentElement = document.createElement('div');
@@ -123,12 +164,12 @@ describe('TerminalLibraryAdapter', () => {
         expect.objectContaining({
           scrollback: 10000,
           fontSize: 13,
-          fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+          fontFamily: '"Fira Code", "SF Mono", Monaco, Consolas, monospace',
           cursorBlink: true,
           convertEol: true,
           theme: expect.objectContaining({
-            background: '#1e1e1e',
-            foreground: '#d4d4d4',
+            background: 'rgb(0 0 0)', // Terminal background is now black
+            foreground: 'rgb(248 250 252)',
           }),
         })
       );
@@ -178,7 +219,7 @@ describe('TerminalLibraryAdapter', () => {
         expect.objectContaining({
           scrollback: 15000,
           fontSize: 13, // Default
-          fontFamily: 'Menlo, Monaco, "Courier New", monospace', // Default
+          fontFamily: '"Fira Code", "SF Mono", Monaco, Consolas, monospace', // From CSS variable
         })
       );
     });

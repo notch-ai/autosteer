@@ -54,36 +54,19 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
             <div
               key={index}
               data-testid="diff-line"
-              className={cn(
-                'flex bg-[#0d2818] border-l-4 border-success dark:bg-[#0d2818] dark:border-[#3fb950]'
-              )}
+              className={cn('flex bg-green-50 dark:bg-green-900/20 border-l-4 border-success')}
             >
               <span
                 data-testid="diff-line-number"
-                className={cn(
-                  'flex select-none text-text-muted bg-surface',
-                  'dark:text-[#7d8590] dark:bg-[#0d1117]'
-                )}
+                className={cn('flex select-none text-muted-foreground bg-card')}
               >
                 <span className="w-10 px-2 text-right"></span>
-                <span
-                  className={cn(
-                    'w-10 px-2 text-right border-r border-border',
-                    'dark:border-[#30363d]'
-                  )}
-                >
+                <span className={cn('w-10 px-2 text-right border-r border-border')}>
                   {index + 1}
                 </span>
               </span>
-              <span className={cn('px-2 text-success select-none', 'dark:text-[#3fb950]')}>+</span>
-              <span
-                className={cn(
-                  'text-[#3fb950] bg-[#0d2818]',
-                  'dark:text-[#3fb950] dark:bg-[#0d2818]'
-                )}
-              >
-                {line}
-              </span>
+              <span className={cn('px-2 text-success select-none')}>+</span>
+              <span className={cn('text-success bg-green-50 dark:bg-green-900/20')}>{line}</span>
             </div>
           ))}
         </div>
@@ -110,36 +93,17 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                 <div
                   key={`old-${index}`}
                   data-testid="diff-line"
-                  className={cn(
-                    'flex bg-[#2d0a0a] border-l-4 border-[#f85149] dark:bg-[#2d0a0a] dark:border-[#f85149]'
-                  )}
+                  className={cn('flex bg-red-50 dark:bg-red-900/20 border-l-4 border-error')}
                 >
                   <span
                     data-testid="diff-line-number"
-                    className={cn(
-                      'flex select-none text-text-muted bg-surface',
-                      'dark:text-[#7d8590] dark:bg-[#0d1117]'
-                    )}
+                    className={cn('flex select-none text-muted-foreground bg-card')}
                   >
                     <span className="w-10 px-2 text-right">{index + 1}</span>
-                    <span
-                      className={cn(
-                        'w-10 px-2 text-right border-r border-border',
-                        'dark:border-[#30363d]'
-                      )}
-                    ></span>
+                    <span className={cn('w-10 px-2 text-right border-r border-border')}></span>
                   </span>
-                  <span className={cn('px-2 text-[#f85149] select-none', 'dark:text-[#f85149]')}>
-                    -
-                  </span>
-                  <span
-                    className={cn(
-                      'text-[#f85149] bg-[#2d0a0a]',
-                      'dark:text-[#f85149] dark:bg-[#2d0a0a]'
-                    )}
-                  >
-                    {line}
-                  </span>
+                  <span className={cn('px-2 text-error select-none')}>-</span>
+                  <span className={cn('text-error bg-red-50 dark:bg-red-900/20')}>{line}</span>
                 </div>
               ))}
             </>
@@ -151,36 +115,19 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                 <div
                   key={`new-${index}`}
                   data-testid="diff-line"
-                  className={cn(
-                    'flex bg-[#0d2818] border-l-4 border-[#3fb950] dark:bg-[#0d2818] dark:border-[#3fb950]'
-                  )}
+                  className={cn('flex bg-green-50 dark:bg-green-900/20 border-l-4 border-success')}
                 >
                   <span
                     data-testid="diff-line-number"
-                    className={cn(
-                      'flex select-none text-text-muted bg-surface',
-                      'dark:text-[#7d8590] dark:bg-[#0d1117]'
-                    )}
+                    className={cn('flex select-none text-muted-foreground bg-card')}
                   >
                     <span className="w-10 px-2 text-right"></span>
-                    <span
-                      className={cn(
-                        'w-10 px-2 text-right border-r border-border',
-                        'dark:border-[#30363d]'
-                      )}
-                    >
+                    <span className={cn('w-10 px-2 text-right border-r border-border')}>
                       {index + 1}
                     </span>
                   </span>
-                  <span className={cn('px-2 text-[#3fb950] select-none', 'dark:text-[#3fb950]')}>
-                    +
-                  </span>
-                  <span
-                    className={cn(
-                      'text-[#3fb950] bg-[#0d2818]',
-                      'dark:text-[#3fb950] dark:bg-[#0d2818]'
-                    )}
-                  >
+                  <span className={cn('px-2 text-success select-none')}>+</span>
+                  <span className={cn('text-success bg-green-50 dark:bg-green-900/20')}>
                     {line}
                   </span>
                 </div>
@@ -200,12 +147,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 
             return (
               <div key={hunkIndex}>
-                <div
-                  className={cn(
-                    'px-4 py-1 text-info bg-surface-hover',
-                    'dark:text-[#58a6ff] dark:bg-[#0d1117]'
-                  )}
-                >
+                <div className={cn('px-4 py-1 text-info bg-card-hover')}>
                   @@ -{hunk.oldStart},{hunk.oldLines} +{hunk.newStart},{hunk.newLines} @@
                 </div>
                 {hunk.lines.map((line, lineIndex) => {
@@ -217,17 +159,17 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                   let textClass = '';
 
                   if (operation === '+') {
-                    lineClass = 'border-l-4 border-[#3fb950] dark:border-[#3fb950]';
-                    bgClass = 'bg-[#0d2818] dark:bg-[#0d2818]';
-                    textClass = 'text-[#3fb950] dark:text-[#3fb950]';
+                    lineClass = 'border-l-4 border-success';
+                    bgClass = 'bg-green-50 dark:bg-green-900/20';
+                    textClass = 'text-success';
                   } else if (operation === '-') {
-                    lineClass = 'border-l-4 border-[#f85149] dark:border-[#f85149]';
-                    bgClass = 'bg-[#2d0a0a] dark:bg-[#2d0a0a]';
-                    textClass = 'text-[#f85149] dark:text-[#f85149]';
+                    lineClass = 'border-l-4 border-error';
+                    bgClass = 'bg-red-50 dark:bg-red-900/20';
+                    textClass = 'text-error';
                   } else {
                     lineClass = '';
-                    bgClass = 'bg-background dark:bg-[#0d1117]';
-                    textClass = 'text-text-muted dark:text-[#7d8590]';
+                    bgClass = 'bg-background';
+                    textClass = 'text-muted-foreground';
                   }
 
                   const displayOldLine = operation !== '+' ? oldLineNum++ : '';
@@ -241,23 +183,15 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                     >
                       <span
                         data-testid="diff-line-number"
-                        className={cn(
-                          'flex select-none text-text-muted bg-surface',
-                          'dark:text-[#7d8590] dark:bg-[#0d1117]'
-                        )}
+                        className={cn('flex select-none text-muted-foreground bg-card')}
                       >
                         <span className="w-10 px-2 text-right">{displayOldLine}</span>
-                        <span
-                          className={cn(
-                            'w-10 px-2 text-right border-r border-border',
-                            'dark:border-[#30363d]'
-                          )}
-                        >
+                        <span className={cn('w-10 px-2 text-right border-r border-border')}>
                           {displayNewLine}
                         </span>
                       </span>
                       <span className={cn('px-2 select-none', textClass)}>{operation}</span>
-                      <span className={cn('text-text', 'dark:text-[#e6edf3]')}>{content}</span>
+                      <span className={cn('text-foreground')}>{content}</span>
                     </div>
                   );
                 })}
@@ -273,12 +207,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 
   return (
     <div className={cn('rounded-md border border-border overflow-hidden', className)}>
-      <div
-        className={cn(
-          'px-4 py-2 bg-surface border-b border-border font-mono text-sm',
-          'dark:bg-[#0d1117] dark:border-[#30363d]'
-        )}
-      >
+      <div className={cn('px-4 py-2 bg-card border-b border-border font-mono text-sm')}>
         {filePath}
       </div>
       <ScrollArea className="max-h-[600px]">{renderDiff()}</ScrollArea>

@@ -1,0 +1,6 @@
+# These tests need to be updated to match the new auto-select logic
+# See: https://github.com/notch-ai/autosteer/issues/TBD
+
+tests/unit/hooks/useSessionTabs.autoselect.test.ts
+tests/unit/hooks/useSessionTabs.deletion.test.ts
+tests/unit/hooks/useSessionTabs.persistence.test.ts

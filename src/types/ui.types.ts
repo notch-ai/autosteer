@@ -1,18 +1,57 @@
+/**
+ * Represents a session tab in the application.
+ * Tabs can be agent-specific, system tabs (terminal/changes), or maximize views.
+ * Per-project tab isolation ensures agents only appear for their associated project.
+ */
 export interface SessionTab {
+  /** Unique identifier for the tab */
   id: string;
+  /** ID of the agent or system component */
   agentId: string;
+  /** Display name of the agent or system tab */
   agentName: string;
+  /** Type of agent (general, text, terminal, changes, maximize) */
   agentType: string;
+  /** Whether this tab is currently active */
   isActive: boolean;
+  /** Claude Code session ID associated with this tab */
   sessionId: string;
-  sessionName?: string; // Generated name like "Swift River"
+  /** Generated session name like "Swift River" (optional) */
+  sessionName?: string;
+  /** Last time this tab was accessed */
   lastAccessed: Date;
-  tabType?: 'agent' | 'terminal' | 'changes'; // Add tab type to distinguish between agent, terminal, and changes tabs
+  /** Type of tab to distinguish between different tab categories */
+  tabType?: 'agent' | 'terminal' | 'changes' | 'tools' | 'maximize';
 }
 
+/**
+ * Specialized tab type for maximize views.
+ * Extends SessionTab with additional metadata for maximize functionality.
+ */
+export interface MaximizeTab extends SessionTab {
+  /** Always 'maximize' for maximize tabs */
+  tabType: 'maximize';
+  /** The session ID this maximize tab belongs to */
+  parentSessionId: string;
+  /** Which panel is currently active in the maximize view */
+  activeSubTab?: 'todos' | 'status' | 'trace';
+  /** Project ID this maximize tab belongs to - for project scoping */
+  projectId: string;
+  /** Whether this tab is persistent (cannot be closed manually) */
+  persistent?: boolean;
+}
+
+/**
+ * Global tab state for the application.
+ * Manages all session tabs, active tab selection, and tab limits.
+ * Tabs are scoped per project - only tabs for the selected project are visible.
+ */
 export interface TabState {
+  /** Array of all session tabs for the current project */
   tabs: SessionTab[];
+  /** ID of the currently active tab */
   activeTabId: string;
+  /** Maximum number of tabs allowed (default: 10) */
   maxTabs: number;
 }
 
@@ -33,9 +72,15 @@ export interface TabKeyboardShortcuts {
   'ctrl+w': () => void; // Close current tab (Windows/Linux)
 }
 
-// Changes Tab State
+/**
+ * State for the Changes tab.
+ * Manages file selection, panel sizes, and scroll position.
+ */
 export interface ChangesTabState {
+  /** Currently selected file path for diff viewing */
   selectedFile: string | null;
-  panelSizes: { fileList: number; diffViewer: number }; // percentages (40/60 default)
+  /** Panel size percentages for file list and diff viewer (default: 30/70) */
+  panelSizes: { fileList: number; diffViewer: number };
+  /** Current vertical scroll position */
   scrollPosition: number;
 }

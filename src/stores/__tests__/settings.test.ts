@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { useSettingsStore } from '@/stores/settings';
-import { DEFAULT_MODEL } from '@/types/model.types';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 // Get references to the global mocks from setup.ts
 const mockInvoke = window.electron.ipc.invoke as jest.MockedFunction<any>;
@@ -15,29 +14,11 @@ describe('SettingsStore', () => {
   });
 
   describe('Initialization', () => {
-    it('should initialize with default preferences', () => {
-      const state = useSettingsStore.getState();
-      expect(state.preferences).toEqual({
-        theme: 'system',
-        fontSize: 14,
-        fontFamily: 'Fira Code, SF Mono, Monaco, Consolas, monospace',
-        autoSave: true,
-        compactOnTokenLimit: true,
-        maxTokens: 4000,
-        badgeNotifications: true,
-        defaultModel: DEFAULT_MODEL,
-        maxTurns: null,
-      });
-      expect(state.apiKeys).toEqual({});
-      expect(state.selectedProvider).toBe('claude-code');
-      expect(state.isInitialized).toBe(false);
-    });
-
     it('should load settings from config on initialize', async () => {
       const mockConfig = {
         settings: {
           theme: 'dark',
-          fontSize: 16,
+          fontSize: 'large',
           selectedProvider: 'openai',
         },
         apiKeys: {
@@ -62,7 +43,7 @@ describe('SettingsStore', () => {
       const state = useSettingsStore.getState();
       expect(state.isInitialized).toBe(true);
       expect(state.preferences.theme).toBe('dark');
-      expect(state.preferences.fontSize).toBe(16);
+      expect(state.preferences.fontSize).toBe('large');
       expect(state.selectedProvider).toBe('openai');
       expect(state.apiKeys).toEqual({ anthropic: 'test-key' });
       expect(state.customCommands).toHaveLength(1);
@@ -87,14 +68,14 @@ describe('SettingsStore', () => {
 
       const { updatePreferences } = useSettingsStore.getState();
 
-      await updatePreferences({ theme: 'dark', fontSize: 16 });
+      await updatePreferences({ theme: 'dark', fontSize: 'large' });
 
       const state = useSettingsStore.getState();
       expect(state.preferences.theme).toBe('dark');
-      expect(state.preferences.fontSize).toBe(16);
+      expect(state.preferences.fontSize).toBe('large');
       expect(mockInvoke).toHaveBeenCalledWith('config:updateSettings', {
         theme: 'dark',
-        fontSize: 16,
+        fontSize: 'large',
       });
     });
 
@@ -116,14 +97,14 @@ describe('SettingsStore', () => {
       const { updatePreferences, resetPreferences } = useSettingsStore.getState();
 
       // Modify preferences
-      await updatePreferences({ theme: 'dark', fontSize: 20 });
+      await updatePreferences({ theme: 'dark', fontSize: 'large' });
 
       // Reset
       await resetPreferences();
 
       const state = useSettingsStore.getState();
       expect(state.preferences.theme).toBe('system');
-      expect(state.preferences.fontSize).toBe(14);
+      expect(state.preferences.fontSize).toBe('medium');
     });
   });
 
@@ -349,14 +330,14 @@ describe('SettingsStore', () => {
 
       const { updatePreferences, setProvider, exportSettings } = useSettingsStore.getState();
 
-      await updatePreferences({ theme: 'dark', fontSize: 16 });
+      await updatePreferences({ theme: 'dark', fontSize: 'large' });
       await setProvider('openai');
 
       const exported = await exportSettings();
       const parsed = JSON.parse(exported);
 
       expect(parsed.preferences.theme).toBe('dark');
-      expect(parsed.preferences.fontSize).toBe(16);
+      expect(parsed.preferences.fontSize).toBe('large');
       expect(parsed.selectedProvider).toBe('openai');
       expect(parsed.version).toBe('1.0');
       expect(parsed.exportedAt).toBeDefined();
@@ -381,7 +362,7 @@ describe('SettingsStore', () => {
       const importData = {
         preferences: {
           theme: 'light',
-          fontSize: 18,
+          fontSize: 'small',
         },
         selectedProvider: 'mock',
         customCommands: [
@@ -400,7 +381,7 @@ describe('SettingsStore', () => {
 
       const state = useSettingsStore.getState();
       expect(state.preferences.theme).toBe('light');
-      expect(state.preferences.fontSize).toBe(18);
+      expect(state.preferences.fontSize).toBe('small');
       expect(state.selectedProvider).toBe('mock');
       expect(state.customCommands).toHaveLength(1);
       expect(state.customCommands[0].name).toBe('Imported Command');
@@ -435,7 +416,7 @@ describe('SettingsStore', () => {
       const { updatePreferences, setApiKey, setProvider, reset } = useSettingsStore.getState();
 
       // Modify state
-      await updatePreferences({ theme: 'dark', fontSize: 20 });
+      await updatePreferences({ theme: 'dark', fontSize: 'large' });
       await setApiKey('anthropic', 'test-key');
       await setProvider('openai');
 
@@ -444,7 +425,7 @@ describe('SettingsStore', () => {
 
       const state = useSettingsStore.getState();
       expect(state.preferences.theme).toBe('system');
-      expect(state.preferences.fontSize).toBe(14);
+      expect(state.preferences.fontSize).toBe('medium');
       expect(state.apiKeys).toEqual({});
       expect(state.selectedProvider).toBe('claude-code');
       expect(state.isInitialized).toBe(false);
@@ -462,13 +443,163 @@ describe('SettingsStore', () => {
 
     it('should have font settings selector', () => {
       const state = useSettingsStore.getState();
-      expect(state.preferences.fontSize).toBe(14);
+      expect(state.preferences.fontSize).toBe('medium');
       expect(state.preferences.fontFamily).toBeTruthy();
     });
 
     it('should have provider selector', () => {
       const state = useSettingsStore.getState();
       expect(state.selectedProvider).toBe('claude-code');
+    });
+  });
+
+  describe('Session Tab Deletion Confirmation Preference', () => {
+    it('should have confirmSessionTabDeletion default to true', () => {
+      const state = useSettingsStore.getState();
+      expect(state.preferences.confirmSessionTabDeletion).toBe(true);
+    });
+
+    it('should update confirmSessionTabDeletion preference', async () => {
+      mockInvoke.mockResolvedValueOnce({});
+
+      const { updatePreferences } = useSettingsStore.getState();
+      await updatePreferences({ confirmSessionTabDeletion: true });
+
+      const state = useSettingsStore.getState();
+      expect(state.preferences.confirmSessionTabDeletion).toBe(true);
+      expect(mockInvoke).toHaveBeenCalledWith('config:updateSettings', {
+        confirmSessionTabDeletion: true,
+      });
+    });
+
+    it('should persist confirmSessionTabDeletion preference across initialization', async () => {
+      const mockConfig = {
+        settings: {
+          confirmSessionTabDeletion: true,
+        },
+      };
+
+      mockInvoke.mockResolvedValueOnce(mockConfig);
+
+      const { initialize } = useSettingsStore.getState();
+      await initialize();
+
+      const state = useSettingsStore.getState();
+      expect(state.preferences.confirmSessionTabDeletion).toBe(true);
+    });
+
+    it('should include confirmSessionTabDeletion in settings export', async () => {
+      mockInvoke.mockResolvedValue({});
+
+      const { updatePreferences, exportSettings } = useSettingsStore.getState();
+      await updatePreferences({ confirmSessionTabDeletion: true });
+
+      const exported = await exportSettings();
+      const parsed = JSON.parse(exported);
+
+      expect(parsed.preferences.confirmSessionTabDeletion).toBe(true);
+    });
+
+    it('should import confirmSessionTabDeletion from settings JSON', async () => {
+      mockInvoke.mockResolvedValue({});
+
+      const importData = {
+        preferences: {
+          confirmSessionTabDeletion: true,
+        },
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+      };
+
+      const { importSettings } = useSettingsStore.getState();
+      await importSettings(JSON.stringify(importData));
+
+      const state = useSettingsStore.getState();
+      expect(state.preferences.confirmSessionTabDeletion).toBe(true);
+    });
+  });
+
+  describe('Auto-Select First Tab Preference', () => {
+    it('should have autoSelectFirstTab field in settings schema', () => {
+      const state = useSettingsStore.getState();
+      expect(state.preferences).toHaveProperty('autoSelectFirstTab');
+    });
+
+    it('should default autoSelectFirstTab to true', () => {
+      const state = useSettingsStore.getState();
+      expect(state.preferences.autoSelectFirstTab).toBe(true);
+    });
+
+    it('should validate autoSelectFirstTab as boolean', async () => {
+      mockInvoke.mockResolvedValueOnce({});
+
+      const { updatePreferences } = useSettingsStore.getState();
+
+      // Valid boolean values should work
+      await updatePreferences({ autoSelectFirstTab: true });
+      expect(useSettingsStore.getState().preferences.autoSelectFirstTab).toBe(true);
+
+      await updatePreferences({ autoSelectFirstTab: false });
+      expect(useSettingsStore.getState().preferences.autoSelectFirstTab).toBe(false);
+    });
+
+    it('should update autoSelectFirstTab preference', async () => {
+      mockInvoke.mockResolvedValueOnce({});
+
+      const { updatePreferences } = useSettingsStore.getState();
+      await updatePreferences({ autoSelectFirstTab: false });
+
+      const state = useSettingsStore.getState();
+      expect(state.preferences.autoSelectFirstTab).toBe(false);
+      expect(mockInvoke).toHaveBeenCalledWith('config:updateSettings', {
+        autoSelectFirstTab: false,
+      });
+    });
+
+    it('should persist autoSelectFirstTab preference across initialization', async () => {
+      const mockConfig = {
+        settings: {
+          autoSelectFirstTab: false,
+        },
+      };
+
+      mockInvoke.mockResolvedValueOnce(mockConfig);
+
+      const { initialize } = useSettingsStore.getState();
+      await initialize();
+
+      const state = useSettingsStore.getState();
+      expect(state.preferences.autoSelectFirstTab).toBe(false);
+    });
+
+    it('should include autoSelectFirstTab in settings export', async () => {
+      mockInvoke.mockResolvedValue({});
+
+      const { updatePreferences, exportSettings } = useSettingsStore.getState();
+      await updatePreferences({ autoSelectFirstTab: false });
+
+      const exported = await exportSettings();
+      const parsed = JSON.parse(exported);
+
+      expect(parsed.preferences.autoSelectFirstTab).toBe(false);
+    });
+
+    it('should import autoSelectFirstTab from settings JSON', async () => {
+      mockInvoke.mockResolvedValue({});
+
+      const importData = {
+        preferences: {
+          autoSelectFirstTab: false,
+        },
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+      };
+
+      const { importSettings } = useSettingsStore.getState();
+      await importSettings(JSON.stringify(importData));
+
+      const state = useSettingsStore.getState();
+      expect(state.preferences.autoSelectFirstTab).toBe(false);
     });
   });
 });

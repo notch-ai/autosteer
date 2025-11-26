@@ -8,9 +8,15 @@ import { XtermService } from '@/services/XtermService';
 import { BadgeService } from '@/main/services/BadgeService';
 import { FileDataStoreService } from '@/services/FileDataStoreService';
 import { UpdateService } from '@/services/UpdateService';
+import { PythonRuntimeService } from '@/services/PythonRuntimeService';
 import { IPC_CHANNELS } from '@/types/ipc.types';
 import { ipcMain, BrowserWindow } from 'electron';
 import log from 'electron-log';
+import {
+  PythonTestResult,
+  PythonRuntimeError,
+  TestPythonRuntimeResponse,
+} from '@/types/python-runtime.types';
 
 // Mock dependencies
 jest.mock('electron', () => ({
@@ -37,6 +43,7 @@ jest.mock('@/services/XtermService');
 jest.mock('@/main/services/BadgeService');
 jest.mock('@/services/FileDataStoreService');
 jest.mock('@/services/UpdateService');
+jest.mock('@/services/PythonRuntimeService');
 jest.mock('@/main/services/logger', () => ({
   mainLogger: {
     setDevelopmentMode: jest.fn(),
@@ -51,6 +58,7 @@ describe('SystemHandlers', () => {
   let mockBadgeService: jest.Mocked<BadgeService>;
   let mockFileDataStore: jest.Mocked<FileDataStoreService>;
   let mockUpdateService: jest.Mocked<UpdateService>;
+  let mockPythonRuntimeService: jest.Mocked<PythonRuntimeService>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -85,10 +93,21 @@ describe('SystemHandlers', () => {
       dismissVersion: jest.fn(),
     } as unknown as jest.Mocked<UpdateService>;
 
+    mockPythonRuntimeService = {
+      testRuntime: jest.fn(),
+      spawn: jest.fn(),
+      kill: jest.fn(),
+      restart: jest.fn(),
+      getPythonPath: jest.fn(),
+      isRunning: jest.fn(),
+      isRuntimeAvailable: jest.fn(),
+    } as unknown as jest.Mocked<PythonRuntimeService>;
+
     // Mock getInstance methods
     (XtermService.getInstance as jest.Mock) = jest.fn(() => mockXtermService);
     (BadgeService.getInstance as jest.Mock) = jest.fn(() => mockBadgeService);
     (FileDataStoreService.getInstance as jest.Mock) = jest.fn(() => mockFileDataStore);
+    (PythonRuntimeService.getInstance as jest.Mock) = jest.fn(() => mockPythonRuntimeService);
 
     systemHandlers = new SystemHandlers(mockUpdateService);
   });
@@ -496,6 +515,223 @@ describe('SystemHandlers', () => {
         await handler(null, '1.2.3');
 
         expect(mockUpdateService.dismissVersion).toHaveBeenCalledWith('1.2.3');
+      });
+    });
+  });
+
+  describe('Python Runtime Operations', () => {
+    describe('test-python-runtime handler', () => {
+      it('should invoke PythonRuntimeService.testRuntime()', async () => {
+        console.log('[Test] Testing test-python-runtime handler invocation');
+
+        const mockTestResult: PythonTestResult = {
+          success: true,
+          pythonVersion: '3.12.0',
+          sdkVersion: '1.0.0',
+          importStatus: 'SUCCESS',
+          timestamp: Date.now(),
+        };
+
+        mockPythonRuntimeService.testRuntime.mockResolvedValue(mockTestResult);
+
+        systemHandlers.registerHandlers();
+        const handler = (ipcMain.handle as jest.Mock).mock.calls.find(
+          (call) => call[0] === 'test-python-runtime'
+        )?.[1];
+
+        expect(handler).toBeDefined();
+
+        const result: TestPythonRuntimeResponse = await handler();
+
+        expect(mockPythonRuntimeService.testRuntime).toHaveBeenCalled();
+        expect(result.success).toBe(true);
+        expect(result.result).toEqual(mockTestResult);
+      });
+
+      it('should return success response with results', async () => {
+        console.log('[Test] Testing successful test-python-runtime response');
+
+        const mockTestResult: PythonTestResult = {
+          success: true,
+          pythonVersion: '3.12.0',
+          sdkVersion: '1.0.0',
+          importStatus: 'SUCCESS',
+          timestamp: 1700000000000,
+        };
+
+        mockPythonRuntimeService.testRuntime.mockResolvedValue(mockTestResult);
+
+        systemHandlers.registerHandlers();
+        const handler = (ipcMain.handle as jest.Mock).mock.calls.find(
+          (call) => call[0] === 'test-python-runtime'
+        )?.[1];
+
+        const result: TestPythonRuntimeResponse = await handler();
+
+        expect(result).toMatchObject({
+          success: true,
+          result: {
+            success: true,
+            pythonVersion: '3.12.0',
+            sdkVersion: '1.0.0',
+            importStatus: 'SUCCESS',
+            timestamp: 1700000000000,
+          },
+        });
+        expect(result.error).toBeUndefined();
+      });
+
+      it('should return error response on failure', async () => {
+        console.log('[Test] Testing test-python-runtime error response');
+
+        const testError = new PythonRuntimeError('Python runtime not found', 'PYTHON_NOT_FOUND');
+        mockPythonRuntimeService.testRuntime.mockRejectedValue(testError);
+
+        systemHandlers.registerHandlers();
+        const handler = (ipcMain.handle as jest.Mock).mock.calls.find(
+          (call) => call[0] === 'test-python-runtime'
+        )?.[1];
+
+        const result: TestPythonRuntimeResponse = await handler();
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBeDefined();
+        expect(result.error).toContain('Python runtime not found');
+        expect(result.result).toBeUndefined();
+      });
+
+      it('should handle service errors gracefully', async () => {
+        console.log('[Test] Testing graceful error handling');
+
+        const testError = new PythonRuntimeError('SDK import failed', 'SDK_IMPORT_FAILED');
+        mockPythonRuntimeService.testRuntime.mockRejectedValue(testError);
+
+        systemHandlers.registerHandlers();
+        const handler = (ipcMain.handle as jest.Mock).mock.calls.find(
+          (call) => call[0] === 'test-python-runtime'
+        )?.[1];
+
+        const result: TestPythonRuntimeResponse = await handler();
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('SDK import failed');
+        expect(log.error).toHaveBeenCalledWith(
+          expect.stringContaining('test-python-runtime'),
+          expect.any(Object)
+        );
+      });
+
+      it('should log handler invocation', async () => {
+        console.log('[Test] Testing handler invocation logging');
+
+        const mockTestResult: PythonTestResult = {
+          success: true,
+          pythonVersion: '3.12.0',
+          sdkVersion: '1.0.0',
+          importStatus: 'SUCCESS',
+          timestamp: Date.now(),
+        };
+
+        mockPythonRuntimeService.testRuntime.mockResolvedValue(mockTestResult);
+
+        systemHandlers.registerHandlers();
+        const handler = (ipcMain.handle as jest.Mock).mock.calls.find(
+          (call) => call[0] === 'test-python-runtime'
+        )?.[1];
+
+        await handler();
+
+        expect(log.info).toHaveBeenCalledWith(
+          expect.stringContaining('test-python-runtime'),
+          expect.any(Object)
+        );
+      });
+
+      it('should match response type TestPythonRuntimeResponse', async () => {
+        console.log('[Test] Testing response type validation');
+
+        const mockTestResult: PythonTestResult = {
+          success: true,
+          pythonVersion: '3.12.0',
+          sdkVersion: '1.0.0',
+          importStatus: 'SUCCESS',
+          timestamp: Date.now(),
+        };
+
+        mockPythonRuntimeService.testRuntime.mockResolvedValue(mockTestResult);
+
+        systemHandlers.registerHandlers();
+        const handler = (ipcMain.handle as jest.Mock).mock.calls.find(
+          (call) => call[0] === 'test-python-runtime'
+        )?.[1];
+
+        const result: TestPythonRuntimeResponse = await handler();
+
+        // Validate response structure matches TestPythonRuntimeResponse interface
+        expect(result).toHaveProperty('success');
+        expect(typeof result.success).toBe('boolean');
+
+        if (result.success) {
+          expect(result).toHaveProperty('result');
+          expect(result.result).toHaveProperty('pythonVersion');
+          expect(result.result).toHaveProperty('sdkVersion');
+          expect(result.result).toHaveProperty('importStatus');
+          expect(result.result).toHaveProperty('timestamp');
+        } else {
+          expect(result).toHaveProperty('error');
+          expect(typeof result.error).toBe('string');
+        }
+      });
+
+      it('should handle import status FAILURE correctly', async () => {
+        console.log('[Test] Testing FAILURE import status handling');
+
+        const mockTestResult: PythonTestResult = {
+          success: false,
+          pythonVersion: '3.12.0',
+          sdkVersion: '',
+          importStatus: 'FAILURE',
+          error: 'Module not found: claude_agent_sdk',
+          timestamp: Date.now(),
+        };
+
+        mockPythonRuntimeService.testRuntime.mockResolvedValue(mockTestResult);
+
+        systemHandlers.registerHandlers();
+        const handler = (ipcMain.handle as jest.Mock).mock.calls.find(
+          (call) => call[0] === 'test-python-runtime'
+        )?.[1];
+
+        const result: TestPythonRuntimeResponse = await handler();
+
+        expect(result.success).toBe(true); // IPC call succeeded
+        expect(result.result?.success).toBe(false); // Runtime test failed
+        expect(result.result?.importStatus).toBe('FAILURE');
+        expect(result.result?.error).toContain('Module not found');
+      });
+
+      it('should handle generic errors without PythonRuntimeError', async () => {
+        console.log('[Test] Testing generic error handling');
+
+        mockPythonRuntimeService.testRuntime.mockRejectedValue(new Error('Unexpected error'));
+
+        systemHandlers.registerHandlers();
+        const handler = (ipcMain.handle as jest.Mock).mock.calls.find(
+          (call) => call[0] === 'test-python-runtime'
+        )?.[1];
+
+        const result: TestPythonRuntimeResponse = await handler();
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Unexpected error');
+      });
+
+      it('should register test-python-runtime handler on registerHandlers', () => {
+        console.log('[Test] Testing handler registration');
+
+        systemHandlers.registerHandlers();
+
+        expect(ipcMain.handle).toHaveBeenCalledWith('test-python-runtime', expect.any(Function));
       });
     });
   });

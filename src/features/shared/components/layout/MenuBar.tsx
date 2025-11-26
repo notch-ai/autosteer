@@ -15,7 +15,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({ className, children }) => {
       id="app-menubar"
       data-component="MenuBar"
       className={cn(
-        'h-7 flex-shrink-0 bg-surface flex items-center border-border menubar-container',
+        'h-7 flex-shrink-0 bg-card flex items-center border-border menubar-container',
         className
       )}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}

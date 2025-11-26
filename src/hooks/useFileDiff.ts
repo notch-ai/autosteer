@@ -86,14 +86,26 @@ export const useFileDiff = ({
         const result = (await window.electron?.ipcRenderer?.invoke?.('git-diff:get-uncommitted', {
           repoPath: workingDirectory,
           filePath: file,
-        })) as FileDiff[] | undefined;
+        })) as FileDiff[] | undefined | { success: false; error: string; message: string };
+
+        // Check if result is an error object from registerSafeHandler
+        if (result && typeof result === 'object' && 'success' in result && !result.success) {
+          logger.error('[useFileDiff] IPC error fetching file diff', {
+            file,
+            error: result.error,
+            message: result.message,
+          });
+          setFileDiff([]);
+          setLoadingDiff(false);
+          return;
+        }
 
         logger.debug('[useFileDiff] File diff fetched successfully', {
           file,
-          hunksCount: result?.[0]?.hunks?.length || 0,
+          hunksCount: Array.isArray(result) ? result?.[0]?.hunks?.length || 0 : 0,
         });
 
-        setFileDiff(result || []);
+        setFileDiff(Array.isArray(result) ? result : []);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch file diff';
         logger.error('[useFileDiff] Error fetching file diff', {

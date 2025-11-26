@@ -1,12 +1,13 @@
+import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import {
   Terminal as XTermTerminal,
-  type ITerminalOptions,
   type ITerminalInitOnlyOptions,
+  type ITerminalOptions,
 } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { WebLinksAddon } from '@xterm/addon-web-links';
-import { SearchAddon } from '@xterm/addon-search';
 import log from 'electron-log';
+import { getTerminalTheme } from '@/features/shared/components/terminal/theme';
 import { TerminalRendererManager, type RendererType } from './TerminalRendererManager';
 
 /**
@@ -89,35 +90,15 @@ export class TerminalLibraryAdapter {
 
   /**
    * Default configuration for terminal instances
+   * Theme colors are dynamically read from CSS variables via getTerminalTheme()
    */
   private static readonly DEFAULT_CONFIG: TerminalAdapterConfig = {
     scrollback: 10000, // 10k line scrollback
     fontSize: 13, // Match var(--font-size-sm) from tailwind-tokens.css
-    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+    // fontFamily is dynamically read from CSS variable in constructor
     cursorBlink: true,
     convertEol: true,
-    theme: {
-      background: '#1e1e1e',
-      foreground: '#d4d4d4',
-      cursor: '#aeafad',
-      selectionBackground: '#264f78',
-      black: '#000000',
-      red: '#cd3131',
-      green: '#0dbc79',
-      yellow: '#e5e510',
-      blue: '#2472c8',
-      magenta: '#bc3fbc',
-      cyan: '#11a8cd',
-      white: '#e5e5e5',
-      brightBlack: '#666666',
-      brightRed: '#f14c4c',
-      brightGreen: '#23d18b',
-      brightYellow: '#f5f543',
-      brightBlue: '#3b8eea',
-      brightMagenta: '#d670d6',
-      brightCyan: '#29b8db',
-      brightWhite: '#e5e5e5',
-    },
+    // Theme is dynamically set in constructor using CSS variables
   };
 
   /**
@@ -125,11 +106,28 @@ export class TerminalLibraryAdapter {
    * @param config Optional configuration overrides
    */
   constructor(config?: Partial<TerminalAdapterConfig>) {
-    const mergedConfig = { ...TerminalLibraryAdapter.DEFAULT_CONFIG, ...config };
+    // Read font family from CSS variable if not provided in config
+    const fontFamilyFromCSS =
+      typeof window !== 'undefined'
+        ? getComputedStyle(document.documentElement)
+            .getPropertyValue('--font-family-mono')
+            .trim() || '"Fira Code", "SF Mono", Monaco, Consolas, monospace'
+        : '"Fira Code", "SF Mono", Monaco, Consolas, monospace';
+
+    // Get dynamic theme from CSS variables (unless overridden in config)
+    const dynamicTheme = typeof window !== 'undefined' ? getTerminalTheme() : undefined;
+
+    const mergedConfig = {
+      ...TerminalLibraryAdapter.DEFAULT_CONFIG,
+      fontFamily: fontFamilyFromCSS,
+      theme: dynamicTheme,
+      ...config,
+    };
 
     log.info('[TerminalLibraryAdapter] Creating new terminal instance', {
       scrollback: mergedConfig.scrollback,
       fontSize: mergedConfig.fontSize,
+      themeSource: config?.theme ? 'config override' : 'dynamic CSS variables',
     });
 
     // Initialize XTerm.js terminal
@@ -613,6 +611,57 @@ export class TerminalLibraryAdapter {
    */
   getXtermInstance(): XTermTerminal {
     return this.getXTermInstance();
+  }
+
+  /**
+   * Scroll terminal to top
+   */
+  scrollToTop(): void {
+    log.info('[TerminalLibraryAdapter] scrollToTop called', {
+      isDisposed: this.isDisposed,
+      hasTerminal: !!this.terminal,
+    });
+
+    if (this.isDisposed) {
+      log.warn('[TerminalLibraryAdapter] Cannot scroll disposed terminal');
+      return;
+    }
+
+    // Log terminal state before scrolling
+    const beforeViewportY = this.terminal.buffer.active.viewportY;
+    const beforeBaseY = this.terminal.buffer.active.baseY;
+    const bufferLength = this.terminal.buffer.active.length;
+
+    log.info('[TerminalLibraryAdapter] Terminal state before scroll', {
+      bufferLength,
+      viewportY: beforeViewportY,
+      baseY: beforeBaseY,
+      hasScrollToLine: typeof this.terminal.scrollToLine === 'function',
+    });
+
+    // Use scrollToLine(0) to scroll to the very top of the scrollback buffer
+    this.terminal.scrollToLine(0);
+
+    // Log terminal state after scrolling
+    const afterViewportY = this.terminal.buffer.active.viewportY;
+    const afterBaseY = this.terminal.buffer.active.baseY;
+
+    log.info('[TerminalLibraryAdapter] Terminal state after scroll', {
+      viewportY: afterViewportY,
+      baseY: afterBaseY,
+      changed: beforeViewportY !== afterViewportY,
+    });
+  }
+
+  /**
+   * Scroll terminal to bottom
+   */
+  scrollToBottom(): void {
+    if (this.isDisposed) {
+      log.warn('[TerminalLibraryAdapter] Cannot scroll disposed terminal');
+      return;
+    }
+    this.terminal.scrollToBottom();
   }
 
   /**

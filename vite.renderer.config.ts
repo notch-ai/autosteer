@@ -32,7 +32,8 @@ export default defineConfig({
   mode: process.env.NODE_ENV || 'development',
 
   server: {
-    port: 5173,
+    port: process.env.VITE_PORT ? parseInt(process.env.VITE_PORT) : 5173,
+    strictPort: false, // Allow Vite to auto-increment port if occupied
     hmr:
       process.env.DISABLE_HMR === 'true'
         ? false
@@ -40,6 +41,27 @@ export default defineConfig({
             overlay: true,
           },
   },
+
+  plugins: [
+    react(),
+    {
+      name: 'log-server-url',
+      configureServer(server) {
+        server.httpServer?.once('listening', () => {
+          const address = server.httpServer?.address();
+          if (address && typeof address === 'object') {
+            const actualPort = address.port;
+            const serverUrl = `http://localhost:${actualPort}`;
+            console.log(`\n🚀 [Vite Renderer] Dev server running at: ${serverUrl}`);
+            console.log(`📁 [Vite Renderer] User Data Dir: ${process.env.ELECTRON_USER_DATA_DIR || 'default'}\n`);
+
+            // Set environment variable for Electron main process to use
+            process.env.VITE_DEV_SERVER_URL = serverUrl;
+          }
+        });
+      },
+    },
+  ],
 
   build: {
     outDir: '../../.vite/renderer/main_window',
@@ -58,8 +80,6 @@ export default defineConfig({
     },
     target: 'chrome114', // Electron 28 Chromium version
   },
-
-  plugins: [react()],
 
   css: {
     postcss: {

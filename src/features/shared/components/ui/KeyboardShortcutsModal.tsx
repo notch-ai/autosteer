@@ -31,15 +31,17 @@ const ShortcutItem: React.FC<{ shortcut: Shortcut }> = ({ shortcut }) => {
   const formattedKeys = formatShortcutKeys(shortcut.keys);
 
   return (
-    <div className="flex items-center justify-between py-2 px-3 hover:bg-surface-hover rounded-md transition-colors">
+    <div className="flex items-center justify-between py-2 px-3 hover:bg-card-hover rounded-md transition-colors">
       <div className="flex-1">
-        <span className="text-sm text-text">{shortcut.description}</span>
-        {shortcut.when && <span className="text-sm text-text-muted ml-2">• {shortcut.when}</span>}
+        <span className="text-sm text-foreground">{shortcut.description}</span>
+        {shortcut.when && (
+          <span className="text-sm text-muted-foreground ml-2">• {shortcut.when}</span>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {formattedKeys.map((key, index) => (
           <React.Fragment key={`${shortcut.id}-${index}`}>
-            {index > 0 && <span className="text-text-muted text-sm">or</span>}
+            {index > 0 && <span className="text-muted-foreground text-sm">or</span>}
             <Badge variant="outline" className="font-kbd text-sm">
               {key}
             </Badge>
@@ -55,13 +57,15 @@ const ShortcutItem: React.FC<{ shortcut: Shortcut }> = ({ shortcut }) => {
  */
 const ShortcutGroupCard: React.FC<{ group: ShortcutGroup }> = ({ group }) => {
   return (
-    <Card className="border-border">
+    <Card className="border-border bg-card">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold text-text tracking-wide">
+        <CardTitle className="text-sm font-semibold text-foreground tracking-wide">
           {group.name}
         </CardTitle>
         {group.description && (
-          <CardDescription className="text-sm">{group.description}</CardDescription>
+          <CardDescription className="text-sm text-muted-foreground">
+            {group.description}
+          </CardDescription>
         )}
       </CardHeader>
       <CardContent className="pt-0">
@@ -91,7 +95,7 @@ const SearchAndFilters: React.FC<{
       <div className="relative">
         <Icon
           name="search"
-          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted"
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
         />
         <Input
           id="shortcuts-search"
@@ -137,7 +141,7 @@ const ShortcutsDisplay: React.FC<{
   return (
     <div className="flex-1 overflow-y-auto">
       {groups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-text-muted">
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <Icon name="search" className="h-8 w-8 mb-3 opacity-50" />
           <p className="text-sm">No shortcuts found</p>
           {searchQuery && <p className="text-sm mt-1">Try adjusting your search</p>}
@@ -159,14 +163,14 @@ const ShortcutsDisplay: React.FC<{
 const ModalFooter: React.FC = () => {
   return (
     <div className="pt-3 border-t border-border flex items-center justify-between">
-      <div className="text-sm text-text-muted">
+      <div className="text-sm text-muted-foreground">
         Press{' '}
         <Badge variant="outline" className="text-sm mx-1 py-0 px-1">
           Esc
         </Badge>{' '}
         to close
       </div>
-      <div className="text-sm text-text-muted">
+      <div className="text-sm text-muted-foreground">
         Press{' '}
         <Badge variant="outline" className="text-sm mx-1 py-0 px-1">
           ⌘F
@@ -252,13 +256,15 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col bg-background">
         <DialogHeader>
-          <DialogTitle>Keyboard Shortcuts</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-foreground">Keyboard Shortcuts</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             {totalShortcuts} shortcuts available • Press{' '}
-            <kbd className="text-sm px-1 py-0.5 bg-surface border border-border rounded">⌘/</kbd> to
-            open anytime
+            <kbd className="text-sm px-1 py-0.5 bg-muted text-foreground border border-border rounded">
+              ⌘/
+            </kbd>{' '}
+            to open anytime
           </DialogDescription>
         </DialogHeader>
 

@@ -1,3 +1,4 @@
+import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -183,15 +184,49 @@ export class MarkdownCacheService {
   }
 
   /**
+   * Normalize list syntax by ensuring blank lines before list markers
+   * ReactMarkdown requires blank lines before lists to parse them correctly
+   * @private
+   */
+  private normalizeListSyntax(content: string): string {
+    const lines = content.split('\n');
+    const result: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const currentLine = lines[i];
+      const prevLine = i > 0 ? lines[i - 1] : '';
+
+      // Check if current line is a list marker (ordered or unordered)
+      // Must start at beginning of line (no leading spaces) for top-level lists
+      const isTopLevelListMarker = /^(\d+\.|-|\*)\s+\S/.test(currentLine);
+      const isPrevLineBlank = prevLine.trim() === '';
+      const isPrevLineList = /^(\d+\.|-|\*)\s+\S/.test(prevLine);
+
+      // Insert blank line before top-level list if previous line is not blank and not a list
+      if (isTopLevelListMarker && !isPrevLineBlank && !isPrevLineList && i > 0) {
+        result.push('');
+      }
+
+      result.push(currentLine);
+    }
+
+    return result.join('\n');
+  }
+
+  /**
    * Parse markdown to HTML string
    * @private
    */
   private parseMarkdown(content: string): string {
     try {
-      const element = ReactMarkdown({
-        children: content,
-        remarkPlugins: [remarkGfm, remarkBreaks],
-      });
+      const normalized = this.normalizeListSyntax(content);
+      const element = React.createElement(
+        ReactMarkdown,
+        {
+          remarkPlugins: [remarkGfm, remarkBreaks],
+        },
+        normalized
+      );
 
       return renderToStaticMarkup(element);
     } catch (error) {

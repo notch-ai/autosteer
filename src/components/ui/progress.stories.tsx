@@ -97,7 +97,7 @@ export const ThemeComparison: Story = {
   render: () => (
     <div className="grid grid-cols-2 gap-8">
       <div className="theme-day p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Day Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Day Theme</h3>
         <div className="space-y-3">
           <Progress value={20} className="w-full" />
           <Progress value={50} className="w-full" />
@@ -105,7 +105,7 @@ export const ThemeComparison: Story = {
         </div>
       </div>
       <div className="theme-night p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Night Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Night Theme</h3>
         <div className="space-y-3">
           <Progress value={20} className="w-full" />
           <Progress value={50} className="w-full" />

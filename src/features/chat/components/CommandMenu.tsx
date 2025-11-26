@@ -117,12 +117,14 @@ export const CommandMenu: React.FC<CommandMenuProps> = ({
                 className="flex items-center gap-2 cursor-pointer overflow-hidden"
                 title={item.label}
               >
-                {item.icon && <span className="flex-shrink-0 text-text-muted">{item.icon}</span>}
+                {item.icon && (
+                  <span className="flex-shrink-0 text-muted-foreground">{item.icon}</span>
+                )}
                 <span className="flex-1 min-w-0 block overflow-hidden text-ellipsis whitespace-nowrap text-sm">
                   {item.label}
                 </span>
                 {item.description && (
-                  <span className="flex-1 min-w-0 truncate text-sm text-text-muted">
+                  <span className="flex-1 min-w-0 truncate text-sm text-muted-foreground">
                     {item.description}
                   </span>
                 )}

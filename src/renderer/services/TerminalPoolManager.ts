@@ -1,44 +1,45 @@
-import { Terminal, TerminalBufferState } from '@/types/terminal.types';
+import { Terminal } from '@/types/terminal.types';
 import { TerminalLibraryAdapter } from './TerminalLibraryAdapter';
+import { logger } from '@/commons/utils/logger';
 
 /**
  * Terminal pool entry
  */
 interface TerminalPoolEntry {
+  projectId: string;
   terminal: Terminal;
   adapter: TerminalLibraryAdapter;
   lastAccessed: Date;
-  isAttached: boolean;
 }
 
 /**
  * TerminalPoolManager - Instance Pooling (Renderer Process)
  *
- * Manages terminal instance pooling in the renderer process.
+ * Manages terminal instance pooling with z-index based visibility control.
  *
  * Key Features:
- * - Terminal instance creation and lifecycle management
+ * - 1:1 relationship between projects and terminals (enforced)
  * - Max 10 terminal instances (hard limit)
- * - Attach/detach operations for DOM lifecycle decoupling
- * - Buffer state capture/restore for session persistence
+ * - Z-index based terminal switching (no attach/detach)
  * - Terminal instance reuse across component mounts
+ * - Simplified lifecycle management
  *
  * Architecture:
  * - Renderer process service (React)
  * - Manages TerminalLibraryAdapter instances
- * - Decouples terminal instances from React component lifecycle
+ * - Keyed by projectId (folderName) for 1:1 enforcement
  * - Coordinates with useTerminalPool hook
+ * - Uses z-index for visibility instead of DOM attach/detach
  *
  * Performance Requirements:
  * - <50ms terminal creation
- * - <10ms attach/detach operations
  * - <100ms terminal switch time
  * - O(1) instance lookup
  */
 export class TerminalPoolManager {
   private static readonly MAX_POOL_SIZE = 10;
 
-  private pool: Map<string, TerminalPoolEntry>;
+  private pool: Map<string, TerminalPoolEntry>; // Key: projectId (folderName)
 
   constructor() {
     this.pool = new Map();
@@ -52,13 +53,30 @@ export class TerminalPoolManager {
   }
 
   /**
-   * Create a new terminal instance
+   * Create a new terminal instance for a project
+   * Enforces 1:1 relationship - throws if project already has terminal
+   * Terminal is created and attached to DOM element immediately
+   * @param projectId The project ID (folderName)
    * @param terminal The terminal metadata
    * @param element The DOM element to attach to
    * @returns The created adapter instance
    */
-  createTerminal(terminal: Terminal, element: HTMLElement): TerminalLibraryAdapter {
+  createTerminal(
+    projectId: string,
+    terminal: Terminal,
+    element: HTMLElement
+  ): TerminalLibraryAdapter {
+    // Enforce 1:1 relationship
+    if (this.pool.has(projectId)) {
+      logger.error('[TerminalPoolManager] Project already has terminal', { projectId });
+      throw new Error(`Project ${projectId} already has a terminal`);
+    }
+
     if (this.pool.size >= TerminalPoolManager.MAX_POOL_SIZE) {
+      logger.error('[TerminalPoolManager] Pool limit reached', {
+        poolSize: this.pool.size,
+        maxSize: TerminalPoolManager.MAX_POOL_SIZE,
+      });
       throw new Error(`Terminal pool limit reached (${TerminalPoolManager.MAX_POOL_SIZE})`);
     }
 
@@ -67,29 +85,29 @@ export class TerminalPoolManager {
       scrollback: 10000, // 10k line scrollback
     });
 
-    // Attach to DOM element
+    // Attach to DOM element immediately (stays attached with z-index control)
     adapter.attach(element);
 
-    // Store in pool
+    // Store in pool keyed by projectId
     const entry: TerminalPoolEntry = {
+      projectId,
       terminal,
       adapter,
       lastAccessed: new Date(),
-      isAttached: true,
     };
 
-    this.pool.set(terminal.id, entry);
+    this.pool.set(projectId, entry);
 
     return adapter;
   }
 
   /**
-   * Get terminal adapter from pool
-   * @param terminalId The terminal ID
+   * Get terminal adapter for a project
+   * @param projectId The project ID (folderName)
    * @returns The adapter or undefined
    */
-  getTerminal(terminalId: string): TerminalLibraryAdapter | undefined {
-    const entry = this.pool.get(terminalId);
+  getTerminal(projectId: string): TerminalLibraryAdapter | undefined {
+    const entry = this.pool.get(projectId);
     if (entry) {
       entry.lastAccessed = new Date();
     }
@@ -97,24 +115,25 @@ export class TerminalPoolManager {
   }
 
   /**
-   * Check if terminal exists in pool
-   * @param terminalId The terminal ID
+   * Check if project has a terminal in pool
+   * @param projectId The project ID (folderName)
    * @returns True if terminal exists
    */
-  hasTerminal(terminalId: string): boolean {
-    return this.pool.has(terminalId);
+  hasTerminal(projectId: string): boolean {
+    return this.pool.has(projectId);
   }
 
   /**
-   * Get all terminal IDs in pool
-   * @returns Array of terminal IDs
+   * Get all project IDs that have terminals
+   * @returns Array of project IDs
    */
-  getAllTerminalIds(): string[] {
+  getAllProjectIds(): string[] {
     return Array.from(this.pool.keys());
   }
 
   /**
-   * Get pool size
+   * Get pool size (number of terminals)
+   * This should always equal the number of active projects
    * @returns Number of terminals in pool
    */
   getPoolSize(): number {
@@ -122,44 +141,13 @@ export class TerminalPoolManager {
   }
 
   /**
-   * Attach terminal to DOM element
-   * @param terminalId The terminal ID
-   * @param element The DOM element to attach to
-   */
-  attachTerminal(terminalId: string, element: HTMLElement): void {
-    const entry = this.pool.get(terminalId);
-    if (!entry) {
-      throw new Error(`Terminal not found in pool: ${terminalId}`);
-    }
-
-    entry.adapter.attach(element);
-    entry.isAttached = true;
-    entry.lastAccessed = new Date();
-  }
-
-  /**
-   * Detach terminal from DOM (without destroying)
-   * @param terminalId The terminal ID
-   */
-  detachTerminal(terminalId: string): void {
-    const entry = this.pool.get(terminalId);
-    if (!entry) {
-      throw new Error(`Terminal not found in pool: ${terminalId}`);
-    }
-
-    entry.adapter.detach();
-    entry.isAttached = false;
-    entry.lastAccessed = new Date();
-  }
-
-  /**
    * Focus terminal
-   * @param terminalId The terminal ID
+   * @param projectId The project ID (folderName)
    */
-  focusTerminal(terminalId: string): void {
-    const entry = this.pool.get(terminalId);
+  focusTerminal(projectId: string): void {
+    const entry = this.pool.get(projectId);
     if (!entry) {
-      throw new Error(`Terminal not found in pool: ${terminalId}`);
+      throw new Error(`No terminal found for project: ${projectId}`);
     }
 
     entry.adapter.focus();
@@ -168,12 +156,12 @@ export class TerminalPoolManager {
 
   /**
    * Blur terminal
-   * @param terminalId The terminal ID
+   * @param projectId The project ID (folderName)
    */
-  blurTerminal(terminalId: string): void {
-    const entry = this.pool.get(terminalId);
+  blurTerminal(projectId: string): void {
+    const entry = this.pool.get(projectId);
     if (!entry) {
-      throw new Error(`Terminal not found in pool: ${terminalId}`);
+      throw new Error(`No terminal found for project: ${projectId}`);
     }
 
     entry.adapter.blur();
@@ -181,12 +169,12 @@ export class TerminalPoolManager {
 
   /**
    * Fit terminal to container
-   * @param terminalId The terminal ID
+   * @param projectId The project ID (folderName)
    */
-  fitTerminal(terminalId: string): void {
-    const entry = this.pool.get(terminalId);
+  fitTerminal(projectId: string): void {
+    const entry = this.pool.get(projectId);
     if (!entry) {
-      throw new Error(`Terminal not found in pool: ${terminalId}`);
+      throw new Error(`No terminal found for project: ${projectId}`);
     }
 
     entry.adapter.fit();
@@ -194,67 +182,32 @@ export class TerminalPoolManager {
 
   /**
    * Resize terminal
-   * @param terminalId The terminal ID
+   * @param projectId The project ID (folderName)
    * @param cols Number of columns
    * @param rows Number of rows
    */
-  resizeTerminal(terminalId: string, cols: number, rows: number): void {
-    const entry = this.pool.get(terminalId);
+  resizeTerminal(projectId: string, cols: number, rows: number): void {
+    const entry = this.pool.get(projectId);
     if (!entry) {
-      throw new Error(`Terminal not found in pool: ${terminalId}`);
+      throw new Error(`No terminal found for project: ${projectId}`);
     }
 
     entry.adapter.resize(cols, rows);
   }
 
   /**
-   * Capture buffer state for persistence
-   * @param terminalId The terminal ID
-   * @returns The buffer state
+   * Destroy terminal instance for a project
+   * @param projectId The project ID (folderName)
    */
-  captureBufferState(terminalId: string): TerminalBufferState {
-    const entry = this.pool.get(terminalId);
+  destroyTerminal(projectId: string): void {
+    const entry = this.pool.get(projectId);
     if (!entry) {
-      throw new Error(`Terminal not found in pool: ${terminalId}`);
-    }
-
-    const bufferState = entry.adapter.getBufferState();
-
-    return {
-      ...bufferState,
-      terminalId,
-      timestamp: new Date(),
-      sizeBytes: bufferState.content.length,
-    };
-  }
-
-  /**
-   * Restore buffer state
-   * @param terminalId The terminal ID
-   * @param bufferState The buffer state to restore
-   */
-  restoreBufferState(terminalId: string, bufferState: TerminalBufferState): void {
-    const entry = this.pool.get(terminalId);
-    if (!entry) {
-      throw new Error(`Terminal not found in pool: ${terminalId}`);
-    }
-
-    entry.adapter.restoreBufferState(bufferState);
-    entry.lastAccessed = new Date();
-  }
-
-  /**
-   * Destroy terminal instance
-   * @param terminalId The terminal ID
-   */
-  destroyTerminal(terminalId: string): void {
-    const entry = this.pool.get(terminalId);
-    if (!entry) {
-      throw new Error(`Terminal not found in pool: ${terminalId}`);
+      logger.error('[TerminalPoolManager] Terminal not found for destruction', { projectId });
+      throw new Error(`No terminal found for project: ${projectId}`);
     }
 
     entry.adapter.dispose();
-    this.pool.delete(terminalId);
+    this.pool.delete(projectId);
   }
 
   /**
@@ -269,20 +222,46 @@ export class TerminalPoolManager {
   }
 
   /**
-   * Get terminal metadata
-   * @param terminalId The terminal ID
+   * Get terminal metadata for a project
+   * @param projectId The project ID (folderName)
    * @returns Terminal metadata or undefined
    */
-  getTerminalMetadata(terminalId: string): Terminal | undefined {
-    return this.pool.get(terminalId)?.terminal;
+  getTerminalMetadata(projectId: string): Terminal | undefined {
+    return this.pool.get(projectId)?.terminal;
   }
 
   /**
-   * Check if terminal is currently attached
-   * @param terminalId The terminal ID
-   * @returns True if attached
+   * Scroll terminal to top
+   * @param projectId The project ID (folderName)
    */
-  isTerminalAttached(terminalId: string): boolean {
-    return this.pool.get(terminalId)?.isAttached ?? false;
+  scrollToTop(projectId: string): void {
+    const entry = this.pool.get(projectId);
+    if (!entry) {
+      throw new Error(`No terminal found for project: ${projectId}`);
+    }
+
+    entry.adapter.scrollToTop();
+  }
+
+  /**
+   * Scroll terminal to bottom
+   * @param projectId The project ID (folderName)
+   */
+  scrollToBottom(projectId: string): void {
+    const entry = this.pool.get(projectId);
+    if (!entry) {
+      throw new Error(`No terminal found for project: ${projectId}`);
+    }
+
+    entry.adapter.scrollToBottom();
+  }
+
+  /**
+   * Get terminal ID for a project
+   * @param projectId The project ID (folderName)
+   * @returns Terminal ID or undefined
+   */
+  getTerminalId(projectId: string): string | undefined {
+    return this.pool.get(projectId)?.terminal.id;
   }
 }

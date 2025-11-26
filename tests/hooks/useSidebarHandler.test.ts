@@ -41,6 +41,8 @@ describe('useSidebarHandler', () => {
     vimMode: { mode: 'NORMAL' as const, enabled: false },
     vimEnabled: false,
     selectedModel: 'claude-sonnet-4-5-20250929' as const,
+    maximizeTabs: new Map(),
+    maximizeTabsVersion: 0,
     setActivePanel: mockSetActivePanel,
     toggleSidebar: mockToggleSidebar,
     toggleDetailPanel: jest.fn(),
@@ -60,6 +62,10 @@ describe('useSidebarHandler', () => {
     setChangesPanelSizes: jest.fn(),
     resetChangesTabState: jest.fn(),
     setSelectedModel: jest.fn(),
+    addMaximizeTab: jest.fn(),
+    removeMaximizeTab: jest.fn(),
+    updateMaximizeTab: jest.fn(),
+    getMaximizeTab: jest.fn(),
     ...overrides,
   });
 

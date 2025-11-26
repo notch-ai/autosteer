@@ -17,12 +17,13 @@
  */
 
 import { logger } from '@/commons/utils/logger';
-import { ComputedMessage } from '@/stores/chat.selectors';
+import { isSyntheticMessage } from '@/commons/utils/message-filters';
 import {
   claudeCodeService,
   type Attachment as ClaudeAttachment,
 } from '@/renderer/services/ClaudeCodeService';
 import { getTodoMonitor } from '@/renderer/services/TodoActivityMonitorManager';
+import { ComputedMessage } from '@/stores/chat.selectors';
 import { PermissionMode } from '@/types/permission.types';
 import type { ConversationOptions } from '@/types/streaming.types';
 import { enableMapSet } from 'immer';
@@ -109,12 +110,15 @@ export interface ChatStore {
   streamingMessages: Map<string, StreamingMessage>; // Per-agent streaming messages
   attachments: Map<string, Attachment[]>; // Per-agent attachments
   streamingStates: Map<string, boolean>; // Per-chat streaming states
+  queryingStates: Map<string, boolean>; // Per-chat query active states
   sessionIds: Map<string, string>; // In-memory Claude session IDs per agent
   chatError: string | null;
   pendingToolUses: Map<string, PendingToolUse>;
   traceEntries: Map<string, TraceEntry[]>; // Per-chat trace entries
   draftInputs: Map<string, string>; // Per-agent draft input text
   draftCursorPositions: Map<string, number>; // Per-agent cursor positions
+  sessionPermissionModes: Map<string, PermissionMode>; // Per-session permission modes
+  sessionModels: Map<string, string | null>; // Per-session model selections
   validationErrors: Map<string, Array<{ message: string; timestamp: number }>>; // Per-agent validation errors
 
   // Background Sync State
@@ -126,11 +130,14 @@ export interface ChatStore {
   getMessages: (agentId: string) => ComputedMessage[];
   getStreamingMessage: (agentId: string) => StreamingMessage | null;
   isStreaming: (agentId: string) => boolean;
+  isQuerying: (agentId: string) => boolean;
   getAttachments: (agentId: string) => Attachment[];
   getSessionId: (agentId: string) => string | null;
   getTraceEntries: (agentId: string) => TraceEntry[];
   getDraftInput: (agentId: string) => string;
   getDraftCursorPosition: (agentId: string) => number | null;
+  getSessionPermissionMode: (agentId: string) => PermissionMode | null;
+  getSessionModel: (agentId: string) => string | null;
   getValidationErrors: (agentId: string) => Array<{ message: string; timestamp: number }>;
 
   // ==================== ACTIONS ====================
@@ -160,13 +167,29 @@ export interface ChatStore {
 
   // Streaming Operations
   streamResponse: (response: AsyncIterable<StreamChunk>) => Promise<void>;
-  stopStreaming: () => void;
+  stopStreaming: (options?: { focusCallback?: () => void; silentCancel?: boolean }) => void;
+  cancelAndSend: (
+    message: string,
+    attachments?: File[],
+    resourceIds?: string[],
+    options?: { permissionMode?: PermissionMode; model?: string }
+  ) => Promise<void>;
 
   // Draft Input Operations
   setDraftInput: (agentId: string, text: string) => void;
   clearDraftInput: (agentId: string) => void;
   setDraftCursorPosition: (agentId: string, position: number) => void;
   clearDraftCursorPosition: (agentId: string) => void;
+
+  // Error Operations
+  clearChatError: () => void;
+
+  // Session Settings Operations
+  setSessionPermissionMode: (agentId: string, mode: PermissionMode) => void;
+  clearSessionPermissionMode: (agentId: string) => void;
+  setSessionModel: (agentId: string, model: string | null) => void;
+  clearSessionModel: (agentId: string) => void;
+  loadSessionSettings: (agentId: string) => Promise<void>;
 
   // Validation Error Operations
   addValidationError: (agentId: string, message: string) => void;
@@ -196,12 +219,15 @@ export const useChatStore = create<ChatStore>()(
       streamingMessages: new Map(),
       attachments: new Map(),
       streamingStates: new Map(),
+      queryingStates: new Map(),
       sessionIds: new Map(),
       chatError: null,
       pendingToolUses: new Map(),
       traceEntries: new Map(),
       draftInputs: new Map(),
       draftCursorPositions: new Map(),
+      sessionPermissionModes: new Map(),
+      sessionModels: new Map(),
       validationErrors: new Map(),
       backgroundSyncInterval: null,
 
@@ -245,6 +271,16 @@ export const useChatStore = create<ChatStore>()(
       isStreaming: (agentId: string) => {
         const state = get();
         return state.streamingStates.get(agentId) || false;
+      },
+
+      /**
+       * Check if a query is currently active for an agent
+       * @param agentId - Agent ID
+       * @returns True if query is active, false otherwise
+       */
+      isQuerying: (agentId: string) => {
+        const state = get();
+        return state.queryingStates.get(agentId) || false;
       },
 
       /**
@@ -298,6 +334,26 @@ export const useChatStore = create<ChatStore>()(
       },
 
       /**
+       * Get session permission mode for a specific agent
+       * @param agentId - Agent ID
+       * @returns Permission mode or null if not set
+       */
+      getSessionPermissionMode: (agentId: string) => {
+        const state = get();
+        return state.sessionPermissionModes.get(agentId) ?? null;
+      },
+
+      /**
+       * Get session model for a specific agent
+       * @param agentId - Agent ID
+       * @returns Model string or null if not set
+       */
+      getSessionModel: (agentId: string) => {
+        const state = get();
+        return state.sessionModels.get(agentId) ?? null;
+      },
+
+      /**
        * Get validation errors for a specific agent
        * @param agentId - Agent ID
        * @returns Array of validation errors or empty array
@@ -316,6 +372,12 @@ export const useChatStore = create<ChatStore>()(
        * @param message - Message payload
        */
       addTraceEntry: (chatId: string, direction: 'to' | 'from', message: any) => {
+        // Filter synthetic user messages from trace
+        // Uses centralized filtering utility with defense-in-depth approach
+        if (isSyntheticMessage(message)) {
+          return;
+        }
+
         set((state) => {
           const entries = state.traceEntries.get(chatId) || [];
           entries.push({
@@ -338,7 +400,8 @@ export const useChatStore = create<ChatStore>()(
 
         for (const msg of messages) {
           // User messages → reconstruct as 'to' trace (outgoing prompt)
-          if (msg.role === 'user') {
+          // Skip synthetic user messages (skill invocations)
+          if (msg.role === 'user' && !isSyntheticMessage(msg)) {
             traceEntries.push({
               id: `trace-${msg.id}`,
               timestamp: msg.timestamp,
@@ -514,6 +577,10 @@ export const useChatStore = create<ChatStore>()(
           };
           state.messages.set(activeChat, [...messages, streamingAssistantMessage]);
           state.streamingStates = new Map(state.streamingStates).set(activeChat, true);
+
+          // Set querying state when query starts
+          state.queryingStates = new Map(state.queryingStates).set(activeChat, true);
+
           const newStreamingMessages = new Map(state.streamingMessages);
           newStreamingMessages.set(activeChat, {
             id: streamingMessageId,
@@ -581,11 +648,31 @@ export const useChatStore = create<ChatStore>()(
           const projectsState = useProjectsStore.getState();
           const selectedProject = projectsState.getSelectedProject();
           const agent = useAgentsStore.getState().getSelectedAgent();
-          const maxTurns = useSettingsStore.getState().preferences.maxTurns ?? null;
+          const settingsState = useSettingsStore.getState();
+          const maxTurns = settingsState.preferences.maxTurns ?? null;
+          const defaultPermissionMode = settingsState.preferences.defaultPermissionMode;
+
+          // Determine permission mode: explicit option > default from settings > undefined
+          const permissionMode = options?.permissionMode ?? defaultPermissionMode;
+
+          // Log permission mode application
+          if (permissionMode) {
+            if (options?.permissionMode) {
+              logger.debug('[ChatStore] Applying explicit permission mode override', {
+                permissionMode: options.permissionMode,
+                agentId: capturedSelectedAgentId,
+              });
+            } else {
+              logger.debug('[ChatStore] Applying default permission mode from settings', {
+                permissionMode: defaultPermissionMode,
+                agentId: capturedSelectedAgentId,
+              });
+            }
+          }
 
           const conversationOptions: ConversationOptions = {
             ...(maxTurns !== null && { max_turns: maxTurns }),
-            ...(options?.permissionMode && { permission_mode: options.permissionMode }),
+            ...(permissionMode && { permission_mode: permissionMode }),
             ...(options?.model && { model: options.model }),
             ...(selectedProject && agent?.projectId && { cwd: selectedProject.localPath }),
           };
@@ -894,15 +981,14 @@ export const useChatStore = create<ChatStore>()(
                 });
               },
               onResult: (result: any) => {
-                // Stop streaming when we receive any result message (success or error)
-                // The result message indicates the stream has ended
+                // Streaming state should only be cleared in onComplete after message processing
+                // This prevents the loading indicator from disappearing before message content appears
+
+                // Clear querying state when result arrives
                 set((state) => {
-                  if (streamingChatId) {
-                    state.streamingStates = new Map(state.streamingStates).set(
-                      streamingChatId,
-                      false
-                    );
-                  }
+                  const newQueryingStates = new Map(state.queryingStates);
+                  newQueryingStates.delete(streamingChatId);
+                  state.queryingStates = newQueryingStates;
                 });
 
                 // Handle session termination errors
@@ -961,11 +1047,18 @@ export const useChatStore = create<ChatStore>()(
                   });
                 }
 
-                // Update agent context usage
-                if (result.modelUsage && capturedSelectedAgentId) {
-                  useContextUsageStore
-                    .getState()
-                    .updateAgentContextUsage(capturedSelectedAgentId, result.modelUsage);
+                // Update context usage with cumulative session totals from result.usage
+                // result.usage contains cumulative totals, result.modelUsage contains per-turn totals
+                if (result.usage && capturedSelectedAgentId) {
+                  useContextUsageStore.getState().updateAgentContextUsage(capturedSelectedAgentId, {
+                    default: {
+                      inputTokens: result.usage.input_tokens || 0,
+                      outputTokens: result.usage.output_tokens || 0,
+                      cacheReadInputTokens: result.usage.cache_read_input_tokens || 0,
+                      cacheCreationInputTokens: result.usage.cache_creation_input_tokens || 0,
+                      contextWindow: 200000,
+                    },
+                  });
                 }
 
                 // Store result data for onComplete
@@ -1009,6 +1102,11 @@ export const useChatStore = create<ChatStore>()(
                       streamingChatId,
                       false
                     );
+
+                    // Clear querying state on error
+                    const newQueryingStates = new Map(state.queryingStates);
+                    newQueryingStates.delete(streamingChatId);
+                    state.queryingStates = newQueryingStates;
                   }
                   state.chatError = error.message;
                 });
@@ -1138,13 +1236,6 @@ export const useChatStore = create<ChatStore>()(
                     false
                   );
 
-                  if (state.activeChat && state.activeChat !== streamingChatId) {
-                    state.streamingStates = new Map(state.streamingStates).set(
-                      state.activeChat,
-                      false
-                    );
-                  }
-
                   const streamingMsgForCheck = state.streamingMessages.get(streamingChatId);
                   if (!streamingMsgForCheck?.permissionRequest) {
                     const newStreamingMessages = new Map(state.streamingMessages);
@@ -1165,6 +1256,11 @@ export const useChatStore = create<ChatStore>()(
             set((state) => {
               if (streamingChatId) {
                 state.streamingStates = new Map(state.streamingStates).set(streamingChatId, false);
+
+                // Clear querying state on abort
+                const newQueryingStates = new Map(state.queryingStates);
+                newQueryingStates.delete(streamingChatId);
+                state.queryingStates = newQueryingStates;
               }
               const newStreamingMessages = new Map(state.streamingMessages);
               newStreamingMessages.delete(streamingChatId);
@@ -1178,6 +1274,11 @@ export const useChatStore = create<ChatStore>()(
             state.chatError = error instanceof Error ? error.message : 'Failed to send message';
             if (streamingChatId) {
               state.streamingStates = new Map(state.streamingStates).set(streamingChatId, false);
+
+              // Clear querying state on error
+              const newQueryingStates = new Map(state.queryingStates);
+              newQueryingStates.delete(streamingChatId);
+              state.queryingStates = newQueryingStates;
             }
             const newStreamingMessages = new Map(state.streamingMessages);
             newStreamingMessages.delete(streamingChatId);
@@ -1228,6 +1329,9 @@ export const useChatStore = create<ChatStore>()(
             const isSessionActive =
               !hasIncompleteSession &&
               (get().streamingStates.get(chatId) || get().streamingMessages.has(chatId));
+
+            // Note: Synthetic messages are already filtered at the source (main process)
+            // when loading from JSONL. See claude.handlers.ts
 
             // Normalize todo statuses
             const normalizedMessages = messages.map((msg: ComputedMessage) => {
@@ -1427,8 +1531,33 @@ export const useChatStore = create<ChatStore>()(
       /**
        * Stop streaming for the currently active chat
        * Aborts the Claude Code service streaming and cleans up state
+       *
+       * @param options - Optional configuration object
+       * @param options.focusCallback - Callback to restore focus after cancellation completes.
+       *                                Invoked after streaming state is fully cleared (within ~10ms).
+       *                                Use case: Restore chat input focus after ESC ESC or Cancel button press.
+       *                                Timing guarantee: Fires immediately after synchronous state cleanup.
+       *                                Cross-agent safety: Callback should be scoped to the correct agent's UI.
+       * @param options.silentCancel - If true, skip adding interrupted message to UI (for silent interruption during new message send)
+       *
+       * @example
+       * // Restore focus after cancellation (ESC ESC hotkey)
+       * stopStreaming({ focusCallback: () => {
+       *   requestAnimationFrame(() => {
+       *     editorRef.current?.focus();
+       *   });
+       * }});
+       *
+       * @example
+       * // Silent cancel (used by cancelAndSend)
+       * stopStreaming({ silentCancel: true });
+       *
+       * @example
+       * // Legacy usage without options (still supported)
+       * stopStreaming();
        */
-      stopStreaming: () => {
+      stopStreaming: (options?: { focusCallback?: () => void; silentCancel?: boolean }) => {
+        const { focusCallback, silentCancel = false } = options || {};
         const state = get();
         const activeAgentId = state.activeChat;
 
@@ -1450,25 +1579,75 @@ export const useChatStore = create<ChatStore>()(
               }
             }
 
-            // Immediately add interrupted message for instant UI feedback
-            const messages = state.messages.get(state.activeChat) || [];
-            const interruptedMessage: ComputedMessage = {
-              id: nanoid(),
-              role: 'user',
-              content: '[Request interrupted by user]',
-              timestamp: new Date(),
-            };
-            state.messages.set(state.activeChat, [...messages, interruptedMessage]);
+            // Only add interrupted message if NOT silent cancel
+            if (!silentCancel) {
+              const messages = state.messages.get(state.activeChat) || [];
+              const interruptedMessage: ComputedMessage = {
+                id: nanoid(),
+                role: 'user',
+                content: '[Request interrupted by user]',
+                timestamp: new Date(),
+              };
+              state.messages.set(state.activeChat, [...messages, interruptedMessage]);
+            }
           }
 
           if (state.activeChat) {
             state.streamingStates = new Map(state.streamingStates).set(state.activeChat, false);
+
+            // Clear querying state when stopped
+            const newQueryingStates = new Map(state.queryingStates);
+            newQueryingStates.delete(state.activeChat);
+            state.queryingStates = newQueryingStates;
+
             const newStreamingMessages = new Map(state.streamingMessages);
             newStreamingMessages.delete(state.activeChat);
             state.streamingMessages = newStreamingMessages;
           }
           state.chatError = null;
         });
+
+        // Call focus callback after state cleanup completes
+        if (focusCallback) {
+          try {
+            logger.debug('[ChatStore] Invoking focus callback after stopStreaming state cleanup');
+            focusCallback();
+          } catch (callbackError) {
+            // Don't propagate callback errors - log and continue
+            logger.error('[ChatStore] Focus callback threw error:', callbackError);
+          }
+        }
+      },
+
+      /**
+       * Cancel active query and send new message
+       * Combines stopStreaming(true) + sendMessage() for silent interruption
+       * @param message - Message text
+       * @param attachments - File attachments (deprecated, unused)
+       * @param resourceIds - Resource IDs to attach
+       * @param options - Optional settings (permission mode, model)
+       */
+      cancelAndSend: async (
+        message: string,
+        attachments?: File[],
+        resourceIds?: string[],
+        options?: { permissionMode?: PermissionMode; model?: string }
+      ): Promise<void> => {
+        const state = get();
+        const isCurrentlyQuerying = state.activeChat
+          ? state.queryingStates.get(state.activeChat) || false
+          : false;
+
+        // If a query is active, cancel it silently first
+        if (isCurrentlyQuerying) {
+          logger.debug(
+            '[cancelAndSend] Canceling active query silently before sending new message'
+          );
+          get().stopStreaming({ silentCancel: true }); // Silent cancel - no interrupted message
+        }
+
+        // Send the new message
+        await get().sendMessage(message, attachments, resourceIds, options);
       },
 
       /**
@@ -1512,6 +1691,104 @@ export const useChatStore = create<ChatStore>()(
         set((state) => {
           state.draftCursorPositions.delete(agentId);
         });
+      },
+
+      /**
+       * Clear chat error
+       * Used to dismiss error notifications without crashing the app
+       */
+      clearChatError: () => {
+        set((state) => {
+          state.chatError = null;
+        });
+      },
+
+      /**
+       * Set session permission mode for a specific agent
+       * @param agentId - Agent ID
+       * @param mode - Permission mode to set
+       */
+      setSessionPermissionMode: (agentId: string, mode: PermissionMode) => {
+        set((state) => {
+          state.sessionPermissionModes.set(agentId, mode);
+        });
+
+        // Persist to config.json
+        window.electron.ipc
+          .invoke('config:saveSessionSettings', agentId, { permissionMode: mode })
+          .catch((error) => {
+            logger.error('[ChatStore] Failed to persist session permission mode:', error);
+          });
+      },
+
+      /**
+       * Clear session permission mode for a specific agent
+       * @param agentId - Agent ID
+       */
+      clearSessionPermissionMode: (agentId: string) => {
+        set((state) => {
+          state.sessionPermissionModes.delete(agentId);
+        });
+      },
+
+      /**
+       * Set session model for a specific agent
+       * @param agentId - Agent ID
+       * @param model - Model string or null
+       */
+      setSessionModel: (agentId: string, model: string | null) => {
+        set((state) => {
+          state.sessionModels.set(agentId, model);
+        });
+
+        // Persist to config.json
+        window.electron.ipc
+          .invoke('config:saveSessionSettings', agentId, { model })
+          .catch((error) => {
+            logger.error('[ChatStore] Failed to persist session model:', error);
+          });
+      },
+
+      /**
+       * Clear session model for a specific agent
+       * @param agentId - Agent ID
+       */
+      clearSessionModel: (agentId: string) => {
+        set((state) => {
+          state.sessionModels.delete(agentId);
+        });
+      },
+
+      /**
+       * Load session settings from config.json for a specific agent
+       * Called when switching to a chat session to restore persisted settings
+       * @param agentId - Agent ID
+       */
+      loadSessionSettings: async (agentId: string) => {
+        try {
+          const settings = await window.electron.ipc.invoke('config:getSessionSettings', agentId);
+
+          if (settings) {
+            set((state) => {
+              if (settings.permissionMode) {
+                state.sessionPermissionModes.set(
+                  agentId,
+                  settings.permissionMode as PermissionMode
+                );
+              }
+              if (settings.model !== undefined) {
+                state.sessionModels.set(agentId, settings.model);
+              }
+            });
+
+            logger.debug('[ChatStore] Loaded session settings from config.json', {
+              agentId,
+              settings,
+            });
+          }
+        } catch (error) {
+          logger.error('[ChatStore] Failed to load session settings:', error);
+        }
       },
 
       /**

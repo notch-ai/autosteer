@@ -64,7 +64,14 @@ if (app.isPackaged) {
 // This prevents "logger isn't initialized" errors from renderer process
 // Log handlers will be registered by IpcRegistrar.initialize()
 (async () => {
-  await mainLogger.initialize();
+  try {
+    log.info('[STARTUP] Initializing main logger...');
+    await mainLogger.initialize();
+    log.info('[STARTUP] Main logger initialized successfully');
+  } catch (error) {
+    log.error('[STARTUP] Failed to initialize main logger:', error);
+    throw error;
+  }
 })();
 
 // Configure logging
@@ -79,38 +86,76 @@ class ElectronApp {
   private testModeHandler: ReturnType<typeof getTestModeHandler> | null = null;
 
   constructor() {
-    this.applicationContainer = new ApplicationContainer();
-    this.windowManager = new WindowManager();
-    this.ipcRegistrar = new IpcRegistrar(this.applicationContainer);
+    log.info('[ELECTRON_APP] Constructing ElectronApp...');
+    try {
+      log.info('[ELECTRON_APP] Creating ApplicationContainer...');
+      this.applicationContainer = new ApplicationContainer();
+      log.info('[ELECTRON_APP] ApplicationContainer created');
 
-    // Initialize test mode handler if test mode is active
-    if (isTestModeActive()) {
-      this.testModeHandler = getTestModeHandler();
+      log.info('[ELECTRON_APP] Creating WindowManager...');
+      this.windowManager = new WindowManager();
+      log.info('[ELECTRON_APP] WindowManager created');
+
+      log.info('[ELECTRON_APP] Creating IpcRegistrar...');
+      this.ipcRegistrar = new IpcRegistrar(this.applicationContainer);
+      log.info('[ELECTRON_APP] IpcRegistrar created');
+
+      // Initialize test mode handler if test mode is active
+      if (isTestModeActive()) {
+        log.info('[ELECTRON_APP] Test mode active, creating test mode handler...');
+        this.testModeHandler = getTestModeHandler();
+        log.info('[ELECTRON_APP] Test mode handler created');
+      }
+
+      log.info('[ELECTRON_APP] ElectronApp construction complete');
+    } catch (error) {
+      log.error('[ELECTRON_APP] Failed to construct ElectronApp:', error);
+      throw error;
     }
   }
 
   initialize(): void {
+    log.info('[ELECTRON_APP] Initializing ElectronApp...');
+
     // Handle creating/removing shortcuts on Windows when installing/uninstalling.
     if (process.platform === 'win32' && process.argv.length >= 2) {
       const squirrelCommand = process.argv[1];
       if (squirrelCommand === '--squirrel-install' || squirrelCommand === '--squirrel-updated') {
+        log.info('[ELECTRON_APP] Squirrel command detected, quitting app:', squirrelCommand);
         app.quit();
         return;
       }
     }
 
-    this.applicationContainer.initialize();
-    this.setupEventHandlers();
+    try {
+      log.info('[ELECTRON_APP] Initializing ApplicationContainer...');
+      this.applicationContainer.initialize();
+      log.info('[ELECTRON_APP] ApplicationContainer initialized');
+
+      log.info('[ELECTRON_APP] Setting up event handlers...');
+      this.setupEventHandlers();
+      log.info('[ELECTRON_APP] Event handlers setup complete');
+      log.info('[ELECTRON_APP] ElectronApp initialization complete');
+    } catch (error) {
+      log.error('[ELECTRON_APP] Failed to initialize ElectronApp:', error);
+      throw error;
+    }
   }
 
   private setupEventHandlers(): void {
+    log.info('[EVENT] Setting up app event handlers...');
+
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     app
       .whenReady()
       .then(async () => {
+        log.info('[READY] App is ready, starting initialization...');
+
         // Log application settings at startup
+        log.info('[READY] Logging settings at startup...');
         logSettingsAtStartup();
+        log.info('[READY] Settings logged');
 
         // Fetch tracer is injected into SDK subprocess via NODE_OPTIONS (see ClaudeCodeSDKService)
         // No need to instrument main process - only SDK subprocess API calls are traced
@@ -118,19 +163,31 @@ class ElectronApp {
         // Initialize FileDataStoreService and ensure config.json exists
         // This will load custom project directory from config if set
         try {
+          log.info('[READY] Initializing FileDataStoreService...');
           const fileDataStore = await FileDataStoreService.initialize();
+          log.info('[READY] FileDataStoreService initialized');
+
+          log.info('[READY] Ensuring directories...');
           await fileDataStore.ensureDirectories();
+          log.info('[READY] Directories ensured');
 
           // Create config.json if it doesn't exist
+          log.info('[READY] Checking if config exists...');
           const configExists = await fileDataStore.configExists();
+          log.info('[READY] Config exists:', configExists);
+
           if (!configExists) {
+            log.info('[READY] Creating default config...');
             await fileDataStore.writeConfig({ worktrees: [] });
+            log.info('[READY] Default config created');
           }
 
           // Clean up old deleted session manifests on startup
+          log.info('[READY] Cleaning up deleted session manifests...');
           const { SessionManifestService } = await import('@/services/SessionManifestService');
           const sessionManifest = SessionManifestService.getInstance();
           await sessionManifest.cleanupDeletedManifests();
+          log.info('[READY] Session manifests cleanup complete');
         } catch (error) {
           log.error('[READY] Failed to initialize file data store:', error);
           // Don't fail the entire startup for this
@@ -149,13 +206,17 @@ class ElectronApp {
         // Initialize IPC handlers BEFORE creating window to prevent race conditions
         // The renderer process may try to invoke IPC handlers as soon as the window loads
         try {
+          log.info('[READY] Initializing IPC handlers...');
           this.ipcRegistrar.initialize();
+          log.info('[READY] IPC handlers initialized successfully');
         } catch (ipcError) {
           log.error('[READY] IPC initialization failed, but continuing:', ipcError);
           // Continue with app startup even if IPC fails
         }
 
+        log.info('[READY] Creating main window...');
         this.createMainWindow();
+        log.info('[READY] Main window created');
 
         // Set main window reference for test mode handler
         if (this.testModeHandler) {
@@ -222,6 +283,55 @@ class ElectronApp {
     }
   }
 
+  /**
+   * Setup window lifecycle handlers to cleanup orphaned PTY processes
+   * This prevents PTY accumulation on renderer reloads/crashes
+   */
+  private async setupWindowLifecycleHandlers(window: BrowserWindow): Promise<void> {
+    // Import dynamically to avoid circular dependency
+    const { XtermService } = await import('@/services/XtermService');
+    const xtermService = XtermService.getInstance();
+
+    // Track whether initial load has completed to distinguish reloads from first load
+    let initialLoadComplete = false;
+
+    // Mark initial load as complete after first successful load
+    window.webContents.on('did-finish-load', () => {
+      if (!initialLoadComplete) {
+        initialLoadComplete = true;
+        log.debug('[WINDOW] Initial load complete, reload detection enabled');
+      }
+    });
+
+    // Cleanup terminals when renderer process crashes
+    window.webContents.on('render-process-gone', async (_event, details) => {
+      log.warn(`[WINDOW] Renderer process gone: ${details.reason}`);
+      await xtermService.cleanupWindowTerminals(window);
+    });
+
+    // Cleanup terminals when window is closed
+    window.on('closed', async () => {
+      log.info('[WINDOW] Window closed, cleaning up terminals');
+      await xtermService.cleanupWindowTerminals(window);
+    });
+
+    // Cleanup terminals on renderer reload (dev mode Cmd+R)
+    window.webContents.on('did-start-loading', async () => {
+      if (initialLoadComplete) {
+        log.info('[WINDOW] Renderer reloading (did-start-loading), cleaning up terminals');
+        await xtermService.cleanupWindowTerminals(window);
+      }
+    });
+
+    // Backup handler for navigation-based reloads
+    window.webContents.on('will-navigate', async () => {
+      if (initialLoadComplete) {
+        log.info('[WINDOW] Renderer navigating (will-navigate), cleaning up terminals');
+        await xtermService.cleanupWindowTerminals(window);
+      }
+    });
+  }
+
   private async setupDevToolsContextMenu(window: BrowserWindow): Promise<void> {
     // Check if inspect element is enabled via environment variable
     const enableInspectElement = process.env.ENABLE_INSPECT_ELEMENT === 'true';
@@ -282,14 +392,49 @@ class ElectronApp {
     }
 
     // Load content
+    let loadUrl: string;
     if (process.env.VITE_DEV_SERVER_URL) {
-      mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+      loadUrl = process.env.VITE_DEV_SERVER_URL;
+      log.info(`[WINDOW] Loading from VITE_DEV_SERVER_URL: ${loadUrl}`);
+      mainWindow.loadURL(loadUrl);
     } else if (!app.isPackaged) {
-      mainWindow.loadURL('http://localhost:5173');
+      loadUrl = 'http://localhost:5173';
+      log.info(
+        `[WINDOW] VITE_DEV_SERVER_URL not set, using fallback: ${loadUrl} (port may auto-increment if busy)`
+      );
+      mainWindow.loadURL(loadUrl);
     } else {
       const htmlPath = path.join(__dirname, '../renderer/main_window/index.html');
+      log.info(`[WINDOW] Loading from production build: ${htmlPath}`);
       mainWindow.loadFile(htmlPath);
     }
+
+    // Log the actual URL after load attempt
+    mainWindow.webContents.on('did-start-loading', () => {
+      const actualUrl = mainWindow.webContents.getURL();
+      log.info(`[WINDOW] Actually loading URL: ${actualUrl || 'not yet available'}`);
+    });
+
+    mainWindow.webContents.on('did-finish-load', () => {
+      const actualUrl = mainWindow.webContents.getURL();
+      log.info(`[WINDOW] Successfully loaded: ${actualUrl}`);
+    });
+
+    mainWindow.webContents.on(
+      'did-fail-load',
+      (_event, errorCode, errorDescription, validatedURL) => {
+        log.error(
+          `[WINDOW] Failed to load URL: ${validatedURL}, Error: ${errorCode} - ${errorDescription}`
+        );
+      }
+    );
+
+    // Setup window lifecycle handlers AFTER initial load completes
+    // This prevents interference with the startup sequence
+    mainWindow.webContents.once('did-finish-load', async () => {
+      log.info('[WINDOW] Initial load complete, setting up lifecycle handlers');
+      await this.setupWindowLifecycleHandlers(mainWindow);
+    });
 
     // Open DevTools in development mode if enabled
     if (!app.isPackaged) {

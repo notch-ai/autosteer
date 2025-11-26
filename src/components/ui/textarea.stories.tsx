@@ -55,7 +55,7 @@ export const ControlledWithValue: Story = {
           value={value}
           onChange={(e) => setValue(e.target.value)}
         />
-        <p className="text-sm text-text-muted">Characters: {value.length}</p>
+        <p className="text-sm text-muted-foreground">Characters: {value.length}</p>
       </div>
     );
   },
@@ -134,7 +134,7 @@ export const ThemeComparison: Story = {
     return (
       <div className="grid grid-cols-2 gap-8">
         <div className="theme-day p-6 rounded-lg bg-background border">
-          <h3 className="mb-4 font-semibold text-text">Day Theme</h3>
+          <h3 className="mb-4 font-semibold text-foreground">Day Theme</h3>
           <Textarea
             placeholder="Type something..."
             value={dayValue}
@@ -142,7 +142,7 @@ export const ThemeComparison: Story = {
           />
         </div>
         <div className="theme-night p-6 rounded-lg bg-background border">
-          <h3 className="mb-4 font-semibold text-text">Night Theme</h3>
+          <h3 className="mb-4 font-semibold text-foreground">Night Theme</h3>
           <Textarea
             placeholder="Type something..."
             value={nightValue}

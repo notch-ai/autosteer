@@ -131,7 +131,7 @@ export const useProjectsStore = create<ProjectsStore>()(
                 )
                 .map(
                   (worktree: any): Project => ({
-                    id: worktree.git_repo + '_' + worktree.branch_name, // Create ID from repo + branch
+                    id: worktree.folder_name, // Use folderName as primary ID
                     name: worktree.folder_name,
                     ...(worktree.description && { description: worktree.description }),
                     githubRepo: worktree.git_repo,
@@ -177,7 +177,7 @@ export const useProjectsStore = create<ProjectsStore>()(
 
             // Create project object with worktree details
             const newProject: Project = {
-              id: `${config.githubRepo}_${config.branchName}`,
+              id: result.folderName, // Use folderName as primary ID
               name: config.name,
               ...(config.description && { description: config.description }),
               githubRepo: config.githubRepo,
@@ -325,8 +325,8 @@ export const useProjectsStore = create<ProjectsStore>()(
         const project = state.projects.get(id);
         if (!project) return;
 
-        // Find agent for this project (using folderName as projectId)
-        const projectId = project.folderName || project.id;
+        // Find agent for this project (project.id IS the folderName now)
+        const projectId = project.id;
         const { useAgentsStore } = await import('./agents.store');
         const agentsStore = useAgentsStore.getState();
 
@@ -401,19 +401,38 @@ export const useProjectsStore = create<ProjectsStore>()(
             }
           }
 
-          // Clean up terminal session for this project
+          // Clean up ALL terminal sessions for this project
           const { useTerminalStore } = await import('./terminal.store');
           const terminalStore = useTerminalStore.getState();
-          const session = terminalStore.getTerminalSession(id);
-          if (session) {
-            // Destroy the terminal process via IPC
+
+          // Get all terminals for this project (project.id IS the folderName now)
+          const projectId = project.id;
+          const projectTerminals = terminalStore.getTerminalsForProject(projectId);
+
+          logger.debug('[ProjectsStore] Cleaning up terminals for deleted project', {
+            projectId: projectId.substring(0, 8),
+            terminalCount: projectTerminals.length,
+          });
+
+          // Destroy each terminal (both backend process and pool instance)
+          for (const session of projectTerminals) {
             try {
+              // Destroy the terminal process via IPC (also removes from pool)
               await window.electron.ipc.invoke('terminal:destroy', session.terminalId);
+
+              // Remove from store
+              terminalStore.removeTerminal(session.terminalId);
+              terminalStore.removeTerminalSession(session.terminalId);
+
+              logger.debug('[ProjectsStore] Destroyed terminal', {
+                terminalId: session.terminalId.substring(0, 8),
+              });
             } catch (err) {
-              logger.error('[ProjectsStore] Failed to destroy terminal:', err);
+              logger.error('[ProjectsStore] Failed to destroy terminal', {
+                terminalId: session.terminalId.substring(0, 8),
+                error: err,
+              });
             }
-            // Remove the session from store (this will dispose XTerm instance)
-            terminalStore.removeTerminalSession(id);
           }
 
           // Remove from local state

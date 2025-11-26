@@ -22,6 +22,7 @@ import { createVimExtension } from '@/features/chat/components/editor/vim-extens
 import { ContextUsageIndicator } from '@/features/monitoring/components/ContextUsageIndicator';
 import { PermissionModeSelector } from '@/features/shared/components/agent/PermissionModeSelector';
 import { useCodeMirror } from '@/hooks/useCodeMirror';
+import { useStopStreamingWithFocus } from '@/hooks/useStopStreamingWithFocus';
 import { useAgentsStore, useContextUsageStore, useProjectsStore } from '@/stores';
 import { ModelOption } from '@/types/model.types';
 import { PermissionMode } from '@/types/permission.types';
@@ -42,7 +43,7 @@ export interface RichTextEditorProps {
   onAttachResources?: (resourceIds: string[]) => void;
   onSlashCommand?: (command: string) => void;
   isStreaming?: boolean;
-  onStopStreaming?: () => void;
+  onStopStreaming?: (options?: { focusCallback?: () => void; silentCancel?: boolean }) => void;
   permissionMode?: PermissionMode;
   onPermissionModeChange?: (mode: PermissionMode) => void;
   model?: ModelOption;
@@ -68,7 +69,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   onSlashCommand,
   isStreaming = false,
   onStopStreaming,
-  permissionMode = 'acceptEdits',
+  permissionMode = 'edit' as PermissionMode,
   onPermissionModeChange,
   model,
   onModelChange,
@@ -110,6 +111,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   const editorContainerRef = useRef<HTMLDivElement | null>(null);
   const lastEscapeTimeRef = useRef<number>(0);
+  const viewRef = useRef<EditorView | null>(null); // Ref to track CodeMirror view for focus callback
 
   const selectedProject = useProjectsStore((state) => state.getSelectedProject());
   const projectPath = selectedProject?.localPath;
@@ -227,11 +229,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   // Memoize extensions to prevent ref callback from being called on every render
   // OPTIMIZATION: Lazy load vim and slash command extensions based on feature flags
   const extensions = useMemo(() => {
-    logger.debug('[RichTextEditor] Building extensions', {
-      vimEnabled,
-      hasProject: !!projectPath,
-    });
-
     const baseExtensions = [
       // Line wrapping - enable text wrapping
       EditorView.lineWrapping,
@@ -319,9 +316,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 logger.debug('[DEBUG RichTextEditor] isStreaming:', isStreamingRef.current);
 
                 // Only call stopStreaming if there's an active stream
-                if (isStreamingRef.current && onStopStreamingRef.current) {
-                  logger.debug('[DEBUG RichTextEditor] Cancelling active stream');
-                  onStopStreamingRef.current();
+                if (isStreamingRef.current) {
+                  logger.debug(
+                    '[DEBUG RichTextEditor] Cancelling active stream with focus restore'
+                  );
+
+                  // Use hook to stop streaming and restore focus
+                  stopStreamingWithFocus();
+
                   lastEscapeTimeRef.current = 0; // Reset the timer
                   return true;
                 } else {
@@ -378,9 +380,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           return false;
         },
       }),
-      // Custom styling
-      EditorView.theme({
-        '&': {
+      // Custom styling - Override CodeMirror's hardcoded monospace font using baseTheme for higher priority
+      EditorView.baseTheme({
+        '&.cm-editor': {
           minHeight: '80px',
           maxHeight: '400px',
           backgroundColor: 'transparent',
@@ -388,10 +390,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         '.cm-scroller': {
           overflowX: 'hidden',
           overflowY: 'auto',
+          fontFamily: 'inherit !important', // Inherit from parent which uses CSS variable
         },
         '.cm-content': {
           padding: '0.5rem',
-          fontFamily: 'inherit',
+          fontFamily: 'inherit !important', // Inherit from parent which uses CSS variable
           fontSize: '0.875em',
           lineHeight: '1.5',
           whiteSpace: 'pre-wrap',
@@ -399,9 +402,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         },
         '.cm-line': {
           padding: '0',
+          fontFamily: 'inherit !important', // Inherit from parent which uses CSS variable
         },
         '.cm-line span:hover': {
-          backgroundColor: 'rgb(var(--color-background))',
+          backgroundColor: 'rgb(var(--background) / 0.05)',
         },
         '&.cm-focused': {
           outline: 'none',
@@ -458,6 +462,15 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     onUpdate: onChange,
     extensions,
   });
+
+  // Sync CodeMirror view to ref for focus callbacks
+  // This enables focus restoration after canceling queries with ESC ESC or Cancel button
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+
+  // Use hook for stopping streaming with focus restoration
+  const { stopStreamingWithFocus } = useStopStreamingWithFocus(viewRef, onStopStreaming);
 
   // Track cursor position changes using a ref to avoid adding listeners dynamically
   const onCursorPositionChangeRef = useRef(onCursorPositionChange);
@@ -640,6 +653,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             vimEnabled && vimMode === 'INSERT' && 'vim-insert-mode',
             !vimEnabled && 'vim-disabled'
           )}
+          style={{ fontFamily: 'var(--font-family-mono)' }}
           onClick={() => focus()}
           aria-label="Rich text editor"
           aria-disabled={disabled}
@@ -723,15 +737,29 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             {model && onModelChange && (
               <ModelSelector
                 model={model}
-                onChange={onModelChange}
-                disabled={disabled || isStreaming}
+                onChange={(newModel) => {
+                  logger.debug('[RichTextEditor] Model changed during query', {
+                    newModel,
+                    isStreaming,
+                    previousModel: model,
+                  });
+                  onModelChange(newModel);
+                }}
+                disabled={disabled}
               />
             )}
             {permissionMode && onPermissionModeChange && (
               <PermissionModeSelector
                 mode={permissionMode}
-                onChange={onPermissionModeChange}
-                disabled={disabled || isStreaming}
+                onChange={(newMode) => {
+                  logger.debug('[RichTextEditor] Permission mode changed during query', {
+                    newMode,
+                    isStreaming,
+                    previousMode: permissionMode,
+                  });
+                  onPermissionModeChange(newMode);
+                }}
+                disabled={disabled}
               />
             )}
             {onAttachResources && (
@@ -804,7 +832,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 size="icon"
                 disabled
                 title={`Current mode: ${vimMode}`}
-                className="cursor-default text-text"
+                className="cursor-default text-foreground"
               >
                 <span className="text-sm font-medium">{vimMode}</span>
               </Button>
@@ -825,7 +853,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             canSend={canSend}
             disabled={disabled}
             isStreaming={isStreaming}
-            {...(onStopStreaming && { onStopStreaming })}
+            {...(onStopStreaming && { onStopStreaming: stopStreamingWithFocus })}
             className="border-0 flex-1"
           />
         </div>

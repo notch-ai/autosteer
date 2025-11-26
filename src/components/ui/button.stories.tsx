@@ -112,7 +112,7 @@ export const ThemeComparison: Story = {
   render: () => (
     <div className="grid grid-cols-2 gap-8">
       <div className="theme-day p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Day Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Day Theme</h3>
         <div className="flex flex-col gap-2">
           <Button variant="default">Default</Button>
           <Button variant="primary">Primary</Button>
@@ -122,7 +122,7 @@ export const ThemeComparison: Story = {
         </div>
       </div>
       <div className="theme-night p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Night Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Night Theme</h3>
         <div className="flex flex-col gap-2">
           <Button variant="default">Default</Button>
           <Button variant="primary">Primary</Button>
@@ -269,8 +269,8 @@ export const IconSizes: Story = {
 // Sidebar-style icon buttons
 export const SidebarIcons: Story = {
   render: () => (
-    <div className="bg-surface p-4 rounded-lg">
-      <h3 className="text-sm font-medium text-text mb-3">Sidebar Style Icons</h3>
+    <div className="bg-card p-4 rounded-lg">
+      <h3 className="text-sm font-medium text-foreground mb-3">Sidebar Style Icons</h3>
       <div className="flex gap-2 items-center">
         <Button size="icon" icon="settings" variant="icon-secondary" title="Settings" />
         <Button size="icon" icon="circle-question" variant="icon-secondary" title="Help" />

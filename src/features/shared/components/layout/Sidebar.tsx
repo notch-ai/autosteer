@@ -20,16 +20,12 @@ const TaskIndicator: React.FC<{ isActive: boolean; className?: string }> = React
     return (
       <div
         className={cn(
-          'task-indicator transition-colors duration-100',
-          isActive ? 'task-indicator--active' : 'task-indicator--idle',
+          'task-indicator transition-colors duration-100 w-2 h-2 rounded-full',
+          isActive
+            ? 'task-indicator--active bg-primary'
+            : 'task-indicator--idle bg-muted-foreground',
           className
         )}
-        style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          backgroundColor: isActive ? '#10b981' : '#9ca3af',
-        }}
         aria-label={isActive ? 'Tasks running' : 'No active tasks'}
       />
     );
@@ -56,7 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       data-component="Sidebar"
       data-active-panel={activePanel}
       data-collapsed={isCollapsed}
-      className="h-full flex flex-col sidebar-container"
+      className="h-full flex flex-col sidebar-container bg-card"
     >
       {!collapsed && (
         <>
@@ -82,7 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div
             id="sidebar-footer"
             data-section="sidebar-footer"
-            className="h-12 flex items-center justify-center gap-6 px-3 pb-4 bg-surface sidebar-footer-controls"
+            className="h-12 flex items-center justify-center gap-6 px-3 pb-4 bg-card sidebar-footer-controls"
           >
             <ThemeToggle />
             {/* Keyboard Shortcuts Button */}

@@ -1,9 +1,7 @@
-import { ComputedMessage } from '@/stores/chat.selectors';
 import { mockPermissionChatMessage } from '@/mocks/gitDiffMockData';
 import { useChatStore } from '@/stores';
 import { useMemo } from 'react';
 
-const EMPTY_MESSAGES: ComputedMessage[] = [];
 const EMPTY_ATTACHMENTS: any[] = [];
 
 interface UseAgentChatStateParams {
@@ -15,12 +13,17 @@ export const useAgentChatState = ({
   agentId,
   useMockPermission = false,
 }: UseAgentChatStateParams) => {
-  const agentMessages = useChatStore((state) => state.messages.get(agentId) ?? EMPTY_MESSAGES);
-  const isStreamingAgent = useChatStore((state) => state.streamingStates.get(agentId) ?? false);
-  const chatError = useChatStore((state) => state.chatError);
+  // Get raw messages from store
+  // Note: We get the raw Map entry, not a selector, to ensure stable reference
+  const rawMessages = useChatStore((state) => state.messages.get(agentId) ?? []);
+
   const attachmentsAgent = useChatStore(
     (state) => state.attachments.get(agentId) ?? EMPTY_ATTACHMENTS
   );
+
+  // Note: Synthetic messages are already filtered at the source (main process)
+  // when loading from JSONL. See claude.handlers.ts
+  const agentMessages = rawMessages;
 
   const messages = useMemo(() => {
     return useMockPermission ? [...agentMessages, mockPermissionChatMessage] : agentMessages;
@@ -31,12 +34,9 @@ export const useAgentChatState = ({
     [attachmentsAgent]
   );
 
-  const isLoading = useMemo(() => isStreamingAgent || !!chatError, [isStreamingAgent, chatError]);
-
   return {
     messages,
     attachedResourceIds,
-    isLoading,
     attachmentsAgent,
   };
 };

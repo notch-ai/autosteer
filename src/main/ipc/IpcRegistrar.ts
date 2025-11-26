@@ -1,5 +1,5 @@
 import { ApplicationContainer } from '@/services/ApplicationContainer';
-import { BrowserWindow, IpcMainInvokeEvent, ipcMain, shell, nativeTheme } from 'electron';
+import { BrowserWindow, IpcMainInvokeEvent, ipcMain, shell, nativeTheme, dialog } from 'electron';
 import log from 'electron-log';
 import { FileDataStoreService } from '@/services/FileDataStoreService';
 import { GitService } from '@/services/GitService';
@@ -14,19 +14,26 @@ const fsPromises = {
   rm: promisify(fs.rm),
 };
 import { convertToFolderName } from '../utils/folderName';
-import { ClaudeHandlers, ProjectHandlers, GitHandlers, SystemHandlers } from './handlers';
+import {
+  ClaudeHandlers,
+  ProjectHandlers,
+  GitHandlers,
+  SystemHandlers,
+  IdeHandlers,
+} from './handlers';
 import { CacheHandlers } from './handlers/cache.handlers';
 import { registerClaudeCodeHandlers } from './claudeCodeHandlers';
 import { registerGitHandlers } from './gitHandlers';
 import { registerAttachmentHandlers } from './attachmentHandlers';
 import { UpdateService } from '@/services/UpdateService';
 
-// Migrated from 13 specialized handlers to 5 domain handlers:
+// Migrated from 13 specialized handlers to 6 domain handlers:
 // - ClaudeHandlers (Agent, MCP, SlashCommand)
 // - ProjectHandlers (File, Resource)
 // - GitHandlers (GitDiff)
 // - SystemHandlers (Terminal, Badge, Config, Log, Store, Update)
 // - CacheHandlers
+// - IdeHandlers (IDE detection and file opening)
 
 /**
  * Centralized IPC registrar that replaces SimplifiedIpcManager, IpcManager, and IpcMigrationManager
@@ -40,6 +47,7 @@ export class IpcRegistrar {
   private gitHandlers: GitHandlers;
   private systemHandlers: SystemHandlers;
   private cacheHandlers: CacheHandlers;
+  private ideHandlers: IdeHandlers;
 
   constructor(private applicationContainer: ApplicationContainer) {
     this.fileDataStore = FileDataStoreService.getInstance();
@@ -49,6 +57,7 @@ export class IpcRegistrar {
     this.gitHandlers = new GitHandlers();
     this.systemHandlers = new SystemHandlers();
     this.cacheHandlers = new CacheHandlers();
+    this.ideHandlers = new IdeHandlers();
   }
 
   initialize(): void {
@@ -56,12 +65,13 @@ export class IpcRegistrar {
       // Register base handlers (app, settings, window, shell, theme, worktree, test-mode)
       this.registerHandlers();
 
-      // Register 5 consolidated domain handlers
+      // Register 6 consolidated domain handlers
       this.claudeHandlers.registerHandlers();
       this.projectHandlers.registerHandlers();
       this.gitHandlers.registerHandlers();
       this.systemHandlers.registerHandlers();
       this.cacheHandlers.registerHandlers();
+      this.ideHandlers.registerHandlers();
 
       // Specialized utility handlers (separate from domain handler consolidation)
       // These handle specific SDK/utility operations not part of core IPC domains
@@ -390,7 +400,7 @@ export class IpcRegistrar {
       }
     );
 
-    ipcMain.handle('worktree:delete', async (_event: IpcMainInvokeEvent, folderName: string) => {
+    ipcMain.handle('worktree:delete', async (event: IpcMainInvokeEvent, folderName: string) => {
       try {
         const config = await this.fileDataStore.readConfig();
         const worktree = config.worktrees.find((w) => w.folder_name === folderName);
@@ -401,15 +411,93 @@ export class IpcRegistrar {
 
         const worktreePath = this.fileDataStore.getWorktreePath(folderName);
         const mainRepoPath = this.fileDataStore.getMainRepoPath(worktree.git_repo);
+        const branchName = worktree.branch_name;
 
+        // Check if branch is protected
+        const isProtected = this.gitService.isProtectedBranch(branchName);
+        if (isProtected) {
+          log.info(`[worktree:delete] Branch "${branchName}" is protected, will not delete branch`);
+        }
+
+        // Initialize deleteBranch flag - don't delete protected branches
+        let deleteBranch = false;
+
+        // Only check for user confirmation if branch is not protected
+        if (!isProtected) {
+          // Check if local branch exists
+          const localBranchExists = await this.gitService.localBranchExists(
+            mainRepoPath,
+            branchName
+          );
+
+          if (localBranchExists) {
+            // Check for unpushed commits
+            const unpushedCount = await this.gitService.getUnpushedCommitCount(
+              mainRepoPath,
+              branchName
+            );
+
+            log.debug(
+              `[worktree:delete] Branch "${branchName}" has ${unpushedCount} unpushed commits`
+            );
+
+            // Build confirmation message
+            let confirmMessage = `Delete branch "${branchName}"?\n\n`;
+            confirmMessage += `This will:\n`;
+            confirmMessage += `• Remove the worktree\n`;
+            confirmMessage += `• Delete the local branch "${branchName}"\n`;
+            confirmMessage += `• Delete the remote branch "${branchName}" (if it exists)\n`;
+
+            if (unpushedCount > 0) {
+              confirmMessage += `\n⚠️ WARNING: This branch has ${unpushedCount} unpushed commit${unpushedCount > 1 ? 's' : ''} that will be lost!`;
+            }
+
+            // Get the browser window for the dialog
+            const window = BrowserWindow.fromWebContents(event.sender);
+            if (!window) {
+              log.warn('[worktree:delete] No window found for confirmation dialog');
+            } else {
+              // Show confirmation dialog
+              const result = await dialog.showMessageBox(window, {
+                type: 'warning',
+                title: 'Delete Branch',
+                message: 'Are you sure?',
+                detail: confirmMessage,
+                buttons: ['Cancel', 'Force Delete'],
+                defaultId: 0,
+                cancelId: 0,
+              });
+
+              log.info(
+                `[worktree:delete] User choice: ${result.response === 1 ? 'Force Delete' : 'Cancel'}`
+              );
+
+              // If user cancelled, abort deletion
+              if (result.response === 0) {
+                log.info(`[worktree:delete] User cancelled deletion of branch "${branchName}"`);
+                return {
+                  success: false,
+                  message: 'Deletion cancelled by user',
+                };
+              }
+
+              // User chose "Force Delete"
+              deleteBranch = true;
+              log.info(`[worktree:delete] User confirmed deletion of branch "${branchName}"`);
+            }
+          }
+        }
+
+        // Remove worktree with branch deletion if confirmed
         const removeResult = await this.gitService.removeWorktree({
           mainRepoPath,
           worktreePath,
-          branchName: worktree.branch_name,
+          branchName,
+          deleteBranch,
         });
 
         if (!removeResult.success) {
-          log.warn('Git worktree remove failed:', removeResult.error);
+          log.warn('[worktree:delete] Git worktree remove failed:', removeResult.error);
         }
 
         // Delete trace files for all sessions in this worktree
@@ -543,17 +631,36 @@ export class IpcRegistrar {
       'worktree:setActiveTab',
       async (_event: IpcMainInvokeEvent, projectId: string, tabId: string) => {
         try {
+          console.log('[IPC] worktree:setActiveTab called', {
+            projectId,
+            tabId,
+            isToolsTab: tabId === 'tools-tab',
+          });
+
           const config = await this.fileDataStore.readConfig();
 
           // Find the worktree by folder_name (projectId is the folder_name)
           const worktree = config.worktrees?.find((wt) => wt.folder_name === projectId);
 
           if (worktree) {
+            const oldActiveTabId = worktree.activeTabId;
             // Store activeTabId directly in the worktree object
             worktree.activeTabId = tabId;
             await this.fileDataStore.writeConfig(config);
+
+            console.log('[IPC] worktree:setActiveTab SUCCESS', {
+              projectId,
+              oldActiveTabId,
+              newActiveTabId: tabId,
+              isToolsTab: tabId === 'tools-tab',
+            });
+
             return { success: true };
           } else {
+            console.error('[IPC] worktree:setActiveTab FAILED - worktree not found', {
+              projectId,
+              tabId,
+            });
             return { success: false, error: `Worktree not found: ${projectId}` };
           }
         } catch (error) {
@@ -571,13 +678,23 @@ export class IpcRegistrar {
       'worktree:getActiveTab',
       async (_event: IpcMainInvokeEvent, projectId: string) => {
         try {
+          console.log('[IPC] worktree:getActiveTab called', { projectId });
           const config = await this.fileDataStore.readConfig();
 
           // Find the worktree by folder_name (projectId is the folder_name)
           const worktree = config.worktrees?.find((wt) => wt.folder_name === projectId);
 
-          return worktree?.activeTabId ?? null;
+          const activeTabId = worktree?.activeTabId ?? null;
+          console.log('[IPC] worktree:getActiveTab result', {
+            projectId,
+            activeTabId,
+            isToolsTab: activeTabId === 'tools-tab',
+            worktreeFound: !!worktree,
+          });
+
+          return activeTabId;
         } catch (error) {
+          console.error('[IPC] worktree:getActiveTab ERROR', { projectId, error });
           ErrorHandler.log({
             operation: 'get active tab',
             error,

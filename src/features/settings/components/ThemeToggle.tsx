@@ -64,7 +64,7 @@ export const ThemeToggle: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => handleThemeChange(option.value)}
-                className={cn('w-full justify-start', isActive && 'bg-surface-active text-primary')}
+                className={cn('w-full justify-start', isActive && 'bg-card-active text-primary')}
               >
                 <OptionIcon className="h-4 w-4" />
                 <span className="ml-2">{option.label}</span>

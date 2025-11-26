@@ -4,9 +4,10 @@ import { immer } from 'zustand/middleware/immer';
 import { VimState } from '@/stores/vimStore';
 import { useSettingsStore } from '@/stores/settings';
 import { SearchResult } from './types';
-import { TabState, SessionTab, ChangesTabState } from '@/types/ui.types';
+import { TabState, SessionTab, ChangesTabState, MaximizeTab } from '@/types/ui.types';
 import { ModelOption, DEFAULT_MODEL } from '@/types/model.types';
 import { MAX_TABS } from '@/constants/tabs';
+import { logger } from '@/commons/utils/logger';
 
 // UIStore Interface (TRD Section 2.3.2)
 export interface UIStore {
@@ -23,6 +24,10 @@ export interface UIStore {
 
   // Tab State
   tabState: TabState | null;
+
+  // Maximize Tabs State (1:1 mapping with session tabs)
+  maximizeTabs: Map<string, MaximizeTab>;
+  maximizeTabsVersion: number; // Counter to force re-renders when Map changes
 
   // Changes Tab State
   changesTab: ChangesTabState;
@@ -61,6 +66,17 @@ export interface UIStore {
   addTab: (agentId: string) => void;
   removeTab: (tabId: string) => void;
   updateTabState: (tabs: SessionTab[]) => void;
+
+  // Maximize Tab Actions
+  addMaximizeTab: (
+    sessionId: string,
+    projectId: string,
+    content: string,
+    metadata?: { sessionName?: string }
+  ) => void;
+  removeMaximizeTab: (sessionId: string) => void;
+  updateMaximizeTab: (sessionId: string, updates: Partial<MaximizeTab>) => void;
+  getMaximizeTab: (sessionId: string) => MaximizeTab | undefined;
 
   // Changes Tab Actions
   setSelectedFile: (filePath: string | null) => void;
@@ -101,6 +117,10 @@ export const useUIStore = create<UIStore>()(
 
       // Tab State
       tabState: null,
+
+      // Maximize Tabs State
+      maximizeTabs: new Map(),
+      maximizeTabsVersion: 0,
 
       // Changes Tab State
       changesTab: {
@@ -222,13 +242,32 @@ export const useUIStore = create<UIStore>()(
 
       // Tab Actions
       setActiveTab: (tabId: string) => {
+        logger.debug('[ui.store] setActiveTab called', {
+          tabId,
+          hasTabState: !!_get().tabState,
+          currentActiveTab: _get().tabState?.activeTabId,
+        });
+
         set((state) => {
           if (state.tabState) {
-            state.tabState.activeTabId = tabId;
-            state.tabState.tabs = state.tabState.tabs.map((tab) => ({
-              ...tab,
-              isActive: tab.id === tabId,
-            }));
+            // CRITICAL: Create a new tabState object to trigger Zustand shallow comparison
+            state.tabState = {
+              ...state.tabState,
+              activeTabId: tabId,
+              tabs: state.tabState.tabs.map((tab) => ({
+                ...tab,
+                isActive: tab.id === tabId,
+              })),
+            };
+            logger.debug('[ui.store] Active tab updated', { newActiveTab: tabId });
+          } else {
+            // Initialize tabState if it doesn't exist
+            logger.debug('[ui.store] Initializing tabState with activeTabId', { tabId });
+            state.tabState = {
+              tabs: [],
+              activeTabId: tabId,
+              maxTabs: MAX_TABS,
+            };
           }
         });
       },
@@ -268,10 +307,103 @@ export const useUIStore = create<UIStore>()(
             };
           }
           state.tabState.tabs = tabs;
-          if (tabs.length > 0 && !state.tabState.activeTabId) {
-            state.tabState.activeTabId = tabs[0].id;
+          // REMOVED: Auto-selection logic - let useSessionTabs.loadActiveTab handle it
+          // This was causing Tools tab to be overwritten by tabs[0] on app startup
+        });
+      },
+
+      // Maximize Tab Actions
+      addMaximizeTab: (
+        sessionId: string,
+        projectId: string,
+        _content: string,
+        metadata?: { sessionName?: string }
+      ) => {
+        // Alert removed - function is being called
+
+        const maximizeTab: MaximizeTab = {
+          id: `maximize-${sessionId}`,
+          agentId: sessionId,
+          agentName: metadata?.sessionName || 'Tools',
+          agentType: 'maximize',
+          sessionId,
+          ...(metadata?.sessionName && { sessionName: metadata.sessionName }),
+          tabType: 'maximize',
+          parentSessionId: sessionId,
+          projectId,
+          isActive: true,
+          persistent: true,
+          lastAccessed: new Date(),
+        };
+
+        logger.debug('[ui.store] Adding maximize tab to state', {
+          sessionId,
+          tabId: maximizeTab.id,
+          currentSize: _get().maximizeTabs.size,
+          persistent: true,
+        });
+
+        // CRITICAL: With immer, we must use a function to mutate the draft state
+        set((draft) => {
+          // Create a completely new Map instance
+          const newMap = new Map(draft.maximizeTabs);
+          newMap.set(sessionId, maximizeTab);
+
+          // Replace the Map with the new instance (this MUST trigger change detection)
+          draft.maximizeTabs = newMap;
+          draft.maximizeTabsVersion = (draft.maximizeTabsVersion || 0) + 1;
+
+          logger.debug('[ui.store] Inside set draft mutation', {
+            mapSize: newMap.size,
+            hasNewTab: newMap.has(sessionId),
+            version: draft.maximizeTabsVersion,
+          });
+        });
+
+        logger.debug('[ui.store] After set complete', {
+          mapSize: _get().maximizeTabs.size,
+          hasNewTab: _get().maximizeTabs.has(sessionId),
+          version: _get().maximizeTabsVersion,
+        });
+
+        logger.info('[ui.store] Maximize tab added', {
+          sessionId,
+          newSize: _get().maximizeTabs.size,
+          allTabs: Array.from(_get().maximizeTabs.keys()),
+          persistent: true,
+        });
+      },
+
+      removeMaximizeTab: (sessionId: string) => {
+        logger.debug('[ui.store] Removing maximize tab', { sessionId });
+        set((state) => {
+          const newMap = new Map(state.maximizeTabs);
+          newMap.delete(sessionId);
+          state.maximizeTabs = newMap;
+        });
+        logger.info('[ui.store] Maximize tab removed', {
+          sessionId,
+          remainingSize: _get().maximizeTabs.size,
+        });
+      },
+
+      updateMaximizeTab: (sessionId: string, updates: Partial<MaximizeTab>) => {
+        logger.debug('[ui.store] Updating maximize tab', { sessionId, updates });
+        set((state) => {
+          const tab = state.maximizeTabs.get(sessionId);
+          if (tab) {
+            const newMap = new Map(state.maximizeTabs);
+            newMap.set(sessionId, { ...tab, ...updates });
+            state.maximizeTabs = newMap;
+            logger.debug('[ui.store] Maximize tab updated successfully', { sessionId });
+          } else {
+            logger.warn('[ui.store] Cannot update non-existent maximize tab', { sessionId });
           }
         });
+      },
+
+      getMaximizeTab: (sessionId: string) => {
+        return _get().maximizeTabs.get(sessionId);
       },
 
       // Changes Tab Actions

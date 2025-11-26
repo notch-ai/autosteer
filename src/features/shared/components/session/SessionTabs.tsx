@@ -1,24 +1,26 @@
-import { Bot, GitBranch, Terminal, X } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { cn } from '@/commons/utils/ui/cn';
 import {
   KeyboardShortcuts,
   useKeyboardShortcut,
 } from '@/commons/utils/keyboard/keyboard_shortcuts';
-import { useSessionTabs } from '@/hooks/useSessionTabs';
-import { useAgentsStore, useChatStore } from '@/stores';
+import { logger } from '@/commons/utils/logger';
+import { cn } from '@/commons/utils/ui/cn';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toastError } from '@/components/ui/sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MAX_TABS } from '@/constants/tabs';
 import { ConfirmDialog } from '@/features/shared/components/ui/ConfirmDialog';
 import { Icon } from '@/features/shared/components/ui/Icon';
-import { MAX_TABS } from '@/constants/tabs';
+import { useSessionTabs } from '@/hooks/useSessionTabs';
+import { useAgentsStore, useChatStore, useSettingsStore } from '@/stores';
+import { Bot, Eye, GitBranch, Terminal, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface SessionTabsProps {
   className?: string;
   onTabSwitch?: (tabId: string) => void;
   onNewSession?: () => void;
+  onTabRenamed?: () => void;
   maxTabs?: number;
 }
 
@@ -26,12 +28,16 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
   className,
   onTabSwitch,
   onNewSession,
+  onTabRenamed,
   maxTabs = MAX_TABS,
 }) => {
   const { tabs, activeTab, switchToTab, createNewTab, deleteAgent, isTabsEnabled } =
     useSessionTabs();
   const updateAgent = useAgentsStore((state) => state.updateAgent);
   const streamingStates = useChatStore((state) => state.streamingStates);
+  const confirmSessionTabDeletion = useSettingsStore(
+    (state) => state.preferences.confirmSessionTabDeletion ?? true
+  );
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
@@ -52,7 +58,7 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
       switchToTab(tabId);
       onTabSwitch?.(tabId);
     },
-    [switchToTab, onTabSwitch]
+    [switchToTab, onTabSwitch, tabs]
   );
 
   const handleNewSession = useCallback(() => {
@@ -62,51 +68,73 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
     }
   }, [tabs.length, maxTabs, createNewTab, onNewSession]);
 
+  const performTabDeletion = useCallback(
+    async (tabId: string) => {
+      try {
+        const tab = tabs.find((t) => t.id === tabId);
+        const agentTabs = tabs.filter((t) => t.tabType !== 'terminal' && t.tabType !== 'changes');
+        const isLastAgentTab = agentTabs.length === 1;
+
+        if (activeTab?.id === tabId && tabs.length > 1) {
+          const currentIndex = tabs.findIndex((t) => t.id === tabId);
+          const nextTab = tabs[currentIndex + 1] || tabs[0];
+
+          if (nextTab?.id !== tabId) {
+            await switchToTab(nextTab.id);
+          }
+        }
+
+        // System tabs (terminal, changes, tools) cannot be deleted - handled by UI prevention
+        // Only delete agent tabs
+        if (tab?.tabType === 'agent') {
+          await deleteAgent(tabId);
+        }
+
+        if (isLastAgentTab) {
+          await createNewTab();
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to delete session';
+        toastError(errorMessage);
+      }
+    },
+    [tabs, activeTab, switchToTab, deleteAgent, createNewTab]
+  );
+
   const handleCloseTab = useCallback(
-    (e: React.MouseEvent, tabId: string) => {
+    async (e: React.MouseEvent, tabId: string) => {
       e.stopPropagation();
       const tab = tabs.find((t) => t.id === tabId);
-      if (tab) {
+      if (!tab) return;
+
+      // Prevent closing persistent tabs (terminal, changes, tools)
+      if (tab.tabType === 'terminal' || tab.tabType === 'changes' || tab.tabType === 'tools') {
+        logger.debug('[SessionTabs] Cannot close persistent tab', {
+          tabId,
+          tabType: tab.tabType,
+        });
+        return;
+      }
+
+      if (confirmSessionTabDeletion) {
         setDeleteConfirm({
           isOpen: true,
           tabId,
           agentName: tab.agentName,
         });
+      } else {
+        await performTabDeletion(tabId);
       }
     },
-    [tabs]
+    [tabs, confirmSessionTabDeletion, performTabDeletion]
   );
 
   const confirmDelete = useCallback(async () => {
     if (deleteConfirm.tabId) {
-      try {
-        // Count agent tabs (exclude terminal and changes tabs)
-        const agentTabs = tabs.filter((t) => t.tabType !== 'terminal' && t.tabType !== 'changes');
-        const isLastAgentTab = agentTabs.length === 1;
-
-        // If this is the active tab and there are other tabs, switch to another tab first
-        if (activeTab?.id === deleteConfirm.tabId && tabs.length > 1) {
-          const nextTab = tabs.find((t) => t.id !== deleteConfirm.tabId);
-          if (nextTab) {
-            await switchToTab(nextTab.id);
-          }
-        }
-
-        // Delete the agent (this will remove it from the core store)
-        await deleteAgent(deleteConfirm.tabId);
-
-        // If this was the last agent tab, create a new session
-        if (isLastAgentTab) {
-          await createNewTab();
-        }
-
-        setDeleteConfirm({ isOpen: false, tabId: null, agentName: null });
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to delete session';
-        toastError(errorMessage);
-      }
+      await performTabDeletion(deleteConfirm.tabId);
+      setDeleteConfirm({ isOpen: false, tabId: null, agentName: null });
     }
-  }, [deleteConfirm.tabId, deleteAgent, activeTab, tabs, switchToTab, createNewTab]);
+  }, [deleteConfirm.tabId, performTabDeletion]);
 
   const cancelDelete = useCallback(() => {
     setDeleteConfirm({ isOpen: false, tabId: null, agentName: null });
@@ -151,12 +179,15 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
           await updateAgent(tabId, { title: trimmedName });
         }
         handleCancelEdit();
+
+        // Focus chat input after rename (like creating a new tab)
+        onTabRenamed?.();
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to rename tab';
         toastError(errorMessage);
       }
     },
-    [editingTabName, tabs, updateAgent, handleCancelEdit]
+    [editingTabName, tabs, updateAgent, handleCancelEdit, onTabRenamed]
   );
 
   const handleKeyDown = useCallback(
@@ -233,20 +264,25 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
 
   useKeyboardShortcut(
     [KeyboardShortcuts.CLOSE_TAB, KeyboardShortcuts.CLOSE_TAB_ALT],
-    () => {
+    useCallback(() => {
       if (
         activeTab &&
         tabs.length > 1 &&
         activeTab.tabType !== 'terminal' &&
-        activeTab.tabType !== 'changes'
+        activeTab.tabType !== 'changes' &&
+        activeTab.tabType !== 'tools'
       ) {
-        setDeleteConfirm({
-          isOpen: true,
-          tabId: activeTab.id,
-          agentName: activeTab.agentName,
-        });
+        if (confirmSessionTabDeletion) {
+          setDeleteConfirm({
+            isOpen: true,
+            tabId: activeTab.id,
+            agentName: activeTab.agentName,
+          });
+        } else {
+          void performTabDeletion(activeTab.id);
+        }
       }
-    },
+    }, [activeTab, tabs.length, confirmSessionTabDeletion, performTabDeletion]),
     { enabled: isTabsEnabled && tabs.length > 1 }
   );
 
@@ -257,6 +293,7 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
         activeTab &&
         activeTab.tabType !== 'terminal' &&
         activeTab.tabType !== 'changes' &&
+        activeTab.tabType !== 'tools' &&
         !editingTabId
       ) {
         setEditingTabId(activeTab.id);
@@ -314,29 +351,49 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
     return null;
   }
 
+  const radixTabsValue = activeTab?.id || '';
+
   return (
     <div className={cn('pt-0', className)}>
       <div className="flex items-center gap-1.5 border-b border-border px-2 pb-1">
-        <Tabs value={activeTab?.id || ''} onValueChange={handleTabSwitch}>
+        <Tabs value={radixTabsValue} onValueChange={handleTabSwitch}>
           <TabsList className="inline-flex justify-start">
             {tabs.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="relative group h-6 text-sm px-2.5 py-1"
+                className="relative group h-8 text-sm px-3 py-3"
                 title={tab.agentName}
               >
                 {editingTabId === tab.id && tab.tabType !== 'terminal' ? (
                   <div
-                    className="flex items-center gap-2 pr-3"
+                    className="flex items-center gap-2 pr-6"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {tab.tabType === 'changes' ? (
-                      <GitBranch className="h-3 w-3 opacity-60" />
+                      <GitBranch
+                        style={{
+                          width: 'var(--font-size-base)',
+                          height: 'var(--font-size-base)',
+                        }}
+                        className="opacity-60"
+                      />
+                    ) : tab.tabType === 'tools' ? (
+                      <Eye
+                        style={{
+                          width: 'var(--font-size-base)',
+                          height: 'var(--font-size-base)',
+                        }}
+                        className="opacity-60"
+                      />
                     ) : (
                       <Bot
+                        style={{
+                          width: 'var(--font-size-base)',
+                          height: 'var(--font-size-base)',
+                        }}
                         className={cn(
-                          'h-3 w-3 opacity-60',
+                          'opacity-60',
                           streamingStates.get(tab.id) && 'session-active-blink'
                         )}
                       />
@@ -354,23 +411,52 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
                 ) : (
                   <span
                     className={cn(
-                      'flex items-center gap-2 pr-3',
-                      tab.tabType !== 'terminal' && 'cursor-text'
+                      'flex items-center gap-2 pr-6',
+                      tab.tabType !== 'terminal' &&
+                        tab.tabType !== 'changes' &&
+                        tab.tabType !== 'tools' &&
+                        'cursor-text'
                     )}
                     onDoubleClick={
-                      tab.tabType !== 'terminal'
+                      tab.tabType !== 'terminal' &&
+                      tab.tabType !== 'changes' &&
+                      tab.tabType !== 'tools'
                         ? (e) => handleStartEdit(e, tab.id, tab.agentName)
                         : undefined
                     }
                   >
                     {tab.tabType === 'terminal' ? (
-                      <Terminal className="h-3 w-3 opacity-60" />
+                      <Terminal
+                        style={{
+                          width: 'var(--font-size-base)',
+                          height: 'var(--font-size-base)',
+                        }}
+                        className="opacity-60"
+                      />
                     ) : tab.tabType === 'changes' ? (
-                      <GitBranch className="h-3 w-3 opacity-60" />
+                      <GitBranch
+                        style={{
+                          width: 'var(--font-size-base)',
+                          height: 'var(--font-size-base)',
+                        }}
+                        className="opacity-60"
+                      />
+                    ) : tab.tabType === 'tools' ? (
+                      <Eye
+                        style={{
+                          width: 'var(--font-size-base)',
+                          height: 'var(--font-size-base)',
+                        }}
+                        className="opacity-60"
+                      />
                     ) : (
                       <Bot
+                        style={{
+                          width: 'var(--font-size-base)',
+                          height: 'var(--font-size-base)',
+                        }}
                         className={cn(
-                          'h-3 w-3 opacity-60',
+                          'opacity-60',
                           streamingStates.get(tab.id) && 'session-active-blink'
                         )}
                       />
@@ -378,23 +464,30 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
                     <span className="truncate">{truncateName(tab.agentName, 15)}</span>
                   </span>
                 )}
-                {tab.tabType !== 'terminal' && tab.tabType !== 'changes' && (
-                  <span
-                    onClick={(e) => handleCloseTab(e, tab.id)}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-text-muted hover:text-text hover:bg-surface-hover opacity-0 group-hover:opacity-100 group-data-[state=active]:opacity-100 cursor-pointer"
-                    aria-label={`Close ${tab.agentName} tab`}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleCloseTab(e as any, tab.id);
-                      }
-                    }}
-                  >
-                    <X className="h-3 w-3" />
-                  </span>
-                )}
+                {tab.tabType !== 'terminal' &&
+                  tab.tabType !== 'changes' &&
+                  tab.tabType !== 'tools' && (
+                    <span
+                      onClick={(e) => handleCloseTab(e, tab.id)}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-card-hover opacity-0 group-hover:opacity-100 group-data-[state=active]:opacity-100 cursor-pointer"
+                      aria-label={`Close ${tab.agentName} tab`}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleCloseTab(e as any, tab.id);
+                        }
+                      }}
+                    >
+                      <X
+                        style={{
+                          width: 'var(--font-size-sm)',
+                          height: 'var(--font-size-sm)',
+                        }}
+                      />
+                    </span>
+                  )}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -410,7 +503,7 @@ export const SessionTabs: React.FC<SessionTabsProps> = ({
           <Button
             variant="outline"
             size="icon-sm"
-            className="mx-4 bg-button-special shadow-xs"
+            className="mx-4 bg-background shadow-xs"
             onClick={handleNewSession}
             title="New session (Cmd+T)"
             aria-label="Create new session"

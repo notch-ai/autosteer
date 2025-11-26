@@ -62,6 +62,12 @@ export const KeyboardShortcuts = {
   // Chat focus shortcuts
   FOCUS_CHAT_INPUT: 'cmd+alt+enter',
   FOCUS_CHAT_INPUT_ALT: 'ctrl+alt+enter',
+
+  // Scrolling shortcuts
+  SCROLL_TO_TOP: 'home',
+  SCROLL_TO_BOTTOM: 'end',
+  SCROLL_PAGE_UP: 'pageup',
+  SCROLL_PAGE_DOWN: 'pagedown',
 } as const;
 
 /**
@@ -122,29 +128,9 @@ export function useKeyboardShortcut(
 
     const handleKeyDown = (event: KeyboardEvent) => {
       // Debug: Log all keydown events for FOCUS_CHAT_INPUT shortcuts
-      const isFocusShortcut = shortcuts.some(
-        (s) => s === 'cmd+alt+enter' || s === 'ctrl+alt+enter'
-      );
-      if (isFocusShortcut) {
-        console.log('[useKeyboardShortcut] Keydown event:', {
-          key: event.key,
-          code: event.code,
-          metaKey: event.metaKey,
-          ctrlKey: event.ctrlKey,
-          altKey: event.altKey,
-          shiftKey: event.shiftKey,
-          target: event.target,
-          shortcuts,
-        });
-      }
-
       for (const s of shortcuts) {
         const matches = matchesShortcut(event, s);
-        if (isFocusShortcut) {
-          console.log('[useKeyboardShortcut] Checking shortcut:', s, 'matches:', matches);
-        }
         if (matches) {
-          console.log('[useKeyboardShortcut] Shortcut matched! Calling callback');
           if (preventDefault) event.preventDefault();
           if (stopPropagation) event.stopPropagation();
           callback(event);
@@ -152,13 +138,10 @@ export function useKeyboardShortcut(
         }
       }
     };
-
-    console.log('[useKeyboardShortcut] Attaching listener for shortcuts:', shortcuts);
     // Use capture phase (true) to catch events BEFORE they reach target elements
     // This prevents CodeMirror/inputs from stopping propagation
     document.addEventListener('keydown', handleKeyDown, true);
     return () => {
-      console.log('[useKeyboardShortcut] Removing listener for shortcuts:', shortcuts);
       document.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [enabled, shortcut, callback, preventDefault, stopPropagation]);

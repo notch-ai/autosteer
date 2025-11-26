@@ -30,10 +30,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
           disabled={disabled}
           className={cn(
-            'text-sm font-medium text-text-muted hover:text-text h-9 w-[88px]',
+            'text-sm font-medium text-muted-foreground hover:text-foreground h-9 w-[88px]',
             className
           )}
           title={`Model: ${currentModel.label}`}
@@ -49,9 +48,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               <Button
                 key={option.value}
                 variant="ghost"
-                size="sm"
                 onClick={() => handleModelChange(option.value)}
-                className={cn('w-full justify-start', isActive && 'bg-surface-active text-primary')}
+                className={cn('w-full justify-start', isActive && 'bg-card-active text-primary')}
               >
                 {option.label}
               </Button>

@@ -1,0 +1,494 @@
+/**
+ * useSessionTabs Hook Tests - Auto-Select Configuration
+ * Work Package 3: Auto-Select Configuration
+ *
+ * Tests cover auto-select behavior:
+ * 1. Auto-select first tab when enabled and no activeTabId
+ * 2. Respect user's manual tab selection
+ * 3. Fall back to first tab when activeTabId not found
+ * 4. Disable auto-select when setting is off
+ * 5. Persist autoSelectFirstTab setting
+ *
+ * @see autosteer/src/hooks/useSessionTabs.ts
+ */
+
+import { renderHook, act } from '@testing-library/react';
+import { useSessionTabs } from '@/hooks/useSessionTabs';
+import { useAgentsStore } from '@/stores/agents.store';
+import { useProjectsStore } from '@/stores/projects.store';
+import { useUIStore } from '@/stores/ui';
+import { useSettingsStore } from '@/stores/settings';
+import { createTestAgents } from '@/tests/factories';
+import { setupMockElectron, cleanupMockElectron } from '@/tests/setup/test-utils';
+import { logger } from '@/commons/utils/logger';
+import { Agent } from '@/entities';
+import { Project } from '@/types/project.types';
+
+// Mock logger
+jest.mock('@/commons/utils/logger', () => ({
+  logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+// Helper function to add agents to store
+const addAgentsToStore = (agents: Agent[]) => {
+  act(() => {
+    const agentsMap = new Map(agents.map((agent) => [agent.id, agent]));
+    useAgentsStore.setState({ agents: agentsMap });
+  });
+};
+
+// Helper function to create a test project
+const createTestProject = (id: string, name: string): [string, Project] => {
+  const project: Project = {
+    id,
+    name,
+    localPath: `/test/${id}`,
+    folderName: id,
+    githubRepo: 'test-repo',
+    branchName: 'main',
+    isActive: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  return [id, project];
+};
+
+// Mock window.electron with getActiveTab support
+const mockElectronAPI = {
+  worktree: {
+    setActiveTab: jest.fn().mockResolvedValue({ success: true }),
+    getActiveTab: jest.fn().mockResolvedValue(null),
+    getVimMode: jest.fn().mockResolvedValue(false),
+    setVimMode: jest.fn().mockResolvedValue({ success: true }),
+    getDataDirectory: jest.fn().mockResolvedValue('~/.autosteer'),
+  },
+  ipcRenderer: {
+    invoke: jest.fn(),
+    on: jest.fn(),
+    once: jest.fn(),
+    removeListener: jest.fn(),
+  },
+};
+
+describe('useSessionTabs - Auto-Select Configuration', () => {
+  beforeEach(() => {
+    // Reset all stores using setState
+    act(() => {
+      useAgentsStore.setState({
+        agents: new Map(),
+        selectedAgentId: null,
+        agentsLoading: false,
+        agentsError: null,
+      });
+
+      useProjectsStore.setState({
+        projects: new Map(),
+        selectedProjectId: null,
+        projectsLoading: false,
+        projectsError: null,
+      });
+
+      useUIStore.setState({
+        sidebarCollapsed: false,
+        detailPanelCollapsed: false,
+        activeView: 'list',
+        leftPanelWidth: 300,
+        rightPanelWidth: 400,
+        activePanel: 'chat',
+        showProjectCreation: false,
+        searchQuery: '',
+        searchResults: [],
+        isSearching: false,
+        tabState: null,
+        maximizeTabs: new Map(),
+        maximizeTabsVersion: 0,
+      });
+
+      useSettingsStore.setState({
+        preferences: {
+          theme: 'system',
+          fontSize: 'medium',
+          fontFamily: 'monospace',
+          autoSave: true,
+          compactOnTokenLimit: true,
+          maxTokens: 4000,
+          badgeNotifications: true,
+          autoSelectFirstTab: true,
+        },
+        isInitialized: true,
+        initializationError: null,
+      });
+    });
+
+    // Clear all mocks
+    jest.clearAllMocks();
+
+    // Setup mock Electron API
+    setupMockElectron(mockElectronAPI);
+  });
+
+  afterEach(() => {
+    cleanupMockElectron();
+  });
+
+  describe('Auto-Select: Enabled by Default', () => {
+    it('should auto-select first tab when enabled and no activeTabId', async () => {
+      const projectId = 'test-project-1';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([createTestProject(projectId, 'Test Project')]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create agents
+      const agents = createTestAgents(3, { projectId });
+
+      addAgentsToStore(agents);
+
+      // Mock getActiveTab to return null (no stored activeTabId)
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for useEffect to complete
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should auto-select first agent tab
+      const agentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(agentTabs.length).toBe(3);
+      expect(result.current.activeTab?.id).toBe(agents[0].id);
+
+      // Should log auto-selection
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Auto-selected first agent tab'),
+        expect.objectContaining({
+          projectId,
+          tabId: agents[0].id,
+        })
+      );
+
+      // Should persist the auto-selected tab
+      expect(mockElectronAPI.worktree.setActiveTab).toHaveBeenCalledWith(projectId, agents[0].id);
+    });
+
+    it('should not auto-select when setting is disabled', async () => {
+      const projectId = 'test-project-2';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([createTestProject(projectId, 'Test Project 2')]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Disable auto-select
+      act(() => {
+        useSettingsStore.setState({
+          preferences: {
+            theme: 'system',
+            fontSize: 'medium',
+            fontFamily: 'monospace',
+            autoSave: true,
+            compactOnTokenLimit: true,
+            maxTokens: 4000,
+            badgeNotifications: true,
+            autoSelectFirstTab: false,
+          },
+        });
+      });
+
+      // Create agents
+      const agents = createTestAgents(3, { projectId });
+
+      addAgentsToStore(agents);
+
+      // Mock getActiveTab to return null
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for useEffect to complete
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should NOT auto-select any tab
+      expect(result.current.activeTab).toBeNull();
+
+      // Should log that auto-select is disabled
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Auto-select disabled'),
+        expect.objectContaining({
+          projectId,
+        })
+      );
+
+      // Should NOT persist any tab
+      expect(mockElectronAPI.worktree.setActiveTab).not.toHaveBeenCalled();
+    });
+
+    it('should respect user manual tab selection over auto-select', async () => {
+      const projectId = 'test-project-3';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([createTestProject(projectId, 'Test Project 3')]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create agents
+      const agents = createTestAgents(3, { projectId });
+
+      addAgentsToStore(agents);
+
+      // Mock getActiveTab to return stored tab (user already selected)
+      const userSelectedTabId = agents[2].id;
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(userSelectedTabId);
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for useEffect to complete
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should restore user's manual selection
+      expect(result.current.activeTab?.id).toBe(userSelectedTabId);
+
+      // Should log restoration
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Restoring active tab from config'),
+        expect.objectContaining({
+          projectId,
+          tabId: userSelectedTabId,
+        })
+      );
+    });
+  });
+
+  describe('Auto-Select: Fallback Behavior', () => {
+    it('should fall back to first tab when activeTabId not found', async () => {
+      const projectId = 'test-project-4';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([createTestProject(projectId, 'Test Project 4')]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Create agents
+      const agents = createTestAgents(3, { projectId });
+
+      addAgentsToStore(agents);
+
+      // Mock getActiveTab to return a deleted/missing tab ID
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue('deleted-tab-id');
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for useEffect to complete
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should fall back to first available tab
+      const agentTabs = result.current.tabs.filter((tab) => tab.tabType === 'agent');
+      expect(result.current.activeTab?.id).toBe(agentTabs[0].id);
+
+      // Should log fallback warning
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Stored activeTabId not found in current tabs'),
+        expect.objectContaining({
+          projectId,
+          storedActiveTabId: 'deleted-tab-id',
+          autoSelectFirstTab: true,
+        })
+      );
+
+      // Should persist the fallback tab
+      expect(mockElectronAPI.worktree.setActiveTab).toHaveBeenCalledWith(
+        projectId,
+        agentTabs[0].id
+      );
+    });
+
+    it('should not fall back when auto-select is disabled', async () => {
+      const projectId = 'test-project-5';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([createTestProject(projectId, 'Test Project 5')]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Disable auto-select
+      act(() => {
+        useSettingsStore.setState({
+          preferences: {
+            theme: 'system',
+            fontSize: 'medium',
+            fontFamily: 'monospace',
+            autoSave: true,
+            compactOnTokenLimit: true,
+            maxTokens: 4000,
+            badgeNotifications: true,
+            autoSelectFirstTab: false,
+          },
+        });
+      });
+
+      // Create agents
+      const agents = createTestAgents(3, { projectId });
+
+      addAgentsToStore(agents);
+
+      // Mock getActiveTab to return a deleted/missing tab ID
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue('deleted-tab-id');
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for useEffect to complete
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should NOT fall back - no tab selected
+      expect(result.current.activeTab).toBeNull();
+
+      // Should log that auto-select is disabled
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Auto-select disabled'),
+        expect.objectContaining({
+          projectId,
+        })
+      );
+
+      // Should NOT persist any tab
+      expect(mockElectronAPI.worktree.setActiveTab).not.toHaveBeenCalled();
+    });
+
+    it('should prefer system tabs in fallback if no agent tabs available', async () => {
+      const projectId = 'test-project-6';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([createTestProject(projectId, 'Test Project 6')]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // No agents - only system tabs (terminal, changes)
+      // Mock getActiveTab to return null
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for useEffect to complete
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should not auto-select (no agent tabs, system tabs not auto-selected)
+      expect(result.current.activeTab).toBeNull();
+    });
+  });
+
+  describe('Auto-Select: Settings Persistence', () => {
+    it('should use default value true when setting is not defined', async () => {
+      const projectId = 'test-project-7';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([createTestProject(projectId, 'Test Project 7')]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Set preferences without autoSelectFirstTab (should default to true via hook)
+      // The hook uses: autoSelectFirstTab ?? true
+
+      // Create agents
+      const agents = createTestAgents(2, { projectId });
+
+      addAgentsToStore(agents);
+
+      // Mock getActiveTab to return null
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for useEffect to complete
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should auto-select (default behavior)
+      expect(result.current.activeTab?.id).toBe(agents[0].id);
+    });
+
+    it('should respect explicit false setting', async () => {
+      const projectId = 'test-project-8';
+
+      // Setup project
+      act(() => {
+        useProjectsStore.setState({
+          projects: new Map([createTestProject(projectId, 'Test Project 8')]),
+          selectedProjectId: projectId,
+        });
+      });
+
+      // Explicitly set to false
+      act(() => {
+        useSettingsStore.setState({
+          preferences: {
+            theme: 'system',
+            fontSize: 'medium',
+            fontFamily: 'monospace',
+            autoSave: true,
+            compactOnTokenLimit: true,
+            maxTokens: 4000,
+            badgeNotifications: true,
+            autoSelectFirstTab: false,
+          },
+        });
+      });
+
+      // Create agents
+      const agents = createTestAgents(2, { projectId });
+
+      addAgentsToStore(agents);
+
+      // Mock getActiveTab to return null
+      mockElectronAPI.worktree.getActiveTab.mockResolvedValue(null);
+
+      const { result } = renderHook(() => useSessionTabs());
+
+      // Wait for useEffect to complete
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should NOT auto-select
+      expect(result.current.activeTab).toBeNull();
+    });
+  });
+});

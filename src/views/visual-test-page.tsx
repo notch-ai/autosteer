@@ -45,7 +45,7 @@ export const VisualTestPage: React.FC = () => {
   }, [theme]);
 
   return (
-    <div className="min-h-screen bg-background text-text p-8">
+    <div className="min-h-screen bg-background text-foreground p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8 flex justify-between items-center">
           <h1 className="text-3xl font-bold">Visual Regression Test Page</h1>
@@ -62,45 +62,45 @@ export const VisualTestPage: React.FC = () => {
           <h2 className="text-2xl font-semibold mb-6">Button Component</h2>
 
           <div className="grid grid-cols-2 gap-8">
-            <div className="bg-surface p-6 rounded-lg">
+            <div className="bg-card p-6 rounded-lg">
               <h3 className="text-lg font-medium mb-4 text-primary">Before (Old CSS)</h3>
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Primary</p>
+                  <p className="text-sm text-muted-foreground mb-2">Primary</p>
                   <OldButton variant="primary">Click me</OldButton>
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Secondary</p>
+                  <p className="text-sm text-muted-foreground mb-2">Secondary</p>
                   <OldButton variant="secondary">Secondary</OldButton>
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Danger</p>
+                  <p className="text-sm text-muted-foreground mb-2">Danger</p>
                   <OldButton variant="danger">Delete</OldButton>
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Disabled</p>
+                  <p className="text-sm text-muted-foreground mb-2">Disabled</p>
                   <OldButton disabled>Disabled</OldButton>
                 </div>
               </div>
             </div>
 
-            <div className="bg-surface p-6 rounded-lg">
+            <div className="bg-card p-6 rounded-lg">
               <h3 className="text-lg font-medium mb-4 text-primary">After (Tailwind)</h3>
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Primary</p>
+                  <p className="text-sm text-muted-foreground mb-2">Primary</p>
                   <Button variant="primary">Click me</Button>
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Secondary</p>
+                  <p className="text-sm text-muted-foreground mb-2">Secondary</p>
                   <Button variant="secondary">Secondary</Button>
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Danger</p>
+                  <p className="text-sm text-muted-foreground mb-2">Danger</p>
                   <Button variant="danger">Delete</Button>
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Disabled</p>
+                  <p className="text-sm text-muted-foreground mb-2">Disabled</p>
                   <Button disabled>Disabled</Button>
                 </div>
               </div>
@@ -113,29 +113,29 @@ export const VisualTestPage: React.FC = () => {
           <h2 className="text-2xl font-semibold mb-6">Input Component</h2>
 
           <div className="grid grid-cols-2 gap-8">
-            <div className="bg-surface p-6 rounded-lg">
+            <div className="bg-card p-6 rounded-lg">
               <h3 className="text-lg font-medium mb-4 text-primary">Before (Old CSS)</h3>
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Text Input</p>
+                  <p className="text-sm text-muted-foreground mb-2">Text Input</p>
                   <OldInput type="text" placeholder="Enter text..." />
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Disabled</p>
+                  <p className="text-sm text-muted-foreground mb-2">Disabled</p>
                   <OldInput type="text" placeholder="Disabled" disabled />
                 </div>
               </div>
             </div>
 
-            <div className="bg-surface p-6 rounded-lg">
+            <div className="bg-card p-6 rounded-lg">
               <h3 className="text-lg font-medium mb-4 text-primary">After (Tailwind)</h3>
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Text Input</p>
+                  <p className="text-sm text-muted-foreground mb-2">Text Input</p>
                   <Input type="text" placeholder="Enter text..." />
                 </div>
                 <div>
-                  <p className="text-sm text-text-muted mb-2">Disabled</p>
+                  <p className="text-sm text-muted-foreground mb-2">Disabled</p>
                   <Input type="text" placeholder="Disabled" disabled />
                 </div>
               </div>
@@ -147,7 +147,7 @@ export const VisualTestPage: React.FC = () => {
         <section className="mb-12">
           <h2 className="text-2xl font-semibold mb-6">All Component Variations</h2>
 
-          <div className="bg-surface p-6 rounded-lg">
+          <div className="bg-card p-6 rounded-lg">
             <h3 className="text-lg font-medium mb-4 text-primary">Button Sizes</h3>
             <div className="space-x-4">
               <Button size="sm">Small</Button>
@@ -166,7 +166,7 @@ export const VisualTestPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-surface p-6 rounded-lg mt-4">
+          <div className="bg-card p-6 rounded-lg mt-4">
             <h3 className="text-lg font-medium mb-4 text-primary">Input Variations</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-4">
@@ -187,7 +187,7 @@ export const VisualTestPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-surface p-6 rounded-lg mt-4">
+          <div className="bg-card p-6 rounded-lg mt-4">
             <h3 className="text-lg font-medium mb-4 text-primary">Textarea & Select</h3>
             <div className="grid grid-cols-2 gap-4">
               <Textarea placeholder="Enter message..." rows={3} />

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/notch-ai/autosteer/compare/v0.1.22...v0.1.23) (2025-11-26)
+
+
+### Features
+
+* IDE integration, permission modes, performance optimizations, and bug fixes ([549fb00](https://github.com/notch-ai/autosteer/commit/549fb00dbdc30a6b1c0ace2c92e97b3767fdddf3))
+
 ## [0.1.22](https://github.com/notch-ai/autosteer/compare/v0.1.21...v0.1.22) (2025-11-12)
 
 

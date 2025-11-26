@@ -178,8 +178,7 @@ export const useSlashCommandLogic = (query: string) => {
     loadSlashCommands(projectPath).catch((error) => {
       logger.error('[useSlashCommandLogic] Failed to load slash commands:', error);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId]);
+  }, [selectedProjectId, loadSlashCommands]);
 
   // Convert custom commands from store
   const customCommands = useMemo(() => {

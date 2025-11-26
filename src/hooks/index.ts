@@ -59,6 +59,7 @@ export * from './useChatScroll';
 export * from './useTerminalScrollPreservation';
 export * from './useChangesTabScrollPreservation';
 export * from './useVirtualScrollState';
+export * from './useGlobalScrollShortcuts';
 
 // Content State Hooks
 export * from './useMainContentState';

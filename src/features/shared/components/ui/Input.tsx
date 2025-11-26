@@ -10,21 +10,21 @@ const inputVariants = cva(
     'w-full',
     'px-3 py-2',
     'border border-border rounded',
-    'text-text',
+    'text-foreground',
     'transition-all duration-fast',
     'outline-none',
     // Focus styles - removed border color changes
     'focus:outline-none',
     // Disabled styles
-    'disabled:cursor-default disabled:text-text-muted',
+    'disabled:cursor-default disabled:text-muted-foreground',
     // Placeholder
-    'placeholder:text-text-muted',
+    'placeholder:text-muted-foreground',
   ],
   {
     variants: {
       variant: {
         default: '',
-        filled: 'bg-surface-hover',
+        filled: 'bg-card-hover',
         ghost: 'bg-transparent border-transparent hover:border-border',
       },
       size: {
@@ -39,7 +39,7 @@ const inputVariants = cva(
       },
       hasValue: {
         true: 'bg-background',
-        false: 'bg-surface',
+        false: 'bg-card',
       },
     },
     defaultVariants: {
@@ -202,7 +202,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         className={cn(
           inputVariants({ variant, size, state, hasValue }),
           resizeClasses[resize],
-          (disabled || readOnly) && 'bg-surface',
+          (disabled || readOnly) && 'bg-card',
           className
         )}
         {...props}
@@ -230,14 +230,14 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           className={cn(
             inputVariants({ variant, size, state, hasValue }),
             'appearance-none pr-10',
-            disabled && 'bg-surface',
+            disabled && 'bg-card',
             className
           )}
           {...props}
         >
           {children}
         </select>
-        <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted">
+        <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>

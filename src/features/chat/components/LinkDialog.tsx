@@ -175,8 +175,8 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
           </div>
 
           {url && !urlError && (
-            <div className="p-3 bg-surface rounded border">
-              <span className="text-sm text-text-muted">Preview:</span>
+            <div className="p-3 bg-card rounded border">
+              <span className="text-sm text-muted-foreground">Preview:</span>
               <a
                 href={url.match(/^https?:\/\//i) ? url : `https://${url}`}
                 target="_blank"
@@ -198,9 +198,9 @@ export const LinkDialog: React.FC<LinkDialogProps> = ({
           </DialogFooter>
         </form>
 
-        <div className="text-sm text-text-muted text-center">
-          <kbd className="px-1 py-0.5 bg-surface rounded text-sm">Ctrl</kbd>+
-          <kbd className="px-1 py-0.5 bg-surface rounded text-sm">Enter</kbd> to insert
+        <div className="text-sm text-muted-foreground text-center">
+          <kbd className="px-1 py-0.5 bg-card rounded text-sm">Ctrl</kbd>+
+          <kbd className="px-1 py-0.5 bg-card rounded text-sm">Enter</kbd> to insert
         </div>
       </DialogContent>
     </Dialog>

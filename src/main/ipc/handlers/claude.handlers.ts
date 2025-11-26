@@ -1,3 +1,5 @@
+import { isSyntheticMessage } from '@/commons/utils/message-filters';
+import { extractToolCalls } from '@/commons/utils/message-transformers';
 import { isValidationEnabled } from '@/config/validation.config';
 import { CHANGES_TAB_ID, MAX_TABS, TERMINAL_TAB_ID } from '@/constants/tabs';
 import { Agent, AgentStatus, AgentType } from '@/entities';
@@ -26,6 +28,7 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'claude-3-5-haiku-20241022': { input: 1.0, output: 5.0 },
   'claude-opus-4-20250514': { input: 15.0, output: 75.0 },
   'claude-opus-4-1-20250805': { input: 15.0, output: 75.0 },
+  'claude-opus-4-5-20251101': { input: 5.0, output: 25.0 },
   'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
   'claude-sonnet-4-5-20250929': { input: 3.0, output: 15.0 },
   'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
@@ -501,15 +504,6 @@ export class ClaudeHandlers {
               continue;
             }
 
-            if (
-              data.message?.content &&
-              typeof data.message.content === 'string' &&
-              (data.message.content.includes('<command-name>/compact</command-name>') ||
-                data.message.content.includes('<local-command-stdout>Compacted '))
-            ) {
-              continue;
-            }
-
             if (data.type === 'system' && data.subtype === 'compact_boundary') {
               const metadata = data.compactMetadata || data.compact_metadata;
               if (metadata) {
@@ -536,6 +530,17 @@ export class ClaudeHandlers {
               data.role === 'user' ||
               data.role === 'assistant'
             ) {
+              // Filter synthetic skill invocation messages
+              // Uses centralized filtering utility with defense-in-depth approach
+              if (isSyntheticMessage(data)) {
+                log.debug(`[ClaudeHandlers] Filtering synthetic message: ${data.uuid || data.id}`, {
+                  sourceToolUseId: data.sourceToolUseId,
+                  isSynthetic: data.isSynthetic,
+                  parentUuid: data.parentUuid,
+                });
+                continue;
+              }
+
               let content = '';
               let role: 'user' | 'assistant' = 'user';
 
@@ -551,65 +556,71 @@ export class ClaudeHandlers {
                 if (typeof data.content === 'string') {
                   content = data.content;
                 } else if (Array.isArray(data.content)) {
+                  // Use shared utility for text extraction
                   const textParts: string[] = [];
                   data.content.forEach((item: any) => {
                     if (typeof item === 'string') {
                       textParts.push(item);
                     } else if (item.type === 'text' && item.text) {
                       textParts.push(item.text);
-                    } else if (item.type === 'tool_use') {
-                      toolCalls.push({
-                        type: 'tool_use',
-                        id: item.id,
-                        name: item.name,
-                        input: item.input,
-                        parent_tool_use_id: data.parent_tool_use_id || null,
-                      });
-
-                      if ((item.name === 'Edit' || item.name === 'Write') && item.input) {
-                        pendingPermissions.set(item.id, {
-                          tool_name: item.name,
-                          file_path: item.input.file_path || '',
-                          old_string: item.input.old_string,
-                          new_string: item.input.new_string,
-                          content: item.input.content,
-                        });
-                      }
                     }
                   });
                   content = textParts.join('\n');
+
+                  // Use shared utility for tool extraction with JSONL-specific additions
+                  const extractedTools = extractToolCalls(data.content);
+                  extractedTools.forEach((tool) => {
+                    toolCalls.push({
+                      ...tool,
+                      parent_tool_use_id: data.parent_tool_use_id || null,
+                    });
+
+                    // JSONL-specific: Track permissions for Edit/Write tools
+                    if ((tool.name === 'Edit' || tool.name === 'Write') && tool.input) {
+                      pendingPermissions.set(tool.id, {
+                        tool_name: tool.name,
+                        file_path: tool.input.file_path || '',
+                        old_string: tool.input.old_string,
+                        new_string: tool.input.new_string,
+                        content: tool.input.content,
+                      });
+                    }
+                  });
                 }
               } else if (data.message && data.message.content) {
                 if (typeof data.message.content === 'string') {
                   content = data.message.content;
                 } else if (Array.isArray(data.message.content)) {
+                  // Use shared utility for text extraction
                   const textParts: string[] = [];
                   data.message.content.forEach((item: any) => {
                     if (typeof item === 'string') {
                       textParts.push(item);
                     } else if (item.type === 'text' && item.text) {
                       textParts.push(item.text);
-                    } else if (item.type === 'tool_use') {
-                      toolCalls.push({
-                        type: 'tool_use',
-                        id: item.id,
-                        name: item.name,
-                        input: item.input,
-                        parent_tool_use_id: data.parent_tool_use_id || null,
-                      });
-
-                      if ((item.name === 'Edit' || item.name === 'Write') && item.input) {
-                        pendingPermissions.set(item.id, {
-                          tool_name: item.name,
-                          file_path: item.input.file_path || '',
-                          old_string: item.input.old_string,
-                          new_string: item.input.new_string,
-                          content: item.input.content,
-                        });
-                      }
                     }
                   });
                   content = textParts.join('\n');
+
+                  // Use shared utility for tool extraction with JSONL-specific additions
+                  const extractedTools = extractToolCalls(data.message.content);
+                  extractedTools.forEach((tool) => {
+                    toolCalls.push({
+                      ...tool,
+                      parent_tool_use_id: data.parent_tool_use_id || null,
+                    });
+
+                    // JSONL-specific: Track permissions for Edit/Write tools
+                    if ((tool.name === 'Edit' || tool.name === 'Write') && tool.input) {
+                      pendingPermissions.set(tool.id, {
+                        tool_name: tool.name,
+                        file_path: tool.input.file_path || '',
+                        old_string: tool.input.old_string,
+                        new_string: tool.input.new_string,
+                        content: tool.input.content,
+                      });
+                    }
+                  });
                 }
               }
 

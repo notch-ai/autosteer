@@ -39,7 +39,6 @@ export { PlanEditModeIndicator } from '@/features/shared';
 export { VimModeIndicator } from '@/features/settings/components/VimModeIndicator';
 
 // Panel and Layout Components
-export { DetailPanel } from '@/features/shared';
 export { ResizablePanel } from '@/features/shared/components/layout/ResizablePanel';
 export { VerticalSplitPanel } from '@/features/shared/components/layout/VerticalSplitPanel';
 export { ThreeColumnLayout } from '@/features/shared/components/layout/ThreeColumnLayout';
@@ -85,7 +84,7 @@ export { KeyboardShortcutTooltip } from '@/features/shared';
 export { CommandMenu } from '@/features/chat/components/CommandMenu';
 
 // Settings and Configuration
-export { LLMSettings } from '@/features/settings/components/LLMSettings';
+export { AppSettings } from '@/features/settings/components/AppSettings';
 
 // Export component types for type safety
 export type { IconName } from '@/features/shared';
@@ -116,7 +115,7 @@ export const COMPONENT_CATEGORIES = {
     'PlanEditModeIndicator',
     'VimModeIndicator',
   ],
-  'Panels & Layout': ['DetailPanel', 'ResizablePanel', 'VerticalSplitPanel', 'ThreeColumnLayout'],
+  'Panels & Layout': ['ResizablePanel', 'VerticalSplitPanel', 'ThreeColumnLayout'],
   'Tasks & Projects': ['TaskList', 'TodoActivityTracker', 'AddProjectModal', 'ProjectList'],
   Monitoring: ['StatsPanel', 'UsageMonitor', 'UsageStats', 'UsageDashboard'],
   'Main Layout': ['MenuBar', 'Sidebar', 'MainContent', 'UpdateNotification', 'ChatInterface'],
@@ -130,7 +129,7 @@ export const COMPONENT_CATEGORIES = {
     'KeyboardShortcutTooltip',
   ],
   'Commands & Navigation': ['CommandMenu'],
-  Settings: ['LLMSettings'],
+  Settings: ['AppSettings'],
 } as const;
 
 // Get all component names as a flat array

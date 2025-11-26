@@ -1,6 +1,16 @@
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowRight, Binary, FilePenLine, FilePlus, FileX, GitBranch, Trash2 } from 'lucide-react';
-import React, { useState } from 'react';
+import {
+  ArrowRight,
+  Binary,
+  ExternalLink,
+  FilePenLine,
+  FilePlus,
+  FileX,
+  GitBranch,
+  Trash2,
+} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface GitDiffStat {
   file: string;
@@ -17,15 +27,51 @@ interface FileChangesListProps {
   selectedFile: string | null;
   onSelect: (filePath: string) => void;
   onDiscardFile?: (filePath: string) => void;
+  workingDirectory?: string;
 }
 
-export const FileChangesList: React.FC<FileChangesListProps> = ({
+export const FileChangesList: React.FC<FileChangesListProps> = React.memo(function FileChangesList({
   files,
   selectedFile,
   onSelect,
   onDiscardFile,
-}) => {
+  workingDirectory,
+}) {
   const [hoveredFile, setHoveredFile] = useState<string | null>(null);
+  const [hasEditors, setHasEditors] = useState(false);
+
+  useEffect(() => {
+    // Detect available editors on mount
+    if (window.electron?.ide) {
+      window.electron.ide.detect().then((result: any) => {
+        setHasEditors((result.editors || []).length > 0);
+      });
+    }
+  }, []);
+
+  const handleOpenInIde = async (filePath: string) => {
+    if (!window.electron?.ide) {
+      toast.error('IDE integration not available');
+      return;
+    }
+
+    if (!workingDirectory) {
+      toast.error('No working directory available');
+      return;
+    }
+
+    try {
+      const fullPath = `${workingDirectory}/${filePath}`;
+      const result = await window.electron.ide.openFile({ file: fullPath });
+
+      if (!result.success) {
+        toast.error(`Failed to open file: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to open file in IDE:', error);
+      toast.error('Failed to open file in IDE');
+    }
+  };
 
   const addedCount = files.filter((s) => s.status === 'untracked').length;
   const modifiedCount = files.filter(
@@ -64,7 +110,7 @@ export const FileChangesList: React.FC<FileChangesListProps> = ({
               <div
                 key={`${stat.file}-${index}`}
                 className={`flex items-center justify-between px-2 py-1.5 text-sm rounded-sm group transition-colors min-h-8 cursor-pointer max-w-full ${
-                  isSelected ? 'bg-surface-active' : 'hover:bg-surface-hover text-foreground'
+                  isSelected ? 'bg-card-active' : 'hover:bg-card-hover text-foreground'
                 }`}
                 onClick={() => onSelect(stat.file)}
                 onMouseEnter={() => setHoveredFile(stat.file)}
@@ -113,13 +159,27 @@ export const FileChangesList: React.FC<FileChangesListProps> = ({
                       )}
                     </>
                   )}
+                  {workingDirectory && hasEditors && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenInIde(stat.file);
+                      }}
+                      className={`p-1 rounded transition-colors hover:bg-accent ${
+                        hoveredFile === stat.file ? 'opacity-100' : 'opacity-0'
+                      }`}
+                      title="Open in IDE"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </button>
+                  )}
                   {onDiscardFile && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onDiscardFile(stat.file);
                       }}
-                      className={`p-1 rounded transition-colors ${
+                      className={`p-1 rounded transition-colors hover:bg-accent ${
                         hoveredFile === stat.file ? 'opacity-100' : 'opacity-0'
                       }`}
                       title="Discard changes"
@@ -135,4 +195,4 @@ export const FileChangesList: React.FC<FileChangesListProps> = ({
       </ScrollArea>
     </div>
   );
-};
+});

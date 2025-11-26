@@ -87,6 +87,12 @@ export function usePickerKeyboardNav<T>({
       // Only handle if picker is open and visible
       if (!pickerRef || !pickerRef.current) return;
 
+      // IMPORTANT: Never intercept text editing keys - let them pass through to editor
+      // This fixes Backspace/Delete not working during file mention
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        return; // Let the event propagate naturally to CodeMirror
+      }
+
       switch (event.key) {
         case 'ArrowDown':
           event.preventDefault();
@@ -130,9 +136,9 @@ export function usePickerKeyboardNav<T>({
 
         default:
           // Check additional keys
+          // Note: handlers are responsible for calling event.preventDefault() if needed
           for (const { key, handler } of additionalKeys) {
             if (event.key === key) {
-              event.preventDefault();
               handler(event, selectedIndex, items);
               break;
             }

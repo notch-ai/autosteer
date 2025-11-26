@@ -1,6 +1,7 @@
 import { logger } from '@/commons/utils/logger';
 import { SlashCommand } from '@/types/ipc.types';
 import { DEFAULT_MODEL } from '@/types/model.types';
+import { DEFAULT_PERMISSION_MODE } from '@/types/permission.types';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
@@ -76,14 +77,18 @@ export interface SettingsStore {
  */
 const getDefaultPreferences = (): UserPreferences => ({
   theme: 'system',
-  fontSize: 14,
-  fontFamily: 'Fira Code, SF Mono, Monaco, Consolas, monospace',
+  fontSize: 'medium',
+  fontFamily: 'Fira Code, SF Mono, Monaco, Consolas, monospace', // Default to Fira Code
   autoSave: true,
   compactOnTokenLimit: true,
   maxTokens: 4000,
   badgeNotifications: true,
   defaultModel: DEFAULT_MODEL, // Default model for new conversations
   maxTurns: null, // Default: unlimited (null = no limit)
+  confirmSessionTabDeletion: true, // Default: show confirmation dialog
+  enableSkills: true, // Default: enable skills
+  autoSelectFirstTab: true, // Default: auto-select first tab when no active tab
+  defaultPermissionMode: DEFAULT_PERMISSION_MODE, // Default: 'edit'
 });
 
 // DevTools configuration - only in development
@@ -112,44 +117,130 @@ export const useSettingsStore = create<SettingsStore>()(
       // Core Actions
       initialize: async () => {
         try {
+          logger.info('[SETTINGS_STORE] Initializing settings store...');
           set((state) => {
             state.initializationError = null;
           });
 
           // Load settings from ~/.autosteer/config.json via IPC
+          logger.info('[SETTINGS_STORE] Reading config from IPC...');
           const config = await window.electron.ipc.invoke('config:read');
+          logger.info('[SETTINGS_STORE] Config loaded:', {
+            hasSettings: !!config.settings,
+            settingsKeys: config.settings ? Object.keys(config.settings) : [],
+          });
 
           // Load slash commands for current project (if any)
+          logger.info('[SETTINGS_STORE] Loading slash commands...');
           await get().loadSlashCommands();
+          logger.info('[SETTINGS_STORE] Slash commands loaded');
 
           set((state) => {
+            logger.info('[SETTINGS_STORE] Updating state with config data...');
             // Update preferences with config data or use defaults
             if (config.settings) {
+              logger.info('[SETTINGS_STORE] Merging config settings with defaults...');
               state.preferences = {
                 ...getDefaultPreferences(),
                 ...config.settings,
               };
+              logger.info('[SETTINGS_STORE] Preferences merged:', state.preferences);
+
+              // Migration: Convert legacy numeric fontSize to preset
+              if (config.settings.fontSize && typeof config.settings.fontSize === 'number') {
+                logger.info(
+                  '[SETTINGS_STORE] Migrating legacy fontSize:',
+                  config.settings.fontSize
+                );
+                const legacySize = config.settings.fontSize;
+                const migratedSize: 'small' | 'medium' | 'large' =
+                  legacySize <= 12 ? 'small' : legacySize <= 13 ? 'medium' : 'large';
+
+                state.preferences.fontSize = migratedSize;
+
+                // Persist migration asynchronously (don't await to avoid blocking initialization)
+                window.electron.ipc
+                  .invoke('config:updateSettings', { fontSize: migratedSize })
+                  .catch((error) => {
+                    logger.error('[SETTINGS_STORE] Failed to persist fontSize migration:', error);
+                  });
+
+                logger.info(
+                  `[SETTINGS_STORE] Migrated legacy fontSize ${legacySize}px to '${migratedSize}'`
+                );
+              }
+
+              // Migration: Remove legacy 'default' permission mode
+              if (config.settings.defaultPermissionMode) {
+                const savedMode = config.settings.defaultPermissionMode as string;
+                logger.info('[SETTINGS_STORE] Checking permission mode migration:', savedMode);
+
+                // If saved mode is 'default', migrate to DEFAULT_PERMISSION_MODE ('acceptEdits')
+                if (savedMode === 'default') {
+                  logger.info(
+                    '[SETTINGS_STORE] Migrating legacy permission mode to:',
+                    DEFAULT_PERMISSION_MODE
+                  );
+                  state.preferences.defaultPermissionMode = DEFAULT_PERMISSION_MODE;
+
+                  // Persist migration asynchronously
+                  window.electron.ipc
+                    .invoke('config:updateSettings', {
+                      defaultPermissionMode: DEFAULT_PERMISSION_MODE,
+                    })
+                    .catch((error) => {
+                      logger.error(
+                        '[SETTINGS_STORE] Failed to persist permission mode migration:',
+                        error
+                      );
+                    });
+
+                  logger.debug(
+                    `[SETTINGS_STORE] Migrated legacy permission mode 'default' to '${DEFAULT_PERMISSION_MODE}'`
+                  );
+                }
+              }
             }
 
             // Load API keys (handled securely via IPC)
             if (config.apiKeys) {
+              logger.info('[SETTINGS_STORE] Loading API keys...');
               state.apiKeys = config.apiKeys;
+              logger.info(
+                '[SETTINGS_STORE] API keys loaded, count:',
+                Object.keys(config.apiKeys).length
+              );
             }
 
             // Load selected provider
             if (config.settings?.selectedProvider) {
+              logger.info(
+                '[SETTINGS_STORE] Setting selected provider:',
+                config.settings.selectedProvider
+              );
               state.selectedProvider = config.settings.selectedProvider;
             }
 
             // Load custom commands
             if (config.customCommands) {
+              logger.info('[SETTINGS_STORE] Loading custom commands...');
               state.customCommands = config.customCommands;
+              logger.info(
+                '[SETTINGS_STORE] Custom commands loaded, count:',
+                config.customCommands.length
+              );
             }
 
+            logger.info('[SETTINGS_STORE] Marking store as initialized');
             state.isInitialized = true;
           });
+          logger.info('[SETTINGS_STORE] Settings store initialization complete');
         } catch (error) {
-          logger.error('Failed to initialize settings store:', error);
+          logger.error('[SETTINGS_STORE] Failed to initialize settings store:', error);
+          logger.error(
+            '[SETTINGS_STORE] Error stack:',
+            error instanceof Error ? error.stack : 'No stack'
+          );
           set((state) => {
             state.initializationError =
               error instanceof Error ? error.message : 'Unknown initialization error';
@@ -519,6 +610,10 @@ export const useSettingsInitialization = () =>
 
 // Default model selector
 export const useDefaultModel = () => useSettingsStore((state) => state.preferences.defaultModel);
+
+// Default permission mode selector
+export const useDefaultPermissionMode = () =>
+  useSettingsStore((state) => state.preferences.defaultPermissionMode);
 
 /**
  * Type exports for use in components

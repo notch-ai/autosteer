@@ -55,7 +55,6 @@ export * from './components/ui/FormButton';
 export * from './components/ui/DropdownSelector';
 export * from './components/ui/ToastProvider';
 export * from './components/ui/UndoToast';
-export * from './components/ui/DetailPanel';
 export * from './components/ui/KeyboardShortcutsHelp';
 export * from './components/ui/KeyboardShortcutTooltip';
 export * from './components/ui/UpdateNotification';

@@ -42,7 +42,7 @@ test.describe('TerminalTab Visual Regression', () => {
   test('@visual renders loading state', async ({ mount, page }) => {
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -68,7 +68,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -98,7 +98,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -141,7 +141,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -180,7 +180,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -214,7 +214,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -258,7 +258,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -270,7 +270,7 @@ test.describe('TerminalTab Visual Regression', () => {
   test('pool integration - attach vs create', async ({ mount }) => {
     await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
   });
@@ -298,7 +298,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -310,7 +310,7 @@ test.describe('TerminalTab Visual Regression', () => {
   test('terminal creates successfully', async ({ mount, page }) => {
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -323,7 +323,7 @@ test.describe('TerminalTab Visual Regression', () => {
   test('applies custom className', async ({ mount }) => {
     const component = await mount(
       <div style={{ width: '800px', height: '600px' }}>
-        <TerminalTab className="custom-terminal-class" />
+        <TerminalTab projectId="test-project-123" className="custom-terminal-class" />
       </div>
     );
 
@@ -354,7 +354,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -381,7 +381,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -425,7 +425,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -435,7 +435,7 @@ test.describe('TerminalTab Visual Regression', () => {
   test('@visual terminal with custom background', async ({ mount, page }) => {
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#0d1117' }}>
-        <TerminalTab className="custom-bg" />
+        <TerminalTab projectId="test-project-123" className="custom-bg" />
       </div>
     );
 
@@ -449,7 +449,7 @@ test.describe('TerminalTab Visual Regression', () => {
   test('terminal component unmounts cleanly', async ({ mount, page }) => {
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -488,7 +488,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -513,7 +513,7 @@ test.describe('TerminalTab Visual Regression', () => {
 
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -525,7 +525,7 @@ test.describe('TerminalTab Visual Regression', () => {
   test('terminal container has correct styling', async ({ mount, page }) => {
     const component = await mount(
       <div style={{ width: '800px', height: '600px', background: '#1e1e1e' }}>
-        <TerminalTab />
+        <TerminalTab projectId="test-project-123" />
       </div>
     );
 
@@ -569,7 +569,7 @@ test.describe('TerminalTab Visual Regression', () => {
         }}
       >
         <div style={{ width: '400px', height: '300px' }}>
-          <TerminalTab />
+          <TerminalTab projectId="test-project-123" />
         </div>
       </div>
     );

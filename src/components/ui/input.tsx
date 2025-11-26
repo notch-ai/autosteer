@@ -8,15 +8,15 @@ const inputVariants = cva(
     'w-full',
     'px-3 py-2',
     'border border-border rounded',
-    'text-text text-sm',
+    'text-foreground text-sm',
     'transition-all duration-150',
     'outline-none',
     // Focus styles - clean without ring
     'focus:outline-none',
     // Disabled styles
-    'disabled:cursor-default disabled:text-text-muted disabled:opacity-50',
+    'disabled:cursor-default disabled:text-muted-foreground disabled:opacity-50',
     // Placeholder
-    'placeholder:text-text-muted',
+    'placeholder:text-muted-foreground',
     // File input styles
     'file:border-0 file:bg-transparent file:text-sm file:font-medium',
   ],
@@ -24,7 +24,7 @@ const inputVariants = cva(
     variants: {
       variant: {
         default: '', // No hover border change
-        filled: 'bg-surface-hover',
+        filled: 'bg-card-hover',
         ghost: 'bg-transparent border-transparent',
       },
       size: {
@@ -39,7 +39,7 @@ const inputVariants = cva(
       },
       hasValue: {
         true: 'bg-background',
-        false: 'bg-surface',
+        false: 'bg-card',
       },
     },
     defaultVariants: {
@@ -102,7 +102,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const inputClassName = cn(
       inputVariants({ variant, size, state, hasValue }),
       // Handle disabled/readonly background
-      (disabled || readOnly) && 'bg-surface',
+      (disabled || readOnly) && 'bg-card',
       className
     );
 
@@ -110,7 +110,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       return (
         <div className="relative">
           {leftIcon && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
               {leftIcon}
             </div>
           )}
@@ -126,7 +126,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
           {rightIcon && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
               {rightIcon}
             </div>
           )}

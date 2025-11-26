@@ -49,6 +49,12 @@
   --base-info: #2196f3;
   --base-info-alt: #3b82f6;
 
+  /* Tailwind semantic color mappings */
+  --color-success-green: var(--base-success-alt);
+  --color-warning-orange: var(--base-warning-alt);
+  --color-error-red: var(--base-error-alt);
+  --color-info-blue: var(--base-info-alt);
+
   /* Gray scale */
   --base-gray-50: #f7f8fa;
   --base-gray-100: #f3f4f6;
@@ -67,90 +73,27 @@
   --brand-primary-hover: var(--base-brand-blue-hover);
   --brand-primary-active: var(--base-brand-blue-active);
 
-  /* Theme-specific assignments (night theme defaults) */
-  --color-purple: var(--base-purple);
-  --color-cyan: var(--base-cyan);
-  --color-black: var(--base-black);
-  --color-white: var(--base-white);
-  --color-success-green: var(--base-success);
-  --color-warning-orange: var(--base-warning);
-  --color-error-red: var(--base-error);
-  --color-info-blue: var(--base-info);
-
-  /* ===== Night Theme Color Scheme ===== */
-  /* Base night theme colors (RGB format for Tailwind opacity support) */
-  --night-background-primary: 25 26 33;     /* #191a21 */
-  --night-background-secondary: 22 22 28;   /* #16161c */
-  --night-surface-hover: 29 30 38;          /* #1d1e26 */
-  --night-surface-active: 37 38 46;         /* #25262e */
-  --night-border-rgb: 42 43 54;             /* #2a2b36 - RGB format for custom colors */
-  --night-text-primary: 224 224 230;        /* #e0e0e6 */
-  --night-text-secondary: 139 140 145;      /* #8b8c91 */
-  --night-text-tertiary: 102 102 102;       /* #666666 */
-  --night-accent-primary: 224 224 230;      /* #e0e0e6 */
-  --night-accent-light: 245 245 247;        /* #f5f5f7 */
-  --night-button-special: 38 39 50;         /* #262732 */
-  --night-terminal-bg: 30 30 30;            /* #1e1e1e - XTerm background */
-  --night-terminal-scrollbar: 212 212 212;  /* #d4d4d4 - XTerm foreground for scrollbar */
-  --night-code-highlight-bg: 58 54 30;      /* #3a361e - Muted dark yellow background */
-  --night-code-highlight-border: 78 73 42;  /* #4e492a - Muted dark yellow border */
-
-  /* ===== Day Theme Color Scheme ===== */
-  /* Base day theme colors (RGB format for Tailwind opacity support) */
-  --day-background-primary: 252 252 252;    /* #fcfcfc */
-  --day-background-secondary: 245 245 245;  /* #f5f5f5 */
-  --day-surface-hover: 239 239 239;         /* #efefef */
-  --day-surface-active: 232 232 232;        /* #e8e8e8 */
-  --day-border-rgb: 222 222 222;            /* #dedede - RGB format for custom colors */
-  --day-text-primary: 33 41 54;             /* #212936 */
-  --day-text-secondary: 143 147 157;        /* #8f939d */
-  --day-text-tertiary: 173 177 184;         /* #adb1b8 */
-  --day-accent-primary: 33 41 54;           /* #212936 */
-  --day-accent-light: 143 147 157;          /* #8f939d */
-  --day-button-special: 255 255 255;        /* #ffffff */
-  --day-terminal-bg: 245 245 245;           /* #f5f5f5 - XTerm background (light) */
-  --day-terminal-scrollbar: 33 41 54;       /* #212936 - XTerm foreground for scrollbar (dark) */
-  --day-code-highlight-bg: 254 252 232;     /* #fefce8 - Muted light yellow background */
-  --day-code-highlight-border: 250 240 137; /* #faf089 - Muted light yellow border */
-
-  /* ===== Active Theme Assignment (Night by default) ===== */
-  --color-background: var(--night-background-primary);
-  --color-surface: var(--night-background-secondary);
-  --color-surface-hover: var(--night-surface-hover);
-  --color-surface-active: var(--night-surface-active);
-  --color-border: var(--night-border-rgb);
-  --color-primary: var(--night-accent-primary);
-  --color-primary-light: var(--night-accent-light);
-  --color-text: var(--night-text-primary);
-  --color-text-muted: var(--night-text-secondary);
-  --color-text-dim: var(--night-text-tertiary);
-  --color-icon-inactive: var(--night-text-secondary);
-  --color-button-special: var(--night-button-special);
-  --color-terminal-bg: var(--night-terminal-bg);
-  --color-terminal-scrollbar: var(--night-terminal-scrollbar);
-  --color-code-highlight-bg: var(--night-code-highlight-bg);
-  --color-code-highlight-border: var(--night-code-highlight-border);
+  /* Legacy color variables removed - now using shadcn semantic tokens via .theme-night and .theme-day classes */
 
   /* ===== Typography ===== */
-  /* Font families */
-  --font-family-fira-code: "Fira Code", monospace;
-  --font-family-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-family-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  /*
+   * Base monospace font - Runtime-injected from config.json via useFontVariables hook
+   *
+   * IMPORTANT: This default matches settings.ts:80 default preferences
+   * It serves as the initial value before JavaScript runs, preventing FOUT
+   * Once React mounts, useFontVariables will override this with config.json value
+   */
+  --font-family-mono: 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
 
-  /* Font stacks for themes */
-  --font-stack: "Fira Code", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-stack-mono: "Fira Code", "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
-  --font-stack-night: var(--font-family-fira-code);
-  --font-stack-day: var(--font-family-fira-code);
-
-  --font-size-xs: 11px;
-  --font-size-sm: 13px;
-  --font-size-base: 15px;
-  --font-size-md: 16px;
-  --font-size-lg: 18px;
-  --font-size-xl: 20px;
-  --font-size-2xl: 24px;
-  --font-size-3xl: 28px;
+  /* Font sizes - Calculated in pixels for consistency (runtime-injected via useFontSizeVariables hook) */
+  --font-size-xs: 9.75px; /* 75% of medium (13px) base - small labels, captions */
+  --font-size-sm: 11.375px; /* 87.5% of medium (13px) base - secondary text, small buttons */
+  --font-size-base: 13px; /* Base size (12px/13px/14px) - body text, primary content */
+  --font-size-md: 14.625px; /* 112.5% of medium (13px) base - emphasized text */
+  --font-size-lg: 16.25px; /* 125% of medium (13px) base - subheadings */
+  --font-size-xl: 19.5px; /* 150% of medium (13px) base - headings */
+  --font-size-2xl: 24.375px; /* 187.5% of medium (13px) base - large headings */
+  --font-size-3xl: 29.25px; /* 225% of medium (13px) base - hero text */
 
   --font-weight-light: 300;
   --font-weight-regular: 400;
@@ -254,96 +197,92 @@
   --gray-opacity-30: rgba(102, 102, 102, 0.3);
   --gray-opacity-50: rgba(102, 102, 102, 0.5);
 
-  /* ===== shadcn/ui Color Schemes ===== */
-  /* Night theme shadcn variables */
-  --night-background: 222.2 84% 4.9%;
-  --night-foreground: 210 40% 98%;
-  --night-card: 222.2 84% 4.9%;
-  --night-card-foreground: 210 40% 98%;
-  --night-popover: 222.2 84% 4.9%;
-  --night-popover-foreground: 210 40% 98%;
-  --night-primary: 210 40% 98%;
-  --night-primary-foreground: 222.2 84% 4.9%;
-  --night-secondary: 217.2 32.6% 17.5%;
-  --night-secondary-foreground: 210 40% 98%;
-  --night-muted: 240 12% 10%;  /* Matches surface: #16161c */
-  --night-muted-foreground: 234 4% 56%;  /* Matches text-muted: #8b8c91 */
-  --night-accent: 237 13% 13%;  /* Matches surface-hover: #1d1e26 */
-  --night-accent-foreground: 210 40% 98%;
-  --night-destructive: 0 62.8% 30.6%;
-  --night-destructive-foreground: 210 40% 98%;
-  --night-border: 235 13% 19%;  /* #2a2b36 - matches RGB 42 43 54 */
-  --night-input: 235 13% 19%;   /* #2a2b36 - matches RGB 42 43 54 */
-  --night-ring: 212.7 26.8% 83.9%;
-
-  /* Day theme shadcn variables */
-  --day-background: 0 0% 100%;
-  --day-foreground: 222.2 84% 4.9%;
-  --day-card: 0 0% 100%;
-  --day-card-foreground: 222.2 84% 4.9%;
-  --day-popover: 0 0% 100%;
-  --day-popover-foreground: 222.2 84% 4.9%;
-  --day-primary: 222.2 47.4% 11.2%;
-  --day-primary-foreground: 210 40% 98%;
-  --day-secondary: 210 40% 96%;
-  --day-secondary-foreground: 222.2 84% 4.9%;
-  --day-muted: 0 0% 96%;  /* Matches surface: #f5f5f5 */
-  --day-muted-foreground: 223 8% 59%;  /* Matches text-muted: #8f939d */
-  --day-accent: 0 0% 94%;  /* Matches surface-hover: #efefef */
-  --day-accent-foreground: 222.2 84% 4.9%;
-  --day-destructive: 0 84.2% 60.2%;
-  --day-destructive-foreground: 210 40% 98%;
-  --day-border: 0 0% 87%;  /* #dedede */
-  --day-input: 0 0% 87%;   /* #dedede */
-  --day-ring: 222.2 84% 4.9%;
-
-  /* ===== Active shadcn/ui Variables (Night by default) ===== */
-  --background: var(--night-background);
-  --foreground: var(--night-foreground);
-  --card: var(--night-card);
-  --card-foreground: var(--night-card-foreground);
-  --popover: var(--night-popover);
-  --popover-foreground: var(--night-popover-foreground);
-  --primary: var(--night-primary);
-  --primary-foreground: var(--night-primary-foreground);
-  --secondary: var(--night-secondary);
-  --secondary-foreground: var(--night-secondary-foreground);
-  --muted: var(--night-muted);
-  --muted-foreground: var(--night-muted-foreground);
-  --accent: var(--night-accent);
-  --accent-foreground: var(--night-accent-foreground);
-  --destructive: var(--night-destructive);
-  --destructive-foreground: var(--night-destructive-foreground);
-  --border: var(--night-border);
-  --input: var(--night-input);
-  --ring: var(--night-ring);
   --radius: 0.5rem;
+
+  /* Legacy color variable mappings for backwards compatibility */
+  --color-text: var(--foreground);
+  --color-background: var(--background);
+  --color-surface: var(--card);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-text-muted: var(--muted-foreground);
 }
 
-/* ===== Day Theme Overrides ===== */
-.theme-day {
-  /* Theme-specific color assignments for day theme */
-  --color-purple: var(--base-purple-alt);
-  --color-success-green: var(--base-success-alt);
-  --color-warning-orange: var(--base-warning-alt);
-  --color-error-red: var(--base-error-alt);
-  --color-info-blue: var(--base-info-alt);
+/* ===== Theme Classes with RGB Triplets ===== */
+.theme-night {
+  /* shadcn/ui tokens in RGB format */
+  --background: 2 5 12; /* hsl(222.2 84% 4.9%) -> rgb(2, 5, 12) */
+  --foreground: 248 250 252; /* hsl(210 40% 98%) -> rgb(248, 250, 252) */
+  --card: 22 22 28; /* hsl(240 12% 10%) -> rgb(22, 22, 28) - Lighter sidebar background */
+  --card-foreground: 248 250 252; /* hsl(210 40% 98%) -> rgb(248, 250, 252) */
+  --popover: 2 5 12; /* hsl(222.2 84% 4.9%) -> rgb(2, 5, 12) */
+  --popover-foreground: 248 250 252; /* hsl(210 40% 98%) -> rgb(248, 250, 252) */
+  --primary: 248 250 252; /* hsl(210 40% 98%) -> rgb(248, 250, 252) */
+  --primary-foreground: 2 5 12; /* hsl(222.2 84% 4.9%) -> rgb(2, 5, 12) */
+  --secondary: 30 41 59; /* hsl(217.2 32.6% 17.5%) -> rgb(30, 41, 59) */
+  --secondary-foreground: 248 250 252; /* hsl(210 40% 98%) -> rgb(248, 250, 252) */
+  --muted: 22 22 28; /* hsl(240 12% 10%) -> rgb(22, 22, 28) - Matches surface: #16161c */
+  --muted-foreground: 139 140 145; /* hsl(234 4% 56%) -> rgb(139, 140, 145) - Matches text-muted: #8b8c91 */
+  --accent: 29 30 38; /* hsl(237 13% 13%) -> rgb(29, 30, 38) - Matches surface-hover: #1d1e26 */
+  --accent-foreground: 248 250 252; /* hsl(210 40% 98%) -> rgb(248, 250, 252) */
+  --destructive: 156 23 23; /* hsl(0 62.8% 30.6%) -> rgb(156, 23, 23) */
+  --destructive-foreground: 248 250 252; /* hsl(210 40% 98%) -> rgb(248, 250, 252) */
+  --border: 42 43 54; /* hsl(235 13% 19%) -> rgb(42, 43, 54) - #2a2b36 */
+  --input: 42 43 54; /* hsl(235 13% 19%) -> rgb(42, 43, 54) - #2a2b36 */
+  --ring: 203 213 225; /* hsl(212.7 26.8% 83.9%) -> rgb(203, 213, 225) */
 
-  /* Switch to day theme colors */
-  --color-background: var(--day-background-primary);
-  --color-surface: var(--day-background-secondary);
-  --color-surface-hover: var(--day-surface-hover);
-  --color-surface-active: var(--day-surface-active);
-  --color-border: var(--day-border-rgb);
-  --color-primary: var(--day-accent-primary);
-  --color-primary-light: var(--day-accent-light);
-  --color-text: var(--day-text-primary);
-  --color-text-muted: var(--day-text-secondary);
-  --color-text-dim: var(--day-text-tertiary);
-  --color-icon-inactive: var(--day-text-secondary);
-  --color-button-special: var(--day-button-special);
-  --color-code-highlight-bg: var(--day-code-highlight-bg);
-  --color-code-highlight-border: var(--day-code-highlight-border);
+  /* Hover and active states - distinct colors */
+  --card-hover: 29 30 38; /* Hover state - slightly lighter than card */
+  --card-active: 42 43 54; /* Active state - even lighter, matches border color */
+
+  /* Terminal colors - black background for traditional terminal look */
+  --color-terminal-bg: 0 0 0; /* Black background for terminal */
+  --color-terminal-scrollbar: 128 128 128; /* Gray scrollbar */
+
+  /* Terminal ANSI colors */
+  --color-terminal-black: 230 230 230; /* Very light gray for default text visibility */
+  --color-terminal-red: 239 83 80; /* Brighter red */
+  --color-terminal-green: 46 204 113; /* Emerald green */
+  --color-terminal-yellow: 241 196 15; /* Gold yellow */
+  --color-terminal-blue: 52 152 219; /* Sky blue */
+  --color-terminal-magenta: 189 147 249; /* Purple */
+  --color-terminal-cyan: 22 160 133; /* Teal cyan */
+  --color-terminal-white: 248 250 252; /* White from foreground */
+  --color-terminal-bright-black: 245 245 245; /* Almost white gray */
+  --color-terminal-bright-red: 255 105 97; /* Bright red */
+  --color-terminal-bright-green: 80 250 123; /* Bright green */
+  --color-terminal-bright-yellow: 255 231 76; /* Bright yellow */
+  --color-terminal-bright-blue: 97 175 239; /* Bright blue */
+  --color-terminal-bright-magenta: 219 188 255; /* Bright magenta */
+  --color-terminal-bright-cyan: 95 226 209; /* Bright cyan */
+  --color-terminal-bright-white: 255 255 255; /* Pure white */
+}
+
+.theme-day {
+  /* shadcn/ui tokens in RGB format */
+  --background: 255 255 255; /* hsl(0 0% 100%) -> rgb(255, 255, 255) */
+  --foreground: 2 5 12; /* hsl(222.2 84% 4.9%) -> rgb(2, 5, 12) */
+  --card: 245 245 245; /* hsl(0 0% 96%) -> rgb(245, 245, 245) - Sidebar background #f5f5f5 */
+  --card-foreground: 2 5 12; /* hsl(222.2 84% 4.9%) -> rgb(2, 5, 12) */
+  --popover: 255 255 255; /* hsl(0 0% 100%) -> rgb(255, 255, 255) */
+  --popover-foreground: 2 5 12; /* hsl(222.2 84% 4.9%) -> rgb(2, 5, 12) */
+  --primary: 20 25 35; /* hsl(222.2 47.4% 11.2%) -> rgb(20, 25, 35) */
+  --primary-foreground: 248 250 252; /* hsl(210 40% 98%) -> rgb(248, 250, 252) */
+  --secondary: 239 242 245; /* hsl(210 40% 96%) -> rgb(239, 242, 245) */
+  --secondary-foreground: 2 5 12; /* hsl(222.2 84% 4.9%) -> rgb(2, 5, 12) */
+  --muted: 245 245 245; /* hsl(0 0% 96%) -> rgb(245, 245, 245) - Matches surface: #f5f5f5 */
+  --muted-foreground: 143 147 157; /* hsl(223 8% 59%) -> rgb(143, 147, 157) - Matches text-muted: #8f939d */
+  --accent: 239 239 239; /* hsl(0 0% 94%) -> rgb(239, 239, 239) - Matches surface-hover: #efefef */
+  --accent-foreground: 2 5 12; /* hsl(222.2 84% 4.9%) -> rgb(2, 5, 12) */
+  --destructive: 248 113 113; /* hsl(0 84.2% 60.2%) -> rgb(248, 113, 113) */
+  --destructive-foreground: 248 250 252; /* hsl(210 40% 98%) -> rgb(248, 250, 252) */
+  --border: 222 222 222; /* hsl(0 0% 87%) -> rgb(222, 222, 222) - #dedede */
+  --input: 222 222 222; /* hsl(0 0% 87%) -> rgb(222, 222, 222) - #dedede */
+  --ring: 2 5 12; /* hsl(222.2 84% 4.9%) -> rgb(2, 5, 12) */
+
+  /* Hover and active states - distinct colors */
+  --card-hover: 239 239 239; /* Hover state #efefef */
+  --card-active: 228 228 228; /* Active state #e4e4e4 */
 
   /* Day theme shadows */
   --shadow-xs: 0 1px 2px 0 var(--black-opacity-05);
@@ -354,26 +293,27 @@
   --shadow-2xl: 0 25px 50px var(--black-opacity-30), 0 0 35px var(--black-opacity-20);
   --shadow-inner: inset 0 2px 4px 0 var(--black-opacity-80);
 
-  /* Switch to day theme shadcn variables */
-  --background: var(--day-background);
-  --foreground: var(--day-foreground);
-  --card: var(--day-card);
-  --card-foreground: var(--day-card-foreground);
-  --popover: var(--day-popover);
-  --popover-foreground: var(--day-popover-foreground);
-  --primary: var(--day-primary);
-  --primary-foreground: var(--day-primary-foreground);
-  --secondary: var(--day-secondary);
-  --secondary-foreground: var(--day-secondary-foreground);
-  --muted: var(--day-muted);
-  --muted-foreground: var(--day-muted-foreground);
-  --accent: var(--day-accent);
-  --accent-foreground: var(--day-accent-foreground);
-  --destructive: var(--day-destructive);
-  --destructive-foreground: var(--day-destructive-foreground);
-  --border: var(--day-border);
-  --input: var(--day-input);
-  --ring: var(--day-ring);
+  /* Terminal colors - black background for traditional terminal look */
+  --color-terminal-bg: 0 0 0; /* Black background for terminal */
+  --color-terminal-scrollbar: 128 128 128; /* Gray scrollbar */
+
+  /* Terminal ANSI colors */
+  --color-terminal-black: 230 230 230; /* Very light gray for default text visibility */
+  --color-terminal-red: 239 83 80; /* Brighter red */
+  --color-terminal-green: 46 204 113; /* Emerald green */
+  --color-terminal-yellow: 241 196 15; /* Gold yellow */
+  --color-terminal-blue: 52 152 219; /* Sky blue */
+  --color-terminal-magenta: 189 147 249; /* Purple */
+  --color-terminal-cyan: 22 160 133; /* Teal cyan */
+  --color-terminal-white: 248 250 252; /* White from foreground */
+  --color-terminal-bright-black: 245 245 245; /* Almost white gray */
+  --color-terminal-bright-red: 255 105 97; /* Bright red */
+  --color-terminal-bright-green: 80 250 123; /* Bright green */
+  --color-terminal-bright-yellow: 255 231 76; /* Bright yellow */
+  --color-terminal-bright-blue: 97 175 239; /* Bright blue */
+  --color-terminal-bright-magenta: 219 188 255; /* Bright magenta */
+  --color-terminal-bright-cyan: 95 226 209; /* Bright cyan */
+  --color-terminal-bright-white: 255 255 255; /* Pure white */
 }
 
 /* ===== Tailwind Directives ===== */
@@ -385,7 +325,7 @@
 @layer base {
   /* Apply theme fonts */
   html {
-    font-family: var(--font-stack);
+    font-family: var(--font-family-mono);
   }
 
   /* Spin animation for loading indicators */

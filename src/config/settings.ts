@@ -237,6 +237,11 @@ export function logSettingsAtStartup(): void {
   const settings = getSettings();
 
   logger.info('[Settings] Application configuration loaded:');
+  logger.info('[Settings] Environment:', {
+    userDataDir: process.env.ELECTRON_USER_DATA_DIR || 'default',
+    vitePort: process.env.VITE_PORT || '5173 (auto-detect)',
+    viteDevServerUrl: process.env.VITE_DEV_SERVER_URL || 'not set',
+  });
   logger.info('[Settings] App:', {
     claudeCodeMode: settings.app.claudeCodeMode,
     aiServiceUrl: settings.app.aiServiceUrl,

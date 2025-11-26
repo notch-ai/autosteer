@@ -184,17 +184,17 @@ function renderToolResult(
         {linesToShow.map((line, i) => {
           const bgClass =
             line.type === 'addition'
-              ? 'bg-[#0d2818] dark:bg-[#0d2818]'
+              ? 'bg-green-50 dark:bg-green-900/20'
               : line.type === 'deletion'
-                ? 'bg-[#2d0a0a] dark:bg-[#2d0a0a]'
-                : 'bg-background dark:bg-[#0d1117]';
+                ? 'bg-red-50 dark:bg-red-900/20'
+                : 'bg-background';
 
           const textClass =
             line.type === 'addition'
-              ? 'text-[#3fb950] dark:text-[#3fb950]'
+              ? 'text-success'
               : line.type === 'deletion'
-                ? 'text-[#f85149] dark:text-[#f85149]'
-                : 'text-text dark:text-[#e6edf3]';
+                ? 'text-error'
+                : 'text-foreground';
 
           const prefix = line.type === 'addition' ? '+ ' : line.type === 'deletion' ? '- ' : '  ';
 
@@ -202,8 +202,7 @@ function renderToolResult(
             <div key={i} className={cn('flex font-mono text-sm leading-5', bgClass)}>
               <span
                 className={cn(
-                  'inline-block px-2 text-right select-none w-16 bg-surface text-text-muted',
-                  'dark:bg-[#0d1117] dark:text-[#7d8590]'
+                  'inline-block px-2 text-right select-none w-16 bg-card text-muted-foreground'
                 )}
               >
                 {prefix}
@@ -214,7 +213,9 @@ function renderToolResult(
           );
         })}
         {hiddenCount > 0 && (
-          <div className="px-2 py-1 text-sm text-text-muted">... +{hiddenCount} more lines</div>
+          <div className="px-2 py-1 text-sm text-muted-foreground">
+            ... +{hiddenCount} more lines
+          </div>
         )}
       </div>
     );
@@ -235,7 +236,9 @@ function renderToolResult(
           {lines.join('\n')}
         </pre>
         {hiddenCount > 0 && (
-          <div className="px-2 py-1 text-sm text-text-muted">... +{hiddenCount} more lines</div>
+          <div className="px-2 py-1 text-sm text-muted-foreground">
+            ... +{hiddenCount} more lines
+          </div>
         )}
       </div>
     );
@@ -255,7 +258,7 @@ function renderToolResult(
         {lines.join('\n')}
       </pre>
       {hiddenCount > 0 && (
-        <div className="px-2 py-1 text-sm text-text-muted">... +{hiddenCount} more lines</div>
+        <div className="px-2 py-1 text-sm text-muted-foreground">... +{hiddenCount} more lines</div>
       )}
     </div>
   );
@@ -264,7 +267,7 @@ function renderToolResult(
 const ToolPairItemInline: React.FC<{ tool: PairedTool }> = ({ tool }) => {
   return (
     <div className="my-2 text-sm">
-      <div className="font-medium text-text-muted">
+      <div className="font-medium text-muted-foreground">
         {tool.name} {tool.description}
       </div>
       {tool.result && (

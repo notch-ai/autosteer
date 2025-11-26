@@ -1,70 +1,69 @@
-import { Extension } from '@codemirror/state';
+import { Compartment } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
-export interface ThemeColors {
-  background: string;
-  foreground: string;
-  caret: string;
-  selection: string;
-  lineHighlight: string;
-  gutterBackground: string;
-  gutterForeground: string;
+export function getCSSVariable(name: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (!value) {
+    return 'hsl()';
+  }
+  return `hsl(${value})`;
 }
 
-export const defaultLightTheme: ThemeColors = {
-  background: '#ffffff',
-  foreground: '#24292e',
-  caret: '#24292e',
-  selection: '#0366d625',
-  lineHighlight: '#f6f8fa',
-  gutterBackground: '#ffffff',
-  gutterForeground: '#6a737d',
-};
-
-export const defaultDarkTheme: ThemeColors = {
-  background: '#1e1e1e',
-  foreground: '#d4d4d4',
-  caret: '#d4d4d4',
-  selection: '#264f78',
-  lineHighlight: '#2a2a2a',
-  gutterBackground: '#1e1e1e',
-  gutterForeground: '#858585',
-};
-
-export function createTheme(colors: ThemeColors): Extension {
-  return EditorView.theme(
-    {
-      '&': {
-        color: colors.foreground,
-        backgroundColor: colors.background,
-      },
-      '.cm-content': {
-        caretColor: colors.caret,
-      },
-      '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection':
-        {
-          backgroundColor: colors.selection,
-        },
-      '.cm-activeLine': {
-        backgroundColor: colors.lineHighlight,
-      },
-      '.cm-gutters': {
-        backgroundColor: colors.gutterBackground,
-        color: colors.gutterForeground,
-        border: 'none',
-      },
-      '.cm-activeLineGutter': {
-        backgroundColor: colors.lineHighlight,
-      },
+export function createEditorTheme() {
+  return EditorView.theme({
+    '&': {
+      color: getCSSVariable('--foreground'),
+      backgroundColor: getCSSVariable('--background'),
     },
-    { dark: colors.background === defaultDarkTheme.background }
-  );
+    '.cm-scroller': {
+      fontFamily: 'inherit !important',
+    },
+    '.cm-content': {
+      caretColor: getCSSVariable('--foreground'),
+      fontFamily: 'inherit !important',
+    },
+    '.cm-line': {
+      fontFamily: 'inherit !important',
+    },
+    '&.cm-focused .cm-selectionBackground, ::selection': {
+      backgroundColor: getCSSVariable('--accent'),
+    },
+    '.cm-activeLine': {
+      backgroundColor: getCSSVariable('--muted'),
+    },
+    '.cm-gutters': {
+      backgroundColor: getCSSVariable('--background'),
+      color: getCSSVariable('--muted-foreground'),
+      border: 'none',
+    },
+    '.cm-activeLineGutter': {
+      backgroundColor: getCSSVariable('--muted'),
+    },
+  });
 }
 
-export const lightTheme = createTheme(defaultLightTheme);
-export const darkTheme = createTheme(defaultDarkTheme);
+export const themeCompartment = new Compartment();
 
-export function getThemeFromSystemPreference(): Extension {
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return prefersDark ? darkTheme : lightTheme;
+export function setupThemeListener(
+  view: EditorView,
+  compartment: Compartment = themeCompartment
+): MutationObserver {
+  const updateTheme = () => {
+    view.dispatch({
+      effects: compartment.reconfigure(createEditorTheme()),
+    });
+  };
+
+  const observer = new MutationObserver(updateTheme);
+
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class'],
+  });
+
+  return observer;
+}
+
+export function cleanupThemeListener(observer: MutationObserver): void {
+  observer.disconnect();
 }

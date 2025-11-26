@@ -52,7 +52,7 @@ export const PlanEditModeIndicator: React.FC<PlanEditModeIndicatorProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => handleModeChange(option.value)}
-                className={cn('w-full justify-start', isActive && 'bg-surface-active text-primary')}
+                className={cn('w-full justify-start', isActive && 'bg-card-active text-primary')}
               >
                 <span>{option.label}</span>
               </Button>

@@ -8,7 +8,7 @@ export const VisualComparisonTool: React.FC = () => {
   const [showGrid, setShowGrid] = useState(true);
 
   return (
-    <div className="min-h-screen bg-background text-text p-8">
+    <div className="min-h-screen bg-background text-foreground p-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-4">Visual Component Comparison Tool</h1>

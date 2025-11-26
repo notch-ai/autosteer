@@ -63,7 +63,7 @@ export const SessionTimeTracking: React.FC<SessionTimeTrackingProps> = ({
   }
 
   return (
-    <div className={cn('flex items-center gap-1 text-sm text-text-muted', className)}>
+    <div className={cn('flex items-center gap-1 text-sm text-muted-foreground', className)}>
       <span>⏱️</span>
       <span>{elapsedTime}</span>
     </div>

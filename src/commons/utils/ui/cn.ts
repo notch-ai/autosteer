@@ -26,7 +26,7 @@ import { twMerge } from 'tailwind-merge';
  * cn(
  *   'rounded transition-colors', // base classes
  *   variant === 'primary' && 'bg-primary text-white',
- *   variant === 'secondary' && 'bg-surface text-text',
+ *   variant === 'secondary' && 'bg-card text-foreground',
  *   size === 'sm' && 'px-3 py-1.5 text-sm',
  *   size === 'lg' && 'px-6 py-3 text-lg',
  *   className // allow overrides

@@ -84,6 +84,30 @@ jest.mock('@/commons/utils/logger', () => ({
   },
 }));
 
+// Mock useTerminalPool hook
+jest.mock('@/renderer/hooks/useTerminalPool', () => ({
+  useTerminalPool: () => ({
+    createTerminal: jest.fn(),
+    getTerminal: jest.fn(),
+    hasTerminal: jest.fn().mockReturnValue(false),
+    attachTerminal: jest.fn(),
+    detachTerminal: jest.fn(),
+    fitTerminal: jest.fn(),
+    getPoolSize: jest.fn().mockReturnValue(1),
+    getMaxPoolSize: jest.fn().mockReturnValue(10),
+    getTerminalId: jest.fn().mockReturnValue('test-terminal-id'),
+    getTerminalMetadata: jest.fn(),
+  }),
+}));
+
+// Mock useTerminalScrollPreservation hook
+jest.mock('@/hooks/useTerminalScrollPreservation', () => ({
+  useTerminalScrollPreservation: () => ({
+    saveTerminalScrollPosition: jest.fn(),
+    restoreTerminalScrollPosition: jest.fn(),
+  }),
+}));
+
 describe('TerminalTab - SerializeAddon Removal Tests', () => {
   beforeEach(() => {
     // Setup mock Electron API
@@ -101,6 +125,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
     const mockProject = {
       id: 'test-project-id',
       name: 'Test Project',
+      folderName: 'test-project-id',
       localPath: '/test/path',
       isActive: true,
       createdAt: new Date(),
@@ -128,7 +153,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
         SerializeAddon: SerializeAddonMock,
       }));
 
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-id" />);
 
       // SerializeAddon should never be instantiated
       expect(SerializeAddonMock).not.toHaveBeenCalled();
@@ -136,7 +161,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
 
     it('should create terminal without SerializeAddon', async () => {
       const onTerminalCreated = jest.fn();
-      render(<TerminalTab onTerminalCreated={onTerminalCreated} />);
+      render(<TerminalTab projectId="test-project-id" onTerminalCreated={onTerminalCreated} />);
 
       // Wait for terminal creation
       await waitFor(() => {
@@ -155,7 +180,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       const projectId = 'test-project-id';
       await useProjectsStore.getState().selectProject(projectId, true);
 
-      const { rerender } = render(<TerminalTab />);
+      const { rerender } = render(<TerminalTab projectId="test-project-id" />);
 
       // Wait for terminal creation
       await waitFor(() => {
@@ -167,7 +192,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       rerender(<div>Other Tab</div>);
 
       // Switch back to TerminalTab
-      rerender(<TerminalTab />);
+      rerender(<TerminalTab projectId="test-project-id" />);
 
       // Terminal should still exist in store (pool keeps it alive)
       const terminals = useTerminalStore.getState().terminals;
@@ -178,7 +203,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       const projectId = 'test-project-id';
       await useProjectsStore.getState().selectProject(projectId, true);
 
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-id" />);
 
       await waitFor(() => {
         const terminals = useTerminalStore.getState().terminals;
@@ -196,7 +221,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       const projectId = 'test-project-id';
       await useProjectsStore.getState().selectProject(projectId, true);
 
-      const { rerender } = render(<TerminalTab />);
+      const { rerender } = render(<TerminalTab projectId="test-project-id" />);
 
       await waitFor(() => {
         const terminals = useTerminalStore.getState().terminals;
@@ -211,7 +236,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       rerender(<div>Other Tab</div>);
 
       // Switch back to terminal tab
-      rerender(<TerminalTab />);
+      rerender(<TerminalTab projectId="test-project-id" />);
 
       // Terminal should still exist in store (pool-based persistence)
       const terminalsAfter = useTerminalStore.getState().terminals;
@@ -254,7 +279,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       useTerminalStore.getState().saveTerminalSession('saved-terminal-id', savedSession);
 
       // Render component
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-id" />);
 
       // For app restart, buffer restoration should happen
       // But for tab switches, it should NOT
@@ -289,7 +314,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       const projectId = 'test-project-id';
       await useProjectsStore.getState().selectProject(projectId, true);
 
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-id" />);
 
       await waitFor(() => {
         const terminals = useTerminalStore.getState().terminals;
@@ -306,7 +331,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       const projectId = 'test-project-id';
       await useProjectsStore.getState().selectProject(projectId, true);
 
-      const { rerender } = render(<TerminalTab />);
+      const { rerender } = render(<TerminalTab projectId="test-project-id" />);
 
       await waitFor(() => {
         const terminals = useTerminalStore.getState().terminals;
@@ -316,7 +341,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       // Multiple tab switches
       for (let i = 0; i < 5; i++) {
         rerender(<div>Other Tab {i}</div>);
-        rerender(<TerminalTab />);
+        rerender(<TerminalTab projectId="test-project-id" />);
       }
 
       // Terminal should still be alive and no serialization should have occurred
@@ -328,7 +353,7 @@ describe('TerminalTab - SerializeAddon Removal Tests', () => {
       const projectId = 'test-project-id';
       await useProjectsStore.getState().selectProject(projectId, true);
 
-      render(<TerminalTab />);
+      render(<TerminalTab projectId="test-project-id" />);
 
       await waitFor(() => {
         const terminals = useTerminalStore.getState().terminals;

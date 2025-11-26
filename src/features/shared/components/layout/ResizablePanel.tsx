@@ -150,13 +150,7 @@ export const ResizablePanel: React.FC<ResizablePanelProps> = ({
           tabIndex={0}
           style={{ pointerEvents: 'auto' }}
         >
-          <div
-            className="w-full h-full"
-            style={{
-              // Show indicator when resizing
-              backgroundColor: isResizing ? 'rgb(59 130 246 / 0.5)' : undefined,
-            }}
-          />
+          <div className={cn('w-full h-full', isResizing && 'bg-primary/50')} />
         </div>
       )}
     </div>

@@ -97,7 +97,10 @@ export const FormsDialog: Story = {
           </DialogHeader>
           <div className="px-6 py-4 space-y-4">
             <div>
-              <Label htmlFor="github-repo" className="block text-sm font-medium text-text mb-1">
+              <Label
+                htmlFor="github-repo"
+                className="block text-sm font-medium text-foreground mb-1"
+              >
                 GitHub URL
               </Label>
               <Input
@@ -111,7 +114,10 @@ export const FormsDialog: Story = {
               />
             </div>
             <div>
-              <Label htmlFor="branch-name" className="block text-sm font-medium text-text mb-1">
+              <Label
+                htmlFor="branch-name"
+                className="block text-sm font-medium text-foreground mb-1"
+              >
                 Branch
               </Label>
               <Input
@@ -245,9 +251,9 @@ export const LargeContentWithForm: Story = {
               />
             </div>
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="p-4 bg-surface rounded-md border border-border">
+              <div key={i} className="p-4 bg-card rounded-md border border-border">
                 <h3 className="font-medium mb-2">Section {i + 1}</h3>
-                <p className="text-sm text-text-muted">
+                <p className="text-sm text-muted-foreground">
                   Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor
                   incididunt ut labore et dolore magna aliqua.
                 </p>
@@ -273,7 +279,7 @@ export const ThemeComparison: Story = {
     return (
       <div className="grid grid-cols-2 gap-8">
         <div className="theme-day">
-          <h3 className="mb-4 font-semibold text-text">Day Theme</h3>
+          <h3 className="mb-4 font-semibold text-foreground">Day Theme</h3>
           <Dialog>
             <DialogTrigger asChild>
               <Button>Open Day Dialog</Button>
@@ -299,7 +305,7 @@ export const ThemeComparison: Story = {
           </Dialog>
         </div>
         <div className="theme-night">
-          <h3 className="mb-4 font-semibold text-text">Night Theme</h3>
+          <h3 className="mb-4 font-semibold text-foreground">Night Theme</h3>
           <Dialog>
             <DialogTrigger asChild>
               <Button>Open Night Dialog</Button>

@@ -4,6 +4,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import React, { useEffect, useRef, useState } from 'react';
+import { setupTerminalTheme } from './theme';
 
 export interface XtermTerminalProps {
   shell?: string;
@@ -33,33 +34,16 @@ export const XtermTerminal: React.FC<XtermTerminalProps> = ({
   useEffect(() => {
     if (!terminalRef.current) return;
 
-    // Initialize xterm.js
+    // Read font family from CSS variable
+    const fontFamily =
+      getComputedStyle(document.documentElement).getPropertyValue('--font-family-mono').trim() ||
+      'inherit';
+
+    // Initialize xterm.js with dynamic theme
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#d4d4d4',
-        cursor: '#aeafad',
-        selectionBackground: '#264f78',
-        black: '#000000',
-        red: '#cd3131',
-        green: '#0dbc79',
-        yellow: '#e5e510',
-        blue: '#2472c8',
-        magenta: '#bc3fbc',
-        cyan: '#11a8cd',
-        white: '#e5e5e5',
-        brightBlack: '#666666',
-        brightRed: '#f14c4c',
-        brightGreen: '#23d18b',
-        brightYellow: '#f5f543',
-        brightBlue: '#3b8eea',
-        brightMagenta: '#d670d6',
-        brightCyan: '#29b8db',
-        brightWhite: '#e5e5e5',
-      },
+      fontFamily,
       scrollback: 10000,
       convertEol: true,
     });
@@ -80,6 +64,35 @@ export const XtermTerminal: React.FC<XtermTerminalProps> = ({
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
+    // Setup dynamic theme listener
+    const themeObserver = setupTerminalTheme(term);
+
+    // Override xterm decoration inline styles with force using theme variables
+    const decorationObserver = new MutationObserver(() => {
+      const decorations = terminalRef.current?.querySelectorAll('.xterm-decoration-top');
+      decorations?.forEach((decoration) => {
+        const el = decoration as HTMLElement;
+        // Get theme colors from CSS variables
+        const bgColor = getComputedStyle(document.documentElement)
+          .getPropertyValue('--color-terminal-bg')
+          .trim();
+        const fgColor = getComputedStyle(document.documentElement)
+          .getPropertyValue('--color-terminal-bright-white')
+          .trim();
+        el.style.setProperty('background-color', `rgb(${bgColor})`, 'important');
+        el.style.setProperty('color', `rgb(${fgColor})`, 'important');
+      });
+    });
+
+    if (terminalRef.current) {
+      decorationObserver.observe(terminalRef.current, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style'],
+      });
+    }
+
     // Create terminal process via IPC
     createTerminalProcess(term);
 
@@ -94,6 +107,8 @@ export const XtermTerminal: React.FC<XtermTerminalProps> = ({
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
+      themeObserver.disconnect();
+      decorationObserver.disconnect();
       if (terminalId) {
         window.electron?.terminal?.kill(terminalId);
       }

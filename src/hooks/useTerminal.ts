@@ -34,7 +34,7 @@ export const MAX_TABS = 10;
  */
 export const useTerminal = () => {
   const listenersRef = useRef<Map<string, () => void>>(new Map()); // Store cleanup functions
-  const { getPoolSize, getAllTerminalIds } = useTerminalPool();
+  const { getPoolSize, getAllProjectIds } = useTerminalPool();
 
   /**
    * Convert TerminalData from IPC to Terminal object
@@ -229,11 +229,11 @@ export const useTerminal = () => {
   const getPoolStats = useCallback(() => {
     return {
       poolSize: getPoolSize(),
-      terminalIds: getAllTerminalIds(),
+      terminalIds: getAllProjectIds(),
       maxPoolSize: MAX_TABS,
       availableSlots: MAX_TABS - getPoolSize(),
     };
-  }, [getPoolSize, getAllTerminalIds]);
+  }, [getPoolSize, getAllProjectIds]);
 
   return {
     // IPC operations

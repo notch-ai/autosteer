@@ -17,9 +17,9 @@ export const PermissionActionDisplay = memo<PermissionActionDisplayProps>(
       <div className={`rounded-lg py-2`}>
         <div className="flex items-start gap-2 mb-1">
           {isAccepted ? (
-            <CircleCheck className="h-4 w-4 text-green flex-shrink-0" />
+            <CircleCheck className="h-4 w-4 text-success flex-shrink-0" />
           ) : (
-            <XCircle className="h-4 w-4 text-red flex-shrink-0" />
+            <XCircle className="h-4 w-4 text-danger flex-shrink-0" />
           )}
           <div className="text-sm">
             {isAccepted ? 'Update' : 'Rejected update to'} {file_path}
@@ -89,7 +89,7 @@ export const PermissionActionDisplay = memo<PermissionActionDisplayProps>(
         )}
 
         {isAccepted && (
-          <div className="text-sm text-text-muted">
+          <div className="text-sm text-muted-foreground">
             Updated <span className="font-mono">{file_path.split('/').pop()}</span> with{' '}
             {(new_string || content || '').split('\n').length} additions
           </div>

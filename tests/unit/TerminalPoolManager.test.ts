@@ -1,11 +1,11 @@
 import { TerminalPoolManager } from '@/renderer/services/TerminalPoolManager';
-import { Terminal, TerminalBufferState } from '@/types/terminal.types';
+import { Terminal } from '@/types/terminal.types';
 import { TerminalLibraryAdapter } from '@/renderer/services/TerminalLibraryAdapter';
 
 // Mock TerminalLibraryAdapter
 jest.mock('@/renderer/services/TerminalLibraryAdapter');
 
-describe('TerminalPoolManager', () => {
+describe('TerminalPoolManager - Z-Index Stacking', () => {
   let poolManager: TerminalPoolManager;
   let mockAdapter: jest.Mocked<TerminalLibraryAdapter>;
 
@@ -22,17 +22,8 @@ describe('TerminalPoolManager', () => {
     status: 'running',
   });
 
-  const createMockBufferState = (terminalId: string): TerminalBufferState => ({
-    terminalId,
-    content: 'test content',
-    scrollback: ['line1', 'line2', 'line3'],
-    cursorX: 0,
-    cursorY: 0,
-    cols: 80,
-    rows: 24,
-    timestamp: new Date('2025-01-01T00:00:00Z'),
-    sizeBytes: 1024,
-  });
+  // Helper: Map terminal ID to project ID (backwards compat)
+  const getProjectId = (termId: string): string => `project-${termId}`;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -69,7 +60,7 @@ describe('TerminalPoolManager', () => {
   describe('Initialization', () => {
     it('should initialize with empty pool', () => {
       expect(poolManager.getPoolSize()).toBe(0);
-      expect(poolManager.getAllTerminalIds()).toEqual([]);
+      expect(poolManager.getAllProjectIds()).toEqual([]);
     });
 
     it('should set max pool size to 10', () => {
@@ -82,21 +73,21 @@ describe('TerminalPoolManager', () => {
       const terminal = createMockTerminal('term1');
       const element = document.createElement('div');
 
-      poolManager.createTerminal(terminal, element);
+      poolManager.createTerminal(getProjectId('term1'), terminal, element);
 
       expect(TerminalLibraryAdapter).toHaveBeenCalled();
       expect(mockAdapter.attach).toHaveBeenCalledWith(element);
-      expect(poolManager.hasTerminal('term1')).toBe(true);
+      expect(poolManager.hasTerminal(getProjectId('term1'))).toBe(true);
     });
 
     it('should store terminal instance in pool', () => {
       const terminal = createMockTerminal('term1');
       const element = document.createElement('div');
 
-      poolManager.createTerminal(terminal, element);
+      poolManager.createTerminal(getProjectId('term1'), terminal, element);
 
       expect(poolManager.getPoolSize()).toBe(1);
-      expect(poolManager.getAllTerminalIds()).toEqual(['term1']);
+      expect(poolManager.getAllProjectIds()).toEqual([getProjectId('term1')]);
     });
 
     it('should throw error when max pool size reached', () => {
@@ -104,14 +95,14 @@ describe('TerminalPoolManager', () => {
       for (let i = 0; i < 10; i++) {
         const terminal = createMockTerminal(`term${i}`);
         const element = document.createElement('div');
-        poolManager.createTerminal(terminal, element);
+        poolManager.createTerminal(getProjectId(`term${i}`), terminal, element);
       }
 
       // Try to create 11th terminal
       const terminal = createMockTerminal('term11');
       const element = document.createElement('div');
 
-      expect(() => poolManager.createTerminal(terminal, element)).toThrow(
+      expect(() => poolManager.createTerminal(getProjectId('term11'), terminal, element)).toThrow(
         'Terminal pool limit reached (10)'
       );
     });
@@ -120,33 +111,33 @@ describe('TerminalPoolManager', () => {
   describe('Terminal Instance Retrieval', () => {
     beforeEach(() => {
       const element = document.createElement('div');
-      poolManager.createTerminal(createMockTerminal('term1'), element);
-      poolManager.createTerminal(createMockTerminal('term2'), element);
+      poolManager.createTerminal(getProjectId('term1'), createMockTerminal('term1'), element);
+      poolManager.createTerminal(getProjectId('term2'), createMockTerminal('term2'), element);
     });
 
     it('should get terminal instance', () => {
-      const instance = poolManager.getTerminal('term1');
+      const instance = poolManager.getTerminal(getProjectId('term1'));
 
       expect(instance).toBe(mockAdapter);
     });
 
     it('should return undefined for non-existent terminal', () => {
-      const instance = poolManager.getTerminal('nonexistent');
+      const instance = poolManager.getTerminal(getProjectId('nonexistent'));
 
       expect(instance).toBeUndefined();
     });
 
     it('should check terminal existence', () => {
-      expect(poolManager.hasTerminal('term1')).toBe(true);
-      expect(poolManager.hasTerminal('nonexistent')).toBe(false);
+      expect(poolManager.hasTerminal(getProjectId('term1'))).toBe(true);
+      expect(poolManager.hasTerminal(getProjectId('nonexistent'))).toBe(false);
     });
 
     it('should get all terminal IDs', () => {
-      const ids = poolManager.getAllTerminalIds();
+      const ids = poolManager.getAllProjectIds();
 
       expect(ids).toHaveLength(2);
-      expect(ids).toContain('term1');
-      expect(ids).toContain('term2');
+      expect(ids).toContain(getProjectId('term1'));
+      expect(ids).toContain(getProjectId('term2'));
     });
 
     it('should get pool size', () => {
@@ -154,106 +145,24 @@ describe('TerminalPoolManager', () => {
     });
   });
 
-  describe('Terminal Attachment/Detachment', () => {
-    beforeEach(() => {
-      const element = document.createElement('div');
-      poolManager.createTerminal(createMockTerminal('term1'), element);
-    });
-
-    it('should attach terminal to element', () => {
-      const element = document.createElement('div');
-
-      poolManager.attachTerminal('term1', element);
-
-      expect(mockAdapter.attach).toHaveBeenCalledWith(element);
-    });
-
-    it('should detach terminal', () => {
-      poolManager.detachTerminal('term1');
-
-      expect(mockAdapter.detach).toHaveBeenCalled();
-    });
-
-    it('should throw error when attaching non-existent terminal', () => {
-      const element = document.createElement('div');
-
-      expect(() => poolManager.attachTerminal('nonexistent', element)).toThrow(
-        'Terminal not found in pool: nonexistent'
-      );
-    });
-
-    it('should throw error when detaching non-existent terminal', () => {
-      expect(() => poolManager.detachTerminal('nonexistent')).toThrow(
-        'Terminal not found in pool: nonexistent'
-      );
-    });
-  });
-
-  describe('Buffer State Management', () => {
-    beforeEach(() => {
-      const element = document.createElement('div');
-      poolManager.createTerminal(createMockTerminal('term1'), element);
-    });
-
-    it('should capture buffer state', () => {
-      const bufferState = createMockBufferState('term1');
-      mockAdapter.getBufferState.mockReturnValue(bufferState);
-
-      const captured = poolManager.captureBufferState('term1');
-
-      expect(captured).toMatchObject({
-        terminalId: bufferState.terminalId,
-        content: bufferState.content,
-        scrollback: bufferState.scrollback,
-        cursorX: bufferState.cursorX,
-        cursorY: bufferState.cursorY,
-        cols: bufferState.cols,
-        rows: bufferState.rows,
-      });
-      expect(mockAdapter.getBufferState).toHaveBeenCalled();
-    });
-
-    it('should restore buffer state', () => {
-      const bufferState = createMockBufferState('term1');
-
-      poolManager.restoreBufferState('term1', bufferState);
-
-      expect(mockAdapter.restoreBufferState).toHaveBeenCalledWith(bufferState);
-    });
-
-    it('should throw error when capturing non-existent terminal', () => {
-      expect(() => poolManager.captureBufferState('nonexistent')).toThrow(
-        'Terminal not found in pool: nonexistent'
-      );
-    });
-
-    it('should throw error when restoring non-existent terminal', () => {
-      const bufferState = createMockBufferState('nonexistent');
-
-      expect(() => poolManager.restoreBufferState('nonexistent', bufferState)).toThrow(
-        'Terminal not found in pool: nonexistent'
-      );
-    });
-  });
-
   describe('Terminal Destruction', () => {
     beforeEach(() => {
       const element = document.createElement('div');
-      poolManager.createTerminal(createMockTerminal('term1'), element);
-      poolManager.createTerminal(createMockTerminal('term2'), element);
+      poolManager.createTerminal(getProjectId('term1'), createMockTerminal('term1'), element);
+      poolManager.createTerminal(getProjectId('term2'), createMockTerminal('term2'), element);
     });
 
     it('should destroy terminal', () => {
-      poolManager.destroyTerminal('term1');
+      poolManager.destroyTerminal(getProjectId('term1'));
 
       expect(mockAdapter.dispose).toHaveBeenCalled();
-      expect(poolManager.hasTerminal('term1')).toBe(false);
+      expect(poolManager.hasTerminal(getProjectId('term1'))).toBe(false);
       expect(poolManager.getPoolSize()).toBe(1);
     });
 
     it('should throw error when destroying non-existent terminal', () => {
-      expect(() => poolManager.destroyTerminal('nonexistent')).toThrow(
-        'Terminal not found in pool: nonexistent'
+      expect(() => poolManager.destroyTerminal(getProjectId('nonexistent'))).toThrow(
+        'No terminal found for project: project-nonexistent'
       );
     });
   });
@@ -261,24 +170,24 @@ describe('TerminalPoolManager', () => {
   describe('Terminal Focus Management', () => {
     beforeEach(() => {
       const element = document.createElement('div');
-      poolManager.createTerminal(createMockTerminal('term1'), element);
+      poolManager.createTerminal(getProjectId('term1'), createMockTerminal('term1'), element);
     });
 
     it('should focus terminal', () => {
-      poolManager.focusTerminal('term1');
+      poolManager.focusTerminal(getProjectId('term1'));
 
       expect(mockAdapter.focus).toHaveBeenCalled();
     });
 
     it('should blur terminal', () => {
-      poolManager.blurTerminal('term1');
+      poolManager.blurTerminal(getProjectId('term1'));
 
       expect(mockAdapter.blur).toHaveBeenCalled();
     });
 
     it('should throw error when focusing non-existent terminal', () => {
-      expect(() => poolManager.focusTerminal('nonexistent')).toThrow(
-        'Terminal not found in pool: nonexistent'
+      expect(() => poolManager.focusTerminal(getProjectId('nonexistent'))).toThrow(
+        'No terminal found for project: project-nonexistent'
       );
     });
   });
@@ -286,24 +195,24 @@ describe('TerminalPoolManager', () => {
   describe('Terminal Resize', () => {
     beforeEach(() => {
       const element = document.createElement('div');
-      poolManager.createTerminal(createMockTerminal('term1'), element);
+      poolManager.createTerminal(getProjectId('term1'), createMockTerminal('term1'), element);
     });
 
     it('should fit terminal to container', () => {
-      poolManager.fitTerminal('term1');
+      poolManager.fitTerminal(getProjectId('term1'));
 
       expect(mockAdapter.fit).toHaveBeenCalled();
     });
 
     it('should resize terminal', () => {
-      poolManager.resizeTerminal('term1', 100, 30);
+      poolManager.resizeTerminal(getProjectId('term1'), 100, 30);
 
       expect(mockAdapter.resize).toHaveBeenCalledWith(100, 30);
     });
 
     it('should throw error when resizing non-existent terminal', () => {
-      expect(() => poolManager.fitTerminal('nonexistent')).toThrow(
-        'Terminal not found in pool: nonexistent'
+      expect(() => poolManager.fitTerminal(getProjectId('nonexistent'))).toThrow(
+        'No terminal found for project: project-nonexistent'
       );
     });
   });
@@ -312,7 +221,11 @@ describe('TerminalPoolManager', () => {
     beforeEach(() => {
       const element = document.createElement('div');
       for (let i = 0; i < 3; i++) {
-        poolManager.createTerminal(createMockTerminal(`term${i}`), element);
+        poolManager.createTerminal(
+          getProjectId(`term${i}`),
+          createMockTerminal(`term${i}`),
+          element
+        );
       }
     });
 
@@ -320,7 +233,7 @@ describe('TerminalPoolManager', () => {
       poolManager.clearAll();
 
       expect(poolManager.getPoolSize()).toBe(0);
-      expect(poolManager.getAllTerminalIds()).toEqual([]);
+      expect(poolManager.getAllProjectIds()).toEqual([]);
     });
 
     it('should dispose all terminal instances', () => {
@@ -336,47 +249,20 @@ describe('TerminalPoolManager', () => {
       const element = document.createElement('div');
 
       const start = performance.now();
-      poolManager.createTerminal(terminal, element);
+      poolManager.createTerminal(getProjectId('term1'), terminal, element);
       const duration = performance.now() - start;
 
       expect(duration).toBeLessThan(50);
-    });
-
-    it('should attach terminal in <10ms', () => {
-      const terminal = createMockTerminal('term1');
-      const element1 = document.createElement('div');
-      const element2 = document.createElement('div');
-
-      poolManager.createTerminal(terminal, element1);
-
-      const start = performance.now();
-      poolManager.attachTerminal('term1', element2);
-      const duration = performance.now() - start;
-
-      expect(duration).toBeLessThan(10);
-    });
-
-    it('should detach terminal in <5ms', () => {
-      const terminal = createMockTerminal('term1');
-      const element = document.createElement('div');
-
-      poolManager.createTerminal(terminal, element);
-
-      const start = performance.now();
-      poolManager.detachTerminal('term1');
-      const duration = performance.now() - start;
-
-      expect(duration).toBeLessThan(5);
     });
 
     it('should destroy terminal in <20ms', () => {
       const terminal = createMockTerminal('term1');
       const element = document.createElement('div');
 
-      poolManager.createTerminal(terminal, element);
+      poolManager.createTerminal(getProjectId('term1'), terminal, element);
 
       const start = performance.now();
-      poolManager.destroyTerminal('term1');
+      poolManager.destroyTerminal(getProjectId('term1'));
       const duration = performance.now() - start;
 
       expect(duration).toBeLessThan(20);
@@ -389,11 +275,17 @@ describe('TerminalPoolManager', () => {
 
       // Create max terminals
       for (let i = 0; i < 10; i++) {
-        poolManager.createTerminal(createMockTerminal(`term${i}`), element);
+        poolManager.createTerminal(
+          getProjectId(`term${i}`),
+          createMockTerminal(`term${i}`),
+          element
+        );
       }
 
       expect(poolManager.getPoolSize()).toBe(10);
-      expect(() => poolManager.createTerminal(createMockTerminal('term11'), element)).toThrow();
+      expect(() =>
+        poolManager.createTerminal(getProjectId('term11'), createMockTerminal('term11'), element)
+      ).toThrow();
     });
 
     it('should allow creation after destruction', () => {
@@ -401,14 +293,20 @@ describe('TerminalPoolManager', () => {
 
       // Fill to max
       for (let i = 0; i < 10; i++) {
-        poolManager.createTerminal(createMockTerminal(`term${i}`), element);
+        poolManager.createTerminal(
+          getProjectId(`term${i}`),
+          createMockTerminal(`term${i}`),
+          element
+        );
       }
 
       // Destroy one
-      poolManager.destroyTerminal('term0');
+      poolManager.destroyTerminal(getProjectId('term0'));
 
       // Should allow new creation
-      expect(() => poolManager.createTerminal(createMockTerminal('term11'), element)).not.toThrow();
+      expect(() =>
+        poolManager.createTerminal(getProjectId('term11'), createMockTerminal('term11'), element)
+      ).not.toThrow();
       expect(poolManager.getPoolSize()).toBe(10);
     });
   });
@@ -424,20 +322,20 @@ describe('TerminalPoolManager', () => {
       const terminal = createMockTerminal('term1');
       const element = document.createElement('div');
 
-      expect(() => poolManager.createTerminal(terminal, element)).toThrow(
+      expect(() => poolManager.createTerminal(getProjectId('term1'), terminal, element)).toThrow(
         'Adapter creation failed'
       );
     });
 
     it('should handle disposal errors gracefully', () => {
       const element = document.createElement('div');
-      poolManager.createTerminal(createMockTerminal('term1'), element);
+      poolManager.createTerminal(getProjectId('term1'), createMockTerminal('term1'), element);
 
       mockAdapter.dispose.mockImplementation(() => {
         throw new Error('Disposal error');
       });
 
-      expect(() => poolManager.destroyTerminal('term1')).toThrow('Disposal error');
+      expect(() => poolManager.destroyTerminal(getProjectId('term1'))).toThrow('Disposal error');
     });
   });
 });

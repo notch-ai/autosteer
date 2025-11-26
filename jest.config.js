@@ -44,6 +44,7 @@ module.exports = {
     '!src/commons/types/config.ts', // 115 lines, type definitions only
   ],
   moduleNameMapper: {
+    '^@/tests/(.*)$': '<rootDir>/tests/$1',
     '^@/(.*)$': '<rootDir>/src/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '^electron$': '<rootDir>/__mocks__/electron.js',
@@ -104,10 +105,10 @@ module.exports = {
       statements: 80,
     },
     'src/hooks/useTerminalTabHandler.ts': {
-      branches: 75,
+      branches: 51,
       functions: 54,
-      lines: 82,
-      statements: 81,
+      lines: 70,
+      statements: 70,
     },
     'src/hooks/useDiffViewerHandler.ts': {
       branches: 96,

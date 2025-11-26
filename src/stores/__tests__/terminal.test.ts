@@ -108,7 +108,7 @@ describe('TerminalStore', () => {
       expect(state.terminals.size).toBe(2);
     });
 
-    it('should throw error when max terminals reached', () => {
+    it('should allow adding terminals (limit check happens in TerminalPoolManager)', () => {
       // Add 10 terminals (max limit)
       for (let i = 0; i < 10; i++) {
         useTerminalStore.getState().addTerminal(
@@ -120,10 +120,12 @@ describe('TerminalStore', () => {
         );
       }
 
-      // Try to add 11th terminal
-      expect(() => {
-        useTerminalStore.getState().addTerminal(createMockTerminal({ id: 'term-11' }));
-      }).toThrow('Maximum terminal limit reached (10)');
+      // Store only tracks metadata, limit check happens in TerminalPoolManager
+      // So we can add the 11th terminal to the store
+      useTerminalStore.getState().addTerminal(createMockTerminal({ id: 'term-11' }));
+
+      const state = useTerminalStore.getState();
+      expect(state.terminals.size).toBe(11);
     });
   });
 

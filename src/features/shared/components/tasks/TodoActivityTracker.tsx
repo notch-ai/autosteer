@@ -5,7 +5,7 @@ import { TaskAgentActivity, TodoActivities } from '@/renderer/services/TodoActiv
 import { getTodoMonitor } from '@/renderer/services/TodoActivityMonitorManager';
 import { useTasksStore, useAgentsStore } from '@/stores';
 import { CheckCircle2, Loader2, Wrench, ChevronDown, ChevronRight } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 export const TodoActivityTracker: React.FC = () => {
   const [activities, setActivities] = useState<TodoActivities[]>([]);
@@ -106,13 +106,47 @@ export const TodoActivityTracker: React.FC = () => {
     };
   }, [selectedAgentId]);
 
+  // Memoize expensive filter operations to prevent recalculation on every render
+  // Must be called before early return to comply with rules of hooks
+  const completedCount = useMemo(
+    () => activities.filter((a) => a.status === 'completed').length,
+    [activities]
+  );
+
+  // Memoize agent filtering to prevent recalculation
+  const ownedAgents = useMemo(
+    () => taskAgentActivities.filter((a) => a.taskAgent.parentTodoId),
+    [taskAgentActivities]
+  );
+  const orphanAgents = useMemo(
+    () => taskAgentActivities.filter((a) => !a.taskAgent.parentTodoId),
+    [taskAgentActivities]
+  );
+
+  // Memoize grouping and sorting operations
+  const groupedActivities = useMemo(() => {
+    const grouped = new Map<number, TodoActivities[]>();
+    activities.forEach((activity) => {
+      const groupNum = todoGroups.get(activity.todoId) || 1;
+      if (!grouped.has(groupNum)) {
+        grouped.set(groupNum, []);
+      }
+      grouped.get(groupNum)!.push(activity);
+    });
+    return grouped;
+  }, [activities, todoGroups]);
+
+  const sortedGroups = useMemo(
+    () => Array.from(groupedActivities.entries()).sort((a, b) => a[0] - b[0]),
+    [groupedActivities]
+  );
+
+  const totalCount = activities.length;
+  const remainingCount = totalCount - completedCount;
+
   if (activities.length === 0 && taskAgentActivities.length === 0) {
     return null;
   }
-
-  const completedCount = activities.filter((a) => a.status === 'completed').length;
-  const totalCount = activities.length;
-  const remainingCount = totalCount - completedCount;
 
   const getTodosText = () => {
     if (completedCount === 0) {
@@ -146,11 +180,7 @@ export const TodoActivityTracker: React.FC = () => {
         <ScrollArea ref={scrollAreaRef} className="w-full">
           <div className="space-y-2 pr-2">
             {(() => {
-              // Separate agents into owned (have parentTodoId) and orphan (no parentTodoId)
-              const ownedAgents = taskAgentActivities.filter((a) => a.taskAgent.parentTodoId);
-              const orphanAgents = taskAgentActivities.filter((a) => !a.taskAgent.parentTodoId);
-
-              // Group owned agents by parent todo
+              // Group owned agents by parent todo (using memoized ownedAgents)
               const agentsByTodo = new Map<string, TaskAgentActivity[]>();
               for (const agent of ownedAgents) {
                 const todoId = agent.taskAgent.parentTodoId!;
@@ -159,19 +189,6 @@ export const TodoActivityTracker: React.FC = () => {
                 }
                 agentsByTodo.get(todoId)!.push(agent);
               }
-
-              const groupedActivities = new Map<number, TodoActivities[]>();
-              activities.forEach((activity) => {
-                const groupNum = todoGroups.get(activity.todoId) || 1;
-                if (!groupedActivities.has(groupNum)) {
-                  groupedActivities.set(groupNum, []);
-                }
-                groupedActivities.get(groupNum)!.push(activity);
-              });
-
-              const sortedGroups = Array.from(groupedActivities.entries()).sort(
-                (a, b) => a[0] - b[0]
-              );
 
               return (
                 <>
@@ -186,7 +203,7 @@ export const TodoActivityTracker: React.FC = () => {
                       <div key={groupNum} className="space-y-1">
                         <button
                           onClick={() => toggleGroup(groupNum)}
-                          className="w-full flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded transition-colors"
+                          className="w-full flex items-center gap-2 px-2 py-1 hover:bg-card-hover rounded transition-colors"
                         >
                           {isGroupExpanded ? (
                             <ChevronDown className="h-3 w-3 text-gray-500" />
@@ -226,7 +243,7 @@ export const TodoActivityTracker: React.FC = () => {
                     <div className="space-y-1">
                       <button
                         onClick={() => setAgentsExpanded(!agentsExpanded)}
-                        className="w-full flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded transition-colors"
+                        className="w-full flex items-center gap-2 px-2 py-1 hover:bg-card-hover rounded transition-colors"
                       >
                         {agentsExpanded ? (
                           <ChevronDown className="h-3 w-3 text-gray-500" />
@@ -276,13 +293,13 @@ const TodoActivityItem: React.FC<TodoActivityItemProps> = ({ activity, isFocused
   const getStatusIcon = () => {
     switch (activity.status) {
       case 'pending':
-        return <CheckCircle2 className="h-4 w-4 text-text-muted" />;
+        return <CheckCircle2 className="h-4 w-4 text-muted-foreground" />;
       case 'in_progress':
         return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
       case 'completed':
         return <CheckCircle2 className="h-4 w-4 text-success" />;
       default:
-        return <CheckCircle2 className="h-4 w-4 text-text-muted" />;
+        return <CheckCircle2 className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -303,8 +320,8 @@ const TodoActivityItem: React.FC<TodoActivityItemProps> = ({ activity, isFocused
             className={cn(
               'h-auto py-0.5 px-2 text-[11px] focus-visible:ring-0 focus-visible:ring-offset-0',
               showDetails
-                ? 'bg-background text-text border-border shadow-xs hover:bg-background hover:text-text hover:border-border hover:shadow-xs'
-                : 'bg-muted text-text-muted border-border hover:bg-background hover:text-text hover:border-border hover:shadow-xs'
+                ? 'bg-background text-foreground border-border shadow-xs hover:bg-card-hover hover:text-foreground hover:border-border hover:shadow-xs'
+                : 'bg-muted text-muted-foreground border-border hover:bg-card-hover hover:text-foreground hover:border-border hover:shadow-xs'
             )}
             onClick={() => setShowDetails(!showDetails)}
           >
@@ -363,7 +380,7 @@ const TaskAgentActivityItem: React.FC<TaskAgentActivityItemProps> = ({ activity 
         <div className="flex-1 text-sm">
           {activity.taskAgent.description}
           {activity.taskAgent.subagent_type && (
-            <span className="ml-2 text-text-muted">({activity.taskAgent.subagent_type})</span>
+            <span className="ml-2 text-muted-foreground">({activity.taskAgent.subagent_type})</span>
           )}
           {activity.inferredMessages.length > 0 && (
             <Button
@@ -372,8 +389,8 @@ const TaskAgentActivityItem: React.FC<TaskAgentActivityItemProps> = ({ activity 
               className={cn(
                 'ml-2 h-auto py-0.5 px-2 text-[11px] focus-visible:ring-0 focus-visible:ring-offset-0',
                 showDetails
-                  ? 'bg-background text-text border-border shadow-xs hover:bg-background hover:text-text hover:border-border hover:shadow-xs'
-                  : 'bg-muted text-text-muted border-border hover:bg-background hover:text-text hover:border-border hover:shadow-xs'
+                  ? 'bg-background text-foreground border-border shadow-xs hover:bg-card-hover hover:text-foreground hover:border-border hover:shadow-xs'
+                  : 'bg-muted text-muted-foreground border-border hover:bg-card-hover hover:text-foreground hover:border-border hover:shadow-xs'
               )}
               onClick={() => setShowDetails(!showDetails)}
             >

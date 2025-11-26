@@ -135,7 +135,7 @@ export const StreamingEventDisplay: React.FC<StreamingEventDisplayProps> = ({
               onClick={() => toggleSection('tools')}
             >
               <div className="flex items-center gap-2">
-                <Wrench className="h-4 w-4 text-muted-foreground" />
+                <Wrench className="h-4 w-4 text-info" />
                 <span className="text-sm text-muted-foreground">
                   Tool Calls ({simplifiedToolCalls.length})
                 </span>

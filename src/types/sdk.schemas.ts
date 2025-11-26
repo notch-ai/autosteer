@@ -48,10 +48,45 @@ export const ToolUseContentSchema = z.object({
   input: z.record(z.unknown()),
 });
 
+export const ImageContentSchema = z.object({
+  type: z.literal('image'),
+  source: z.object({
+    type: z.enum(['base64', 'url']),
+    media_type: z.string(),
+    data: z.string().optional(),
+    url: z.string().optional(),
+  }),
+});
+
+export const DocumentContentSchema = z.object({
+  type: z.literal('document'),
+  source: z.object({
+    type: z.enum(['base64', 'url']),
+    media_type: z.string(),
+    data: z.string().optional(),
+    url: z.string().optional(),
+  }),
+});
+
+/**
+ * Tool result content block schema
+ * Can contain text, images, or documents
+ */
+const ToolResultTextContentSchema = z.object({
+  type: z.literal('text'),
+  text: z.string(),
+});
+
+const ToolResultInnerContentSchema = z.union([
+  ToolResultTextContentSchema,
+  ImageContentSchema,
+  DocumentContentSchema,
+]);
+
 export const ToolResultContentSchema = z.object({
   type: z.literal('tool_result'),
   tool_use_id: z.string(),
-  content: z.union([z.string(), z.array(z.object({ type: z.literal('text'), text: z.string() }))]),
+  content: z.union([z.string(), z.array(ToolResultInnerContentSchema)]),
   is_error: z.boolean().optional(),
 });
 
@@ -63,6 +98,8 @@ export const ContentBlockSchema = z.union([
   TextContentSchema,
   ToolUseContentSchema,
   ToolResultContentSchema,
+  ImageContentSchema,
+  DocumentContentSchema,
 ]);
 
 /**
@@ -275,6 +312,8 @@ export type NonNullableUsage = z.infer<typeof NonNullableUsageSchema>;
 export type TextContent = z.infer<typeof TextContentSchema>;
 export type ToolUseContent = z.infer<typeof ToolUseContentSchema>;
 export type ToolResultContent = z.infer<typeof ToolResultContentSchema>;
+export type ImageContent = z.infer<typeof ImageContentSchema>;
+export type DocumentContent = z.infer<typeof DocumentContentSchema>;
 export type ContentBlock = z.infer<typeof ContentBlockSchema>;
 export type AssistantMessage = z.infer<typeof AssistantMessageSchema>;
 export type UserMessage = z.infer<typeof UserMessageSchema>;

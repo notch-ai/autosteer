@@ -108,6 +108,33 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    id: 'scrolling',
+    name: 'Scrolling',
+    description: 'Scroll in the main panel',
+    shortcuts: [
+      {
+        id: 'scroll-to-top',
+        keys: ['home'],
+        description: 'Scroll to top of active panel',
+      },
+      {
+        id: 'scroll-to-bottom',
+        keys: ['end'],
+        description: 'Scroll to bottom of active panel',
+      },
+      {
+        id: 'scroll-page-up',
+        keys: ['pageup'],
+        description: 'Scroll up one page in active panel',
+      },
+      {
+        id: 'scroll-page-down',
+        keys: ['pagedown'],
+        description: 'Scroll down one page in active panel',
+      },
+    ],
+  },
+  {
     id: 'general',
     name: 'General',
     description: 'General application shortcuts',
@@ -148,6 +175,10 @@ export function formatShortcutKeys(keys: string[]): string[] {
         if (p === 'arrowdown' || p === 'down') return '↓';
         if (p === 'arrowleft' || p === 'left') return '←';
         if (p === 'arrowright' || p === 'right') return '→';
+        if (p === 'home') return 'Home';
+        if (p === 'end') return 'End';
+        if (p === 'pageup') return 'Page Up';
+        if (p === 'pagedown') return 'Page Down';
         // Capitalize single letters
         if (p.length === 1) return p.toUpperCase();
         return p;

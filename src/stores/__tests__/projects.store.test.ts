@@ -34,6 +34,7 @@ jest.mock('@/stores/terminal.store', () => ({
       getTerminalSession: jest.fn(() => null),
       removeTerminal: jest.fn(),
       removeTerminalSession: jest.fn(),
+      getTerminalsForProject: jest.fn(() => []),
     })),
   },
 }));

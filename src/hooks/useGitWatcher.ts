@@ -22,7 +22,7 @@
  */
 
 import { logger } from '@/commons/utils/logger';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface UseGitWatcherOptions {
   workingDirectory: string | undefined;
@@ -49,6 +49,14 @@ export const useGitWatcher = ({
   workingDirectory,
   onChangesDetected,
 }: UseGitWatcherOptions): void => {
+  // Use ref to store latest callback without triggering effect re-runs
+  const onChangesDetectedRef = useRef(onChangesDetected);
+
+  // Update ref on every render to avoid stale closures
+  useEffect(() => {
+    onChangesDetectedRef.current = onChangesDetected;
+  });
+
   useEffect(() => {
     if (!workingDirectory) {
       return undefined;
@@ -81,7 +89,8 @@ export const useGitWatcher = ({
         logger.debug('[useGitWatcher] Changes detected', {
           repoPath: data.repoPath.substring(data.repoPath.lastIndexOf('/') + 1),
         });
-        onChangesDetected();
+        // Use ref to get latest callback without causing effect to re-run
+        onChangesDetectedRef.current();
       }
     };
 
@@ -121,8 +130,5 @@ export const useGitWatcher = ({
         // Ignore errors on cleanup
       });
     };
-    // Note: onChangesDetected is intentionally omitted from deps to prevent listener leaks
-    // It only changes when workingDirectory changes, which already triggers this effect
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingDirectory]);
 };

@@ -4,7 +4,7 @@
 
 import type { IconName } from '@/features/shared/components/ui/Icon';
 
-export type PermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions' | 'default';
+export type PermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions';
 
 export interface PermissionModeOption {
   value: PermissionMode;
@@ -31,12 +31,6 @@ export const PERMISSION_MODES: PermissionModeOption[] = [
     label: 'Bypass Permissions',
     description: 'Skip all permission checks',
     icon: 'check',
-  },
-  {
-    value: 'default',
-    label: 'Default',
-    description: 'Use system default permissions',
-    icon: 'archive',
   },
 ];
 

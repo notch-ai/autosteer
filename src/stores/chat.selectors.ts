@@ -1,12 +1,13 @@
 /**
  * Chat Store Selectors
  *
- * Memoized selector layer for computed UI fields from SDK messages.
+ * Simple selector layer for accessing already-transformed ComputedMessage[].
+ * Messages are transformed at source (claude.handlers.ts or ClaudeCodeService.ts)
  *
  * Purpose:
- * - Provide computed fields for UI rendering
- * - Memoize expensive computations
- * - Centralize business logic for message transformation
+ * - Provide typed access to store data
+ * - Simple filtering/aggregation where needed
+ * - NO transformation (done at source)
  *
  * Usage:
  * ```typescript
@@ -16,7 +17,6 @@
  */
 
 import { logger } from '@/commons/utils/logger';
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { StreamingEvent } from '@/entities/StreamingEvent';
 
 // ============================================================================
@@ -148,230 +148,41 @@ export interface ComputedMessage {
 
 /**
  * State shape for selectors
+ * Note: messages are already ComputedMessage[] (transformed at source by claude.handlers.ts or ClaudeCodeService.ts)
  */
 export interface ChatStoreState {
-  messages: Map<string, SDKMessage[]>;
+  messages: Map<string, ComputedMessage[]>;
   activeChat: string | null;
-}
-
-// ============================================================================
-// MEMOIZATION CACHE
-// ============================================================================
-
-/**
- * Simple memoization cache for selector results
- * Uses weak references to prevent memory leaks
- */
-const selectorCache = new WeakMap<Map<string, SDKMessage[]>, Map<string, ComputedMessage[]>>();
-
-/**
- * Clear selector cache (useful for testing)
- */
-export function clearSelectorCache(): void {
-  logger.debug('[chat.selectors] Cache cleared');
-  // WeakMap doesn't have a clear method, but creating a new one achieves the same
-  // We'll just let the old cache be garbage collected
-}
-
-// ============================================================================
-// TRANSFORMATION FUNCTIONS
-// ============================================================================
-
-/**
- * Transform SDK message to computed message for UI
- * Extracts relevant fields and computes derived properties
- */
-function transformSDKMessage(sdkMsg: SDKMessage): ComputedMessage {
-  const baseMsg: ComputedMessage = {
-    id: sdkMsg.uuid || `temp-${Date.now()}`,
-    role: 'assistant', // default
-    content: '',
-    timestamp: new Date(),
-    sessionId: sdkMsg.session_id,
-  };
-
-  // Handle different message types
-  switch (sdkMsg.type) {
-    case 'user': {
-      baseMsg.role = 'user';
-      baseMsg.parentToolUseId = sdkMsg.parent_tool_use_id;
-      if (sdkMsg.isSynthetic !== undefined) {
-        baseMsg.isSynthetic = sdkMsg.isSynthetic;
-      }
-      if ((sdkMsg as any).isReplay !== undefined) {
-        baseMsg.isReplay = (sdkMsg as any).isReplay;
-      }
-
-      // Extract text content from APIUserMessage
-      const message = sdkMsg.message;
-      if (typeof message === 'string') {
-        baseMsg.content = message;
-      } else if (typeof message === 'object' && message !== null) {
-        // Handle { role: 'user', content: string } format
-        if ('content' in message && typeof message.content === 'string') {
-          baseMsg.content = message.content;
-        } else if (Array.isArray(message)) {
-          // Handle array of content blocks
-          baseMsg.content = message
-            .filter((block: any) => block.type === 'text')
-            .map((block: any) => block.text)
-            .join('\n');
-        }
-      }
-      break;
-    }
-
-    case 'assistant': {
-      baseMsg.role = 'assistant';
-      baseMsg.parentToolUseId = sdkMsg.parent_tool_use_id;
-
-      // Extract content from APIAssistantMessage
-      const message = sdkMsg.message;
-      if (message.content) {
-        if (Array.isArray(message.content)) {
-          baseMsg.content = message.content
-            .filter((block: any) => block.type === 'text')
-            .map((block: any) => block.text)
-            .join('\n');
-
-          // Extract tool calls
-          const toolBlocks = message.content.filter((block: any) => block.type === 'tool_use');
-          if (toolBlocks.length > 0) {
-            baseMsg.toolCalls = toolBlocks.map((block: any) => ({
-              type: 'tool_use' as const,
-              id: block.id,
-              name: block.name,
-              input: block.input,
-            }));
-          }
-        }
-      }
-
-      // Extract result metadata if available
-      if (message.stop_reason) {
-        baseMsg.stopReason = message.stop_reason as any;
-      }
-      if (message.stop_sequence !== undefined) {
-        baseMsg.stopSequence = message.stop_sequence;
-      }
-      if (message.usage) {
-        baseMsg.tokenUsage = {
-          inputTokens: message.usage.input_tokens || 0,
-          outputTokens: message.usage.output_tokens || 0,
-          cacheCreationInputTokens: message.usage.cache_creation_input_tokens || 0,
-          cacheReadInputTokens: message.usage.cache_read_input_tokens || 0,
-        };
-      }
-      break;
-    }
-
-    case 'result': {
-      baseMsg.role = 'system';
-
-      if (sdkMsg.subtype === 'success') {
-        baseMsg.content = sdkMsg.result || 'Request completed';
-        baseMsg.duration = sdkMsg.duration_ms;
-        baseMsg.totalCostUSD = sdkMsg.total_cost_usd;
-
-        if (sdkMsg.usage) {
-          baseMsg.tokenUsage = {
-            inputTokens: sdkMsg.usage.input_tokens || 0,
-            outputTokens: sdkMsg.usage.output_tokens || 0,
-            cacheCreationInputTokens: sdkMsg.usage.cache_creation_input_tokens || 0,
-            cacheReadInputTokens: sdkMsg.usage.cache_read_input_tokens || 0,
-          };
-        }
-      } else {
-        // Error result
-        baseMsg.content = `Error: ${sdkMsg.subtype}`;
-        const errorMsg = (sdkMsg as any).error;
-        if (errorMsg) {
-          baseMsg.error = errorMsg;
-          baseMsg.content = errorMsg.message || baseMsg.content;
-        }
-      }
-      break;
-    }
-
-    case 'stream_event': {
-      baseMsg.role = 'assistant';
-      baseMsg.isPartial = true;
-      baseMsg.parentToolUseId = sdkMsg.parent_tool_use_id;
-
-      // Extract partial content from streaming event
-      const event = sdkMsg.event;
-      if (event.type === 'content_block_delta') {
-        if ((event as any).delta?.text) {
-          baseMsg.content = (event as any).delta.text;
-        }
-      }
-      break;
-    }
-
-    case 'system': {
-      baseMsg.role = 'system';
-
-      if ('subtype' in sdkMsg) {
-        if (sdkMsg.subtype === 'init') {
-          baseMsg.content = `Session initialized (Model: ${sdkMsg.model})`;
-        } else if (sdkMsg.subtype === 'compact_boundary') {
-          baseMsg.content = `Compaction triggered: ${sdkMsg.compact_metadata.trigger} (${sdkMsg.compact_metadata.pre_tokens} tokens)`;
-        }
-      } else {
-        baseMsg.content = 'System message';
-      }
-      break;
-    }
-
-    default:
-      // Handle unknown message types (should not happen with proper typing)
-      baseMsg.content = '[Unknown message type]';
-      break;
-  }
-
-  return baseMsg;
 }
 
 // ============================================================================
 // SELECTORS
 // ============================================================================
+// Note: Transformation and filtering removed - messages are already ComputedMessage[]
+// transformed and filtered at source (claude.handlers.ts and ClaudeCodeService.ts)
 
 /**
- * Select all messages for an agent, transformed to computed messages
- * Memoized to prevent unnecessary recomputation
+ * Select all messages for an agent
+ * Messages are already ComputedMessage[] (transformed at source)
+ * Memoized to prevent unnecessary array allocations
+ *
+ * Note: Synthetic messages are filtered at the source:
+ * - JSONL loading: claude.handlers.ts filters during parsing
+ * - Streaming: ClaudeCodeService.ts filters before storing
  *
  * @param state - Chat store state
  * @param agentId - Agent ID
- * @returns Array of computed messages
+ * @returns Array of computed messages (already transformed)
  */
 export function selectMessages(state: ChatStoreState, agentId: string): ComputedMessage[] {
-  const sdkMessages = state.messages.get(agentId);
-  if (!sdkMessages || sdkMessages.length === 0) {
+  const messages = state.messages.get(agentId);
+  if (!messages || messages.length === 0) {
     return [];
   }
 
-  // Check cache
-  let cacheForMessagesMap = selectorCache.get(state.messages);
-  if (!cacheForMessagesMap) {
-    cacheForMessagesMap = new Map();
-    selectorCache.set(state.messages, cacheForMessagesMap);
-  }
-
-  const cached = cacheForMessagesMap.get(agentId);
-  if (cached) {
-    return cached;
-  }
-
-  // Transform and cache
-  const computed = sdkMessages.map(transformSDKMessage);
-  cacheForMessagesMap.set(agentId, computed);
-
-  logger.debug('[chat.selectors] Transformed messages', {
-    agentId,
-    count: computed.length,
-  });
-
-  return computed;
+  // Messages are already ComputedMessage[] - no transformation needed
+  // Just return directly (memoization happens at store level via Map reference)
+  return messages;
 }
 
 /**

@@ -1,27 +1,20 @@
-import { useTheme } from '@/commons/contexts/ThemeContext';
 import { cn } from '@/commons/utils';
 import { logger } from '@/commons/utils/logger';
 import { useMessageMetadata, usePermissionHandling } from '@/hooks';
 import { useFileDragDrop } from '@/hooks/useFileDragDrop';
-import {
-  Circle,
-  CircleCheck,
-  CircleStop,
-  FileCheck2,
-  Package2,
-  Paperclip,
-  Wrench,
-} from 'lucide-react';
+import { CircleCheck, FileCheck2, Package2, Paperclip, Wrench } from 'lucide-react';
 import {
   forwardRef,
   memo,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import { ThreeDots } from 'react-loader-spinner';
+import { toast } from 'sonner';
 
 import { ComputedMessage } from '@/stores/chat.selectors';
 import { ModelOption } from '@/types/model.types';
@@ -53,6 +46,7 @@ import {
   ToolUsageDisplay,
 } from '@/features/monitoring';
 import { ClaudeErrorDisplay, PermissionActionDisplay, TodoDisplay } from '@/features/shared';
+import { AutoLinkedText } from './AutoLinkedText';
 import { CachedMarkdownRenderer } from './CachedMarkdownRenderer';
 import { ChatInput, ChatInputHandle } from './ChatInput';
 
@@ -62,7 +56,6 @@ interface ChatInterfaceProps {
     content: string,
     options?: { permissionMode?: PermissionMode; model?: ModelOption }
   ) => void;
-  isLoading: boolean;
   attachedResourceIds: string[];
   onRemoveResource: (resourceId: string) => void;
   onAttachResources?: (resourceIds: string[]) => void;
@@ -83,6 +76,8 @@ interface MessageItemProps {
   isStreaming?: boolean;
   activeMetadataTab: Map<string, 'tools' | 'tokens' | 'todos' | null>;
   onMetadataToggle: (messageId: string, tab: 'tools' | 'tokens' | 'todos') => void;
+  sessionId?: string;
+  sessionName?: string;
 }
 
 // Helper function to format token counts
@@ -110,7 +105,6 @@ const MessageItem = memo<MessageItemProps>(
     activeMetadataTab,
     onMetadataToggle,
   }) => {
-    const { activeTheme } = useTheme();
     const [showSessionStats, setShowSessionStats] = useState(false);
 
     // Get current project path to strip from file paths
@@ -163,8 +157,9 @@ const MessageItem = memo<MessageItemProps>(
     // Check if this is an interrupted message
     const isInterrupted = message.role === 'user' && content === '[Request interrupted by user]';
 
-    // Don't render empty streaming assistant messages - the standalone indicator will show instead
-    if (isStreamingMessage && message.role === 'assistant' && !content && !isInterrupted) {
+    // Don't render empty assistant messages - they provide no value to the user
+    // This includes both streaming and non-streaming empty messages
+    if (message.role === 'assistant' && !content && !isInterrupted) {
       return null;
     }
 
@@ -173,8 +168,8 @@ const MessageItem = memo<MessageItemProps>(
         className={cn(
           'mb-1 group min-w-0 max-w-full select-text',
           message.role === 'user'
-            ? 'text-text-muted bg-background rounded px-1 py-1'
-            : 'text-text bg-muted rounded px-1 py-1 pb-2'
+            ? 'text-muted-foreground bg-background rounded px-1 py-1'
+            : 'text-foreground bg-muted rounded px-1 py-1 pb-2'
         )}
       >
         {/* Message Content */}
@@ -184,14 +179,25 @@ const MessageItem = memo<MessageItemProps>(
           {isStreamingMessage ? (
             <>
               {isInterrupted ? (
-                <div className="flex items-center gap-1.5 text-sm text-text">
-                  <CircleStop className="w-4 h-4 stroke-red text-red" />
+                <div className="flex items-center gap-1.5 text-sm text-foreground">
+                  <svg
+                    className="w-4 h-4 text-error"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" />
+                  </svg>
                   <span>interrupted</span>
                 </div>
               ) : (
                 content && (
-                  <div className={cn(message.role === 'user' ? 'text-text-muted' : 'text-text')}>
-                    <CachedMarkdownRenderer content={content} />
+                  <div className="text-foreground">
+                    {message.role === 'user' ? (
+                      <AutoLinkedText text={content} className="whitespace-pre-wrap break-words" />
+                    ) : (
+                      <CachedMarkdownRenderer content={content} />
+                    )}
                   </div>
                 )
               )}
@@ -214,17 +220,29 @@ const MessageItem = memo<MessageItemProps>(
               ) : (
                 <>
                   {isInterrupted ? (
-                    <div className="flex items-center gap-1.5 text-sm text-text">
-                      <CircleStop className="w-4 h-4 stroke-red" />
+                    <div className="flex items-center gap-1.5 text-sm text-foreground">
+                      <svg
+                        className="w-4 h-4 text-error"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" />
+                      </svg>
                       <span>interrupted</span>
                     </div>
                   ) : (
                     <>
                       {content && (
-                        <div
-                          className={cn(message.role === 'user' ? 'text-text-muted' : 'text-text')}
-                        >
-                          <CachedMarkdownRenderer content={content} />
+                        <div className="text-foreground">
+                          {message.role === 'user' ? (
+                            <AutoLinkedText
+                              text={content}
+                              className="whitespace-pre-wrap break-words"
+                            />
+                          ) : (
+                            <CachedMarkdownRenderer content={content} />
+                          )}
                         </div>
                       )}
                       {message.role === 'assistant' &&
@@ -283,15 +301,10 @@ const MessageItem = memo<MessageItemProps>(
                       className={cn(
                         'h-auto py-0.5 px-2 text-[11px]',
                         currentActiveTab === 'tools'
-                          ? 'bg-white border-border shadow-xs hover:bg-white hover:border-border hover:shadow-xs text-text [&.dark]:text-black [.dark_&]:text-black'
-                          : 'bg-muted text-text-muted border-border hover:bg-white hover:text-text hover:border-border hover:shadow-xs [.dark_&:hover]:text-black'
+                          ? 'bg-white border-border shadow-xs hover:bg-white hover:border-border hover:shadow-xs text-black'
+                          : 'bg-muted text-muted-foreground border-border hover:bg-white hover:text-black hover:border-border hover:shadow-xs'
                       )}
                       onClick={() => onMetadataToggle(message.id, 'tools')}
-                      style={
-                        currentActiveTab === 'tools' && activeTheme === 'dark'
-                          ? { color: 'black' }
-                          : undefined
-                      }
                     >
                       {message.simplifiedToolCalls?.length ||
                         message.toolCalls?.filter((tc: { type: string }) => tc.type === 'tool_use')
@@ -316,15 +329,10 @@ const MessageItem = memo<MessageItemProps>(
                       className={cn(
                         'h-auto py-0.5 px-2 text-[11px]',
                         currentActiveTab === 'tokens'
-                          ? 'bg-white border-border shadow-xs hover:bg-white hover:border-border hover:shadow-xs text-text [&.dark]:text-black [.dark_&]:text-black'
-                          : 'bg-muted text-text-muted border-border hover:bg-white hover:text-text hover:border-border hover:shadow-xs [.dark_&:hover]:text-black'
+                          ? 'bg-white border-border shadow-xs hover:bg-white hover:border-border hover:shadow-xs text-black'
+                          : 'bg-muted text-muted-foreground border-border hover:bg-white hover:text-black hover:border-border hover:shadow-xs'
                       )}
                       onClick={() => onMetadataToggle(message.id, 'tokens')}
-                      style={
-                        currentActiveTab === 'tokens' && activeTheme === 'dark'
-                          ? { color: 'black' }
-                          : undefined
-                      }
                     >
                       {message.tokenUsage.inputTokens !== undefined &&
                         message.tokenUsage.outputTokens !== undefined && (
@@ -451,7 +459,7 @@ const MessageItem = memo<MessageItemProps>(
                       <CircleCheck
                         className={cn(
                           'h-4 w-4 flex-shrink-0 mt-0.5',
-                          task.status === 'completed' ? 'text-success' : 'text-text-muted'
+                          task.status === 'completed' ? 'text-success' : 'text-muted-foreground'
                         )}
                       />
                       <span className="text-sm">
@@ -475,7 +483,7 @@ const MessageItem = memo<MessageItemProps>(
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-auto py-0 px-0.5 text-[11px] text-text-muted hover:text-text"
+                  className="h-auto py-0 px-0.5 text-[11px] text-muted-foreground hover:text-foreground"
                   onMouseEnter={() => setShowSessionStats(true)}
                   onMouseLeave={() => setShowSessionStats(false)}
                 >
@@ -487,16 +495,16 @@ const MessageItem = memo<MessageItemProps>(
                     <h4 className="font-semibold text-sm mb-2">Session Stats</h4>
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-text-muted">Messages</span>
+                        <span className="text-muted-foreground">Messages</span>
                         <span>{worktreeStats.messageCount}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-text-muted">Total Cost</span>
+                        <span className="text-muted-foreground">Total Cost</span>
                         <span className="text-success">{formatCost(worktreeStats.totalCost)}</span>
                       </div>
                       <Separator className="my-1" />
                       <div className="flex justify-between">
-                        <span className="text-text-muted">Total Tokens</span>
+                        <span className="text-muted-foreground">Total Tokens</span>
                         <span>
                           {formatTokenCount(
                             worktreeStats.totalInputTokens +
@@ -507,22 +515,22 @@ const MessageItem = memo<MessageItemProps>(
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-text-muted">Input</span>
+                        <span className="text-muted-foreground">Input</span>
                         <span>{formatTokenCount(worktreeStats.totalInputTokens)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-text-muted">Output</span>
+                        <span className="text-muted-foreground">Output</span>
                         <span>{formatTokenCount(worktreeStats.totalOutputTokens)}</span>
                       </div>
                       {worktreeStats.totalCacheReadTokens > 0 && (
                         <div className="flex justify-between">
-                          <span className="text-text-muted">Cache Read</span>
+                          <span className="text-muted-foreground">Cache Read</span>
                           <span>{formatTokenCount(worktreeStats.totalCacheReadTokens)}</span>
                         </div>
                       )}
                       {worktreeStats.totalCacheCreationTokens > 0 && (
                         <div className="flex justify-between">
-                          <span className="text-text-muted">Cache Write</span>
+                          <span className="text-muted-foreground">Cache Write</span>
                           <span>{formatTokenCount(worktreeStats.totalCacheCreationTokens)}</span>
                         </div>
                       )}
@@ -549,7 +557,6 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     {
       messages,
       onSendMessage,
-      isLoading,
       attachedResourceIds,
       onRemoveResource,
       onAttachResources,
@@ -557,6 +564,8 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     },
     ref
   ) => {
+    logger.debug('[ChatInterface] Rendering chat interface without MaximizeButton');
+
     const [showClearConfirm, setShowClearConfirm] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<ChatInputHandle>(null);
@@ -566,11 +575,30 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const resources = useResourcesStore((state) => state.resources);
     const activeChat = useChatStore((state) => state.activeChat);
     const clearChat = useChatStore((state) => state.clearChat);
+
+    // Streaming state for loader visibility and button control
     const isStreaming = useChatStore((state) =>
       state.activeChat ? state.streamingStates.get(state.activeChat) || false : false
     );
     const streamingMessage = useChatStore((state) =>
       state.activeChat ? state.streamingMessages.get(state.activeChat) : null
+    );
+    const stopStreaming = useChatStore((state) => state.stopStreaming);
+
+    // Wrap stopStreaming with focus restoration callback
+    const handleStopStreaming = useCallback(
+      (options?: { focusCallback?: () => void; silentCancel?: boolean }) => {
+        stopStreaming({
+          ...options,
+          focusCallback: () => {
+            // Restore focus to the chat input after cancellation
+            requestAnimationFrame(() => {
+              chatInputRef.current?.focus();
+            });
+          },
+        });
+      },
+      [stopStreaming]
     );
 
     const currentPermissionRequest = useChatStore((state) => {
@@ -579,12 +607,12 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       return msg?.permissionRequest || null;
     });
 
-    // Throw chatError to trigger ErrorBoundary (must be in useEffect, not render)
+    // Handle chatError with toast notification instead of crashing app
     const chatError = useChatStore((state) => state.chatError);
-    const [errorToThrow, setErrorToThrow] = useState<Error | null>(null);
+    const clearChatError = useChatStore((state) => state.clearChatError);
 
     useEffect(() => {
-      if (chatError && !errorToThrow) {
+      if (chatError) {
         // Validate chatError is a clean error message (not corrupted console output)
         if (
           typeof chatError === 'string' &&
@@ -593,46 +621,33 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           !chatError.startsWith('{') && // Filter out JSON objects
           !chatError.startsWith('[') // Filter out arrays
         ) {
-          try {
-            setErrorToThrow(new Error(chatError));
-          } catch (err) {
-            // If creating Error fails, use a generic message
-            setErrorToThrow(new Error('An unexpected error occurred'));
-          }
+          // Log the error for debugging
+          logger.error('[ChatInterface] Chat error occurred:', chatError);
+          console.error('[ChatInterface] Chat error:', chatError);
+
+          // Show toast notification instead of crashing the app
+          toast.error('Claude Code Error', {
+            description: chatError,
+            duration: 10000, // 10 seconds
+            action: {
+              label: 'Dismiss',
+              onClick: () => {
+                clearChatError();
+              },
+            },
+          });
+
+          // Clear the error after showing toast
+          clearChatError();
         }
       }
-    }, [chatError, errorToThrow]);
-
-    if (errorToThrow) {
-      throw errorToThrow;
-    }
+    }, [chatError, clearChatError]);
 
     const selectedAgentId = useAgentsStore((state) => state.selectedAgentId);
     const storeSendMessage = useChatStore((state) => state.sendMessage);
     const selectedProjectId = useProjectsStore((state) => state.selectedProjectId);
     const projects = useProjectsStore((state) => state.projects);
     const currentProject = selectedProjectId ? projects.get(selectedProjectId) : undefined;
-
-    // Debug: Track isActive changes
-    useEffect(() => {
-      console.log('[ChatInterface] isActive changed:', {
-        isActive,
-        activeChat,
-        selectedAgentId,
-      });
-    }, [isActive, activeChat, selectedAgentId]);
-
-    // Debug: Track message changes
-    useEffect(() => {
-      console.log('[ChatInterface] Messages changed:', {
-        isActive,
-        messageCount: messages.length,
-        lastMessageId: messages[messages.length - 1]?.id,
-        lastMessageContentLength: messages[messages.length - 1]?.content?.length || 0,
-        lastMessageRole: messages[messages.length - 1]?.role,
-        allMessageIds: messages.map((m) => m.id),
-      });
-    }, [messages, isActive]);
 
     // Scroll position management with sticky-bottom (z-index keeps elements mounted)
     // bottomThreshold: 300px to account for streaming content growth during render
@@ -669,28 +684,14 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
     // Connect scrollRef to the actual scrollable viewport element (runs once, z-index keeps it mounted)
     useEffect(() => {
-      console.log('[ChatInterface] Connecting scrollRef', {
-        hasScrollAreaRef: !!scrollAreaRef.current,
-        scrollRefAlreadySet: !!scrollRef.current,
-      });
-
       if (scrollAreaRef.current && !scrollRef.current) {
         const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-        console.log('[ChatInterface] Found viewport:', {
-          found: !!viewport,
-          isHTMLDivElement: viewport instanceof HTMLDivElement,
-        });
 
         if (viewport instanceof HTMLDivElement) {
           scrollRef.current = viewport;
-          console.log('[ChatInterface] scrollRef connected to viewport', {
-            scrollTop: viewport.scrollTop,
-            scrollHeight: viewport.scrollHeight,
-            clientHeight: viewport.clientHeight,
-          });
         }
       }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [scrollAreaRef, scrollRef]); // Refs are stable, effect runs once
 
     // Wrap onSendMessage to force scroll to bottom (Rule #3)
     const handleSendMessage = useCallback(
@@ -721,13 +722,33 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     };
 
     // Warmup markdown cache for improved rendering performance
+    // Only warmup assistant messages since user messages are rendered as plain text
+    // Memoize expensive filtering operations to prevent recalculation on every render
+    const userMessages = useMemo(() => messages.filter((msg) => msg.role === 'user'), [messages]);
+    const assistantMessages = useMemo(
+      () => messages.filter((msg) => msg.role === 'assistant'),
+      [messages]
+    );
+    const assistantContents = useMemo(
+      () => assistantMessages.map((msg) => msg.content).filter(Boolean),
+      [assistantMessages]
+    );
+
     useEffect(() => {
       const cacheService = MarkdownCacheService.getInstance();
-      const contents = messages.map((msg) => msg.content).filter(Boolean);
-      if (contents.length > 0) {
-        cacheService.warmup(contents);
+
+      logger.debug('[ChatInterface] Cache warmup decision', {
+        totalMessages: messages.length,
+        userMessageCount: userMessages.length,
+        assistantMessageCount: assistantMessages.length,
+        willCacheCount: assistantContents.length,
+        willNotCacheUserMessages: true,
+      });
+
+      if (assistantContents.length > 0) {
+        cacheService.warmup(assistantContents);
       }
-    }, [messages]);
+    }, [messages, userMessages, assistantMessages, assistantContents]);
 
     // Auto-focus chat input when a worktree/project is selected
     useEffect(() => {
@@ -735,6 +756,13 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         // Focus would be handled here if we had a ref
       }
     }, [currentProject?.id]);
+
+    // Auto-focus when tab becomes active
+    useEffect(() => {
+      if (isActive && chatInputRef.current && typeof chatInputRef.current.focus === 'function') {
+        chatInputRef.current.focus();
+      }
+    }, [isActive]);
 
     // Expose focus method to parent components
     useImperativeHandle(
@@ -848,7 +876,7 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
     const { isDragging, dragHandlers } = useFileDragDrop({
       onFilesDropped: handleFilesDropped,
-      disabled: !onAttachResources || (isLoading && !isStreaming),
+      disabled: !onAttachResources,
     });
 
     return (
@@ -867,7 +895,7 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           <div className="absolute inset-0 z-50 bg-muted/95 flex items-center justify-center pointer-events-none">
             <div className="bg-background rounded-lg p-4 flex flex-col items-center gap-2 pointer-events-none">
               <Paperclip className="h-8 w-8 text-primary" />
-              <p className="text-sm font-medium text-text">Drop files to attach</p>
+              <p className="text-sm font-medium text-foreground">Drop files to attach</p>
             </div>
           </div>
         )}
@@ -918,13 +946,15 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
               {/* Standalone Streaming Indicator - Shown when actively streaming */}
               {isStreaming && streamingMessage && (
-                <div className="mb-1 group min-w-0 text-text bg-muted rounded px-1 py-1 pb-2">
+                <div className="mb-1 group min-w-0 text-foreground bg-muted rounded px-1 py-1 pb-2">
                   <div className="pl-2 text-sm min-w-0 overflow-hidden">
                     <div className="flex items-center gap-2">
                       <ThreeDots
                         height="12"
                         width="24"
-                        color="#4caf50"
+                        color={getComputedStyle(document.documentElement)
+                          .getPropertyValue('--base-success-alt')
+                          .trim()}
                         ariaLabel="three-dots-loading"
                       />
                       {(() => {
@@ -935,7 +965,7 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                               <RequestTiming startTime={lastMessage.startTime} isStreaming={true} />
                               {lastMessage.currentResponseOutputTokens &&
                                 lastMessage.currentResponseOutputTokens > 0 && (
-                                  <span className="text-text-muted">
+                                  <span className="text-muted-foreground">
                                     ↓ {formatTokenCount(lastMessage.currentResponseOutputTokens)}{' '}
                                     tokens
                                   </span>
@@ -966,7 +996,8 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                                 : currentPermissionRequest.tool_name === 'WebSearch'
                                   ? 'Search Web'
                                   : currentPermissionRequest.tool_name || 'Edit'}{' '}
-                            {currentPermissionRequest.url ||
+                            {currentPermissionRequest.command ||
+                              currentPermissionRequest.url ||
                               currentPermissionRequest.query ||
                               (currentPermissionRequest.file_path
                                 ? stripWorktreePath(currentPermissionRequest.file_path)
@@ -1048,6 +1079,45 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                             )}
                         </div>
 
+                        {/* Bash Command Display */}
+                        {currentPermissionRequest.command &&
+                          currentPermissionRequest.tool_name === 'Bash' && (
+                            <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded font-mono text-sm mb-2 mx-2">
+                              <div className="text-xs font-semibold mb-1 text-slate-600 dark:text-slate-400">
+                                Command:
+                              </div>
+                              <div className="text-foreground">
+                                $ {currentPermissionRequest.command}
+                              </div>
+                            </div>
+                          )}
+
+                        {/* WebFetch URL Display */}
+                        {currentPermissionRequest.url &&
+                          currentPermissionRequest.tool_name === 'WebFetch' && (
+                            <div className="bg-blue-50 dark:bg-blue-900 p-3 rounded text-sm mb-2 mx-2">
+                              <div className="text-xs font-semibold mb-1 text-blue-600 dark:text-blue-400">
+                                Fetching URL:
+                              </div>
+                              <div className="font-mono text-foreground break-all">
+                                {currentPermissionRequest.url}
+                              </div>
+                            </div>
+                          )}
+
+                        {/* WebSearch Query Display */}
+                        {currentPermissionRequest.query &&
+                          currentPermissionRequest.tool_name === 'WebSearch' && (
+                            <div className="bg-green-50 dark:bg-green-900 p-3 rounded text-sm mb-2 mx-2">
+                              <div className="text-xs font-semibold mb-1 text-green-600 dark:text-green-400">
+                                Search Query:
+                              </div>
+                              <div className="font-mono text-foreground">
+                                {currentPermissionRequest.query}
+                              </div>
+                            </div>
+                          )}
+
                         {/* Action buttons */}
                         <div className="flex gap-2 pt-4 px-3 pb-1">
                           <Button
@@ -1073,26 +1143,6 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 </div>
               )}
 
-              {/* Loading Indicator */}
-              {isLoading && !isStreaming && (
-                <div className="mb-1.5">
-                  <div className="flex items-center gap-1 mb-0.5 text-sm text-text-muted">
-                    <Circle className="h-1.5 w-1.5 fill-current" />
-                    <span>Assistant</span>
-                  </div>
-                  <div className="pl-2">
-                    <div data-testid="typing-indicator">
-                      <ThreeDots
-                        height="12"
-                        width="24"
-                        color="#4caf50"
-                        ariaLabel="three-dots-loading"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
@@ -1103,12 +1153,12 @@ export const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           <ChatInput
             ref={chatInputRef}
             onSendMessage={handleSendMessage}
-            isLoading={isLoading}
             attachedResourceIds={attachedResourceIds}
             onRemoveResource={onRemoveResource}
             {...(onAttachResources && { onAttachResources })}
             isStreaming={isStreaming}
             selectedAgentId={selectedAgentId}
+            onStopStreaming={handleStopStreaming}
           />
         )}
       </div>

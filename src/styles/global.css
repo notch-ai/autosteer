@@ -83,11 +83,11 @@ html {
 
 body {
   height: 100%;
-  font-family: var(--font-stack);
+  font-family: var(--font-family-mono);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
-  color: rgb(var(--color-text));
-  background-color: rgb(var(--color-background));
+  color: rgb(var(--foreground));
+  background-color: rgb(var(--background));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Better text rendering */
@@ -137,17 +137,17 @@ body {
   50%,
   100% {
     opacity: 1;
-    color: #10b981;
+    color: var(--base-success-alt);
   }
   25%,
   75% {
     opacity: 0.3;
-    color: #10b981;
+    color: var(--base-success-alt);
   }
 }
 
 .session-active-blink {
-  color: #10b981 !important;
+  color: var(--base-success-alt) !important;
   animation: sessionBlink 1.5s ease-in-out infinite;
 }
 
@@ -161,7 +161,7 @@ body {
   .session-active-blink {
     animation: none;
     opacity: 1;
-    color: #10b981 !important;
+    color: var(--base-success-alt) !important;
   }
 }
 
@@ -400,11 +400,25 @@ select:focus-visible {
   overflow-wrap: break-word;
 }
 
+/* Links should be underlined and visually distinct */
+.markdown-content a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  color: rgb(var(--color-primary));
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.markdown-content a:hover {
+  opacity: 0.7;
+}
+
 /* Inline code highlighting - muted yellow using theme-aware CSS variables */
 .inline-code-highlight {
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
-  font-family: monospace;
+  font-family: inherit;
   font-size: inherit;
   font-weight: normal;
   background-color: rgb(var(--color-code-highlight-bg));
@@ -431,10 +445,45 @@ select:focus-visible {
   background-color: rgb(var(--color-terminal-scrollbar) / 0.5);
 }
 
-/* Terminal cursor height adjustment - 90% of cell height (10% reduction) */
+/* Terminal cursor styling - visible, blinking, theme-aware */
 .xterm .xterm-cursor-layer .xterm-cursor {
   height: 90% !important;
   top: 5% !important;
+  background-color: rgb(var(--foreground)) !important;
+  opacity: 1 !important;
+}
+
+/* Terminal cursor blink animation */
+@keyframes xterm-cursor-blink {
+  0%, 49% {
+    opacity: 0.5;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+.xterm .xterm-cursor-layer .xterm-cursor.xterm-cursor-blink {
+  animation: xterm-cursor-blink 1s step-end infinite;
+}
+
+/* Fix xterm decoration backgrounds that cause unreadable text */
+.xterm .xterm-decoration-top,
+.xterm .xterm-decoration-top[class*='xterm-fg-'],
+.xterm .xterm-decoration-top[class*='xterm-bg-'] {
+  background-color: rgb(var(--color-terminal-bg)) !important;
+  color: rgb(var(--color-terminal-bright-white)) !important;
+}
+
+/* Override xterm inline styles for decoration elements */
+.xterm .xterm-decoration-top[style] {
+  background-color: rgb(var(--color-terminal-bg)) !important;
+  color: rgb(var(--color-terminal-bright-white)) !important;
+}
+
+/* Override body text color inheritance for terminal - use terminal white */
+.xterm .xterm-rows {
+  color: rgb(var(--color-terminal-white)) !important;
 }
 
 /* CodeMirror editor-content - disable horizontal scrollbar, enable text wrapping */
@@ -520,6 +569,13 @@ select:focus-visible {
   scrollbar-width: thin !important;
 }
 
+/* Override CodeMirror's hardcoded monospace font - inherit from body */
+.cm-editor .cm-scroller,
+.cm-editor .cm-content,
+.cm-editor .cm-line {
+  font-family: inherit !important;
+}
+
 /* Radix ScrollArea viewport - enable scrolling */
 [data-radix-scroll-area-viewport] {
   overflow-y: auto !important;
@@ -532,6 +588,12 @@ select:focus-visible {
 [cmdk-item][aria-selected='true'],
 [cmdk-item]:hover {
   background-color: hsl(var(--accent)) !important;
+}
+
+/* Create Project modal dropdown selection - use gray instead of accent */
+[data-testid="repo-autocomplete"] [cmdk-item][aria-selected='true'],
+[data-testid="repo-autocomplete"] [cmdk-item]:hover {
+  background-color: rgb(var(--muted)) !important;
 }
 
 /* File mentions text truncation - ensure text overflow works in cmdk items */
@@ -552,4 +614,16 @@ select:focus-visible {
   min-width: 0 !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
+}
+
+/* Fixed icon sizes - icons should be large and visible */
+/* All icons: fixed at 20px (bigger than font-base for visibility) */
+svg,
+.icon,
+[class*='lucide'],
+button svg,
+[role='button'] svg {
+  width: 1.25rem !important; /* 20px */
+  height: 1.25rem !important;
+  flex-shrink: 0 !important; /* Prevent icon shrinking */
 }

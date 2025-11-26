@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ErrorBoundary } from '@/features/shared/components/ui/ErrorBoundary';
-import { LLMSettings } from '@/features/settings/components/LLMSettings';
+import { AppSettings } from '@/features/settings/components/AppSettings';
 import { MenuBar } from '@/features/shared/components/layout/MenuBar';
 import { ThreeColumnLayout } from '@/features/shared/components/layout/ThreeColumnLayout';
 import { ToastProvider } from '@/features/shared';
@@ -22,6 +22,8 @@ import {
 } from '@/commons/utils/keyboard/keyboard_shortcuts';
 import { GlobalChatRefs } from '@/commons/utils/globalChatRefs';
 import { CHANGES_TAB_ID, TERMINAL_TAB_ID } from '@/constants/tabs';
+import { useFontVariables } from '@/hooks/useFontVariables';
+import { useFontSizeVariables } from '@/hooks/useFontSizeVariables';
 import { Card } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import TestHarness from '@/../tests/test-harness/test-harness';
@@ -39,6 +41,10 @@ const AppContent: React.FC = () => {
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const showProjectCreation = useUIStore((state) => state.showProjectCreation);
   const setShowProjectCreation = useUIStore((state) => state.setShowProjectCreation);
+
+  // Inject font CSS variables from user config
+  useFontVariables();
+  useFontSizeVariables();
 
   // Keyboard shortcut: Cmd+N to open new project modal
   const handleNewProject = useCallback(() => {
@@ -164,89 +170,133 @@ const AppContent: React.FC = () => {
     // Initialize app
     const initializeApp = async () => {
       try {
+        logger.info('[APP_INIT] Starting app initialization...');
+
         // Check if we're in test mode
         const isElectron = !!(window as any).electron;
+        logger.info('[APP_INIT] Is Electron:', isElectron);
+
         if (isElectron) {
           try {
+            logger.info('[APP_INIT] Checking test mode state...');
             const testModeState = await (window as any).electron.ipcRenderer.invoke(
               'test-mode:getState'
             );
+            logger.info('[APP_INIT] Test mode state:', testModeState);
+
             if (testModeState.isActive) {
+              logger.info('[APP_INIT] Test mode is active, entering test mode');
               setIsTestMode(true);
               setIsLoading(false);
               return; // Don't initialize normal app in test mode
             }
           } catch (error) {
+            logger.warn('[APP_INIT] Test mode check failed:', error);
             // Test mode not available, continue with normal initialization
           }
         }
 
         // Initialize IPC service (this sets up window.electron extensions)
+        logger.info('[APP_INIT] IPC service setup (window.electron available)');
 
         // Initialize settings store (loads from config.json)
+        logger.info('[APP_INIT] Initializing settings store...');
         const { initialize: initializeSettings } = useSettingsStore.getState();
         await initializeSettings();
+        logger.info('[APP_INIT] Settings store initialized');
 
         // Sync selected model with default model from settings
+        logger.info('[APP_INIT] Syncing selected model with default...');
         const defaultModel = useSettingsStore.getState().preferences.defaultModel;
+        logger.info('[APP_INIT] Default model:', defaultModel);
+
         if (defaultModel) {
           const { setSelectedModel } = useUIStore.getState();
           setSelectedModel(defaultModel);
+          logger.info('[APP_INIT] Selected model set to:', defaultModel);
         }
 
         // Initialize LLM service with saved config
+        logger.info('[APP_INIT] Initializing LLM service...');
         await LLMService.initialize();
+        logger.info('[APP_INIT] LLM service initialized');
 
         // Initialize VIM mode from saved config
         try {
+          logger.info('[APP_INIT] Loading VIM mode from config...');
           const savedVimMode = await window.electron.worktree.getVimMode();
+          logger.info('[APP_INIT] Saved VIM mode:', savedVimMode);
+
           const { vimEnabled, toggleVimMode, updateVimState } = useUIStore.getState();
+          logger.info('[APP_INIT] Current VIM enabled state:', vimEnabled);
 
           if (savedVimMode && !vimEnabled) {
+            logger.info('[APP_INIT] Enabling VIM mode...');
             toggleVimMode(); // Set to enabled
             updateVimState({ mode: 'NORMAL' });
           } else if (!savedVimMode && vimEnabled) {
+            logger.info('[APP_INIT] Disabling VIM mode...');
             toggleVimMode(); // Set to disabled
             updateVimState({ mode: 'INSERT' });
           } else if (!savedVimMode) {
+            logger.info('[APP_INIT] VIM mode not saved, setting INSERT...');
             updateVimState({ mode: 'INSERT' });
           } else {
+            logger.info('[APP_INIT] VIM mode enabled, setting NORMAL...');
             updateVimState({ mode: 'NORMAL' });
           }
+          logger.info('[APP_INIT] VIM mode initialized');
         } catch (error) {
-          logger.error('Failed to load VIM mode:', error);
+          logger.error('[APP_INIT] Failed to load VIM mode from config:', error);
           // Fallback to localStorage
+          logger.info('[APP_INIT] Falling back to localStorage for VIM mode...');
           const savedVimMode = localStorage.getItem('vimModeEnabled');
+          logger.info('[APP_INIT] localStorage VIM mode:', savedVimMode);
+
           if (savedVimMode === 'true') {
             const { toggleVimMode, updateVimState } = useUIStore.getState();
             toggleVimMode();
             updateVimState({ mode: 'NORMAL' });
+            logger.info('[APP_INIT] VIM mode enabled from localStorage');
           }
         }
 
         // Load initial data - projects first, then agents, then slash commands
         // Use new domain-specific stores instead of deprecated core.ts methods
+        logger.info('[APP_INIT] Loading projects, agents, and slash commands...');
         const { useProjectsStore } = await import('@/stores/projects.store');
         const { useAgentsStore } = await import('@/stores/agents.store');
         const projectsStore = useProjectsStore.getState();
         const agentsStore = useAgentsStore.getState();
         const { loadSlashCommands } = useSlashCommandsStore.getState();
 
+        logger.info('[APP_INIT] Loading projects...');
         await projectsStore.loadProjects();
+        logger.info('[APP_INIT] Projects loaded, count:', projectsStore.projects.size);
+
+        logger.info('[APP_INIT] Loading agents...');
         await agentsStore.loadAgents();
+        logger.info('[APP_INIT] Agents loaded');
 
         // Auto-select the first project if none is selected
+        logger.info('[APP_INIT] Checking if project auto-selection needed...');
         if (!projectsStore.selectedProjectId && projectsStore.projects.size > 0) {
           const firstProject = Array.from(projectsStore.projects.values())[0];
+          logger.info('[APP_INIT] Auto-selecting first project:', firstProject.id);
           await projectsStore.selectProject(firstProject.id);
+          logger.info('[APP_INIT] First project selected');
         }
 
         // Load slash commands for the selected project (or default if no project selected)
+        logger.info('[APP_INIT] Loading slash commands...');
         await loadSlashCommands();
+        logger.info('[APP_INIT] Slash commands loaded');
 
+        logger.info('[APP_INIT] App initialization complete');
         setIsLoading(false);
       } catch (error) {
-        logger.error('Failed to initialize app:', error);
+        logger.error('[APP_INIT] Failed to initialize app:', error);
+        logger.error('[APP_INIT] Error stack:', error instanceof Error ? error.stack : 'No stack');
         setIsLoading(false);
       }
     };
@@ -316,8 +366,8 @@ const AppContent: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-full bg-background">
         <Card className="p-8 flex flex-col items-center justify-center">
-          <h1 className="text-2xl font-bold text-text mb-4">Notch AI</h1>
-          <div className="flex items-center gap-2 text-text-muted">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Notch AI</h1>
+          <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             <p className="text-sm">Loading...</p>
           </div>
@@ -350,7 +400,7 @@ const AppContent: React.FC = () => {
           onOpenKeyboardShortcuts={() => setShowKeyboardShortcuts(true)}
         />
       </div>
-      {showLLMSettings && <LLMSettings onClose={() => setShowLLMSettings(false)} />}
+      {showLLMSettings && <AppSettings onClose={() => setShowLLMSettings(false)} />}
       {showProjectCreation && <AddProjectModal onClose={() => setShowProjectCreation(false)} />}
       <KeyboardShortcutsModal
         isOpen={showKeyboardShortcuts}

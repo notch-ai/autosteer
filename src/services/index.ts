@@ -7,6 +7,7 @@ export { GitDiscardService } from './GitDiscardService';
 export { GitService } from './GitService';
 export { McpAuthService } from './McpAuthService';
 export { monitoringService } from './monitoring';
+export { PythonRuntimeService } from './PythonRuntimeService';
 export { QueryManager } from './QueryManager';
 export { SearchService } from './SearchService';
 export { SessionManifestService } from './SessionManifestService';

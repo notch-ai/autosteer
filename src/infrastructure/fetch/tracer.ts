@@ -15,8 +15,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+import { getFetchCacheSettings, getFetchTraceSettings } from '../../config/settings';
 import { FetchCacheService } from '../../services/FetchCacheService';
-import { getFetchTraceSettings, getFetchCacheSettings } from '../../config/settings';
 
 // Load settings once (reads from process.env which was populated by main process)
 const traceSettings = getFetchTraceSettings();

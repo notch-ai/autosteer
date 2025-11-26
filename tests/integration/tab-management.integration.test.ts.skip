@@ -1,0 +1,616 @@
+/**
+ * Tab Management Integration Tests
+ *
+ * Tests comprehensive tab management functionality including:
+ * - Per-project tab state persistence
+ * - Cross-project tab isolation
+ * - Tab restoration flows
+ * - Max capacity handling
+ * - Auto-select behavior
+ *
+ * Test Coverage:
+ * - Tab state persistence when switching between projects
+ * - Tab isolation by project (no cross-project leakage)
+ * - Correct tab restoration when returning to project
+ * - Max capacity across multiple projects
+ * - Auto-select correctly applied on project switch
+ * - Full workflow: create tabs, switch projects, delete tabs, verify isolation
+ *
+ * @see docs/guides-architecture.md - Tab Management Architecture
+ * @see docs/guides-coding.md - Testing Patterns
+ */
+
+import { useUIStore } from '@/stores/ui';
+import { useAgentsStore } from '@/stores/agents.store';
+import { useProjectsStore } from '@/stores/projects.store';
+import { logger } from '@/commons/utils/logger';
+import {
+  createTestProject,
+  createTestProjects,
+  createTestAgent,
+  createTestAgents,
+  createTestTab,
+  createTestTabs,
+} from '../factories';
+import { MAX_TABS, TERMINAL_TAB_ID, CHANGES_TAB_ID } from '@/constants/tabs';
+
+// Mock logger
+jest.mock('@/commons/utils/logger', () => ({
+  logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
+// Mock electron IPC
+const mockSetActiveTab = jest.fn().mockResolvedValue(undefined);
+const mockGetActiveTab = jest.fn().mockResolvedValue(null);
+
+(global as any).window = {
+  electron: {
+    worktree: {
+      setActiveTab: mockSetActiveTab,
+      getActiveTab: mockGetActiveTab,
+    },
+  },
+};
+
+describe('Tab Management Integration Tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Reset all stores to initial state
+    useUIStore.setState({
+      tabState: null,
+      maximizeTabs: new Map(),
+      maximizeTabsVersion: 0,
+      sidebarCollapsed: false,
+      detailPanelCollapsed: false,
+      activeView: 'list',
+      leftPanelWidth: 280,
+      rightPanelWidth: 320,
+      activePanel: 'chat',
+      showProjectCreation: false,
+      changesTab: {
+        selectedFile: null,
+        panelSizes: { fileList: 30, diffViewer: 70 },
+        scrollPosition: 0,
+      },
+      searchQuery: '',
+      searchResults: [],
+      isSearching: false,
+      vimMode: { mode: 'NORMAL', enabled: false },
+      vimEnabled: false,
+    });
+
+    useAgentsStore.setState({
+      agents: new Map(),
+      selectedAgentId: null,
+    });
+
+    useProjectsStore.setState({
+      projects: new Map(),
+      selectedProjectId: null,
+    });
+
+    mockSetActiveTab.mockClear();
+    mockGetActiveTab.mockClear();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('Per-Project Tab State Persistence', () => {
+    it('should persist tab state when switching between projects', async () => {
+      // Setup: Create 2 projects
+      const project1 = createTestProject({ id: 'project-1', folderName: 'project-1' });
+      const project2 = createTestProject({ id: 'project-2', folderName: 'project-2' });
+
+      const projectsMap = new Map();
+      projectsMap.set(project1.id, project1);
+      projectsMap.set(project2.id, project2);
+      useProjectsStore.setState({ projects: projectsMap });
+
+      // Setup: Create agents for project 1
+      const project1Agents = createTestAgents(3, { projectId: project1.id });
+      const agentsMap = new Map();
+      project1Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+
+      // Select project 1 and set active tab
+      useProjectsStore.setState({ selectedProjectId: project1.id });
+      const { setActiveTab, updateTabState } = useUIStore.getState();
+
+      const tabs = [
+        createTestTab({ id: project1Agents[0].id, agentId: project1Agents[0].id, isActive: true }),
+        createTestTab({ id: project1Agents[1].id, agentId: project1Agents[1].id, isActive: false }),
+        createTestTab({ id: project1Agents[2].id, agentId: project1Agents[2].id, isActive: false }),
+      ];
+
+      updateTabState(tabs);
+      setActiveTab(project1Agents[1].id);
+
+      // Verify project 1 active tab is persisted
+      const project1State = useUIStore.getState().tabState;
+      expect(project1State?.activeTabId).toBe(project1Agents[1].id);
+      expect(mockSetActiveTab).toHaveBeenCalledWith(project1.folderName, project1Agents[1].id);
+
+      // Switch to project 2
+      const project2Agents = createTestAgents(2, { projectId: project2.id });
+      project2Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+      useProjectsStore.setState({ selectedProjectId: project2.id });
+
+      const project2Tabs = [
+        createTestTab({
+          id: project2Agents[0].id,
+          agentId: project2Agents[0].id,
+          isActive: true,
+        }),
+        createTestTab({
+          id: project2Agents[1].id,
+          agentId: project2Agents[1].id,
+          isActive: false,
+        }),
+      ];
+
+      updateTabState(project2Tabs);
+      setActiveTab(project2Agents[0].id);
+
+      // Verify project 2 has its own state
+      const project2State = useUIStore.getState().tabState;
+      expect(project2State?.activeTabId).toBe(project2Agents[0].id);
+      expect(mockSetActiveTab).toHaveBeenCalledWith(project2.folderName, project2Agents[0].id);
+
+      // Switch back to project 1
+      useProjectsStore.setState({ selectedProjectId: project1.id });
+      mockGetActiveTab.mockResolvedValueOnce(project1Agents[1].id);
+
+      // Verify project 1 state is restored
+      const restoredTabId = await mockGetActiveTab(project1.folderName);
+      expect(restoredTabId).toBe(project1Agents[1].id);
+    });
+
+    it('should handle missing persisted state gracefully', async () => {
+      const project = createTestProject({ id: 'project-1', folderName: 'project-1' });
+      const projectsMap = new Map();
+      projectsMap.set(project.id, project);
+      useProjectsStore.setState({ projects: projectsMap, selectedProjectId: project.id });
+
+      // Mock no persisted state
+      mockGetActiveTab.mockResolvedValueOnce(null);
+
+      const activeTabId = await mockGetActiveTab(project.folderName);
+      expect(activeTabId).toBeNull();
+
+      // System should handle this gracefully and select first tab
+      const agents = createTestAgents(2, { projectId: project.id });
+      const agentsMap = new Map();
+      agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+
+      const { updateTabState } = useUIStore.getState();
+      const tabs = createTestTabs(2);
+      updateTabState(tabs);
+
+      const state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(2);
+    });
+  });
+
+  describe('Cross-Project Tab Isolation', () => {
+    it('should isolate tabs by project (no cross-project leakage)', () => {
+      // Create 3 projects with agents
+      const projects = createTestProjects(3);
+      const projectsMap = new Map();
+      projects.forEach((p) => projectsMap.set(p.id, p));
+      useProjectsStore.setState({ projects: projectsMap });
+
+      // Create agents for each project
+      const allAgents = new Map();
+      projects.forEach((project, index) => {
+        const agents = createTestAgents(2, { projectId: project.id });
+        agents.forEach((agent) => {
+          agent.id = `${project.id}-agent-${index}`;
+          agent.projectId = project.id;
+          allAgents.set(agent.id, agent);
+        });
+      });
+
+      useAgentsStore.setState({ agents: allAgents });
+
+      // Select project 1 and verify only project 1 agents are available
+      useProjectsStore.setState({ selectedProjectId: projects[0].id });
+      const project1Agents = Array.from(allAgents.values()).filter(
+        (a) => a.projectId === projects[0].id
+      );
+
+      expect(project1Agents.length).toBe(2);
+      expect(project1Agents.every((a) => a.projectId === projects[0].id)).toBe(true);
+
+      // Select project 2 and verify only project 2 agents are available
+      useProjectsStore.setState({ selectedProjectId: projects[1].id });
+      const project2Agents = Array.from(allAgents.values()).filter(
+        (a) => a.projectId === projects[1].id
+      );
+
+      expect(project2Agents.length).toBe(2);
+      expect(project2Agents.every((a) => a.projectId === projects[1].id)).toBe(true);
+      expect(project2Agents.every((a) => a.projectId !== projects[0].id)).toBe(true);
+    });
+
+    it('should maintain separate tab counts per project', () => {
+      const projects = createTestProjects(2);
+      const projectsMap = new Map();
+      projects.forEach((p) => projectsMap.set(p.id, p));
+      useProjectsStore.setState({ projects: projectsMap });
+
+      // Project 1: Create 5 tabs
+      const project1Agents = createTestAgents(5, { projectId: projects[0].id });
+      const agentsMap = new Map();
+      project1Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+
+      useAgentsStore.setState({ agents: agentsMap });
+      useProjectsStore.setState({ selectedProjectId: projects[0].id });
+
+      const { updateTabState } = useUIStore.getState();
+      const project1Tabs = createTestTabs(5);
+      updateTabState(project1Tabs);
+
+      let state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(5);
+
+      // Project 2: Create 3 tabs (different count)
+      const project2Agents = createTestAgents(3, { projectId: projects[1].id });
+      project2Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+      useProjectsStore.setState({ selectedProjectId: projects[1].id });
+
+      const project2Tabs = createTestTabs(3);
+      updateTabState(project2Tabs);
+
+      state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(3);
+
+      // Verify counts are different and isolated
+      expect(state?.tabs.length).not.toBe(5);
+    });
+  });
+
+  describe('Tab Restoration Flows', () => {
+    it('should restore correct tab when returning to project', async () => {
+      const project1 = createTestProject({ id: 'project-1', folderName: 'project-1' });
+      const project2 = createTestProject({ id: 'project-2', folderName: 'project-2' });
+
+      const projectsMap = new Map();
+      projectsMap.set(project1.id, project1);
+      projectsMap.set(project2.id, project2);
+      useProjectsStore.setState({ projects: projectsMap });
+
+      // Setup project 1 with 3 tabs, active on tab 2
+      const project1Agents = createTestAgents(3, { projectId: project1.id });
+      const agentsMap = new Map();
+      project1Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+      useProjectsStore.setState({ selectedProjectId: project1.id });
+
+      const { setActiveTab, updateTabState } = useUIStore.getState();
+      const tabs = createTestTabs(3);
+      updateTabState(tabs);
+      setActiveTab(project1Agents[1].id);
+
+      // Mock persistence
+      mockGetActiveTab.mockResolvedValueOnce(project1Agents[1].id);
+
+      // Switch to project 2
+      useProjectsStore.setState({ selectedProjectId: project2.id });
+
+      // Return to project 1
+      useProjectsStore.setState({ selectedProjectId: project1.id });
+      const restoredTabId = await mockGetActiveTab(project1.folderName);
+
+      // Verify correct tab is restored
+      expect(restoredTabId).toBe(project1Agents[1].id);
+      expect(logger.debug).toHaveBeenCalled();
+    });
+
+    it('should restore system tabs (terminal, changes) correctly', async () => {
+      const project = createTestProject({ id: 'project-1', folderName: 'project-1' });
+      const projectsMap = new Map();
+      projectsMap.set(project.id, project);
+      useProjectsStore.setState({ projects: projectsMap, selectedProjectId: project.id });
+
+      const { setActiveTab, updateTabState } = useUIStore.getState();
+
+      // Create tabs including system tabs
+      const tabs = [
+        createTestTab({ id: 'agent-1', agentId: 'agent-1', tabType: 'agent', isActive: false }),
+        createTestTab({
+          id: TERMINAL_TAB_ID,
+          agentId: TERMINAL_TAB_ID,
+          tabType: 'terminal',
+          isActive: true,
+        }),
+        createTestTab({
+          id: CHANGES_TAB_ID,
+          agentId: CHANGES_TAB_ID,
+          tabType: 'changes',
+          isActive: false,
+        }),
+      ];
+
+      updateTabState(tabs);
+      setActiveTab(TERMINAL_TAB_ID);
+
+      // Mock persistence of terminal tab
+      mockGetActiveTab.mockResolvedValueOnce(TERMINAL_TAB_ID);
+
+      // Restore
+      const restoredTabId = await mockGetActiveTab(project.folderName);
+      expect(restoredTabId).toBe(TERMINAL_TAB_ID);
+    });
+  });
+
+  describe('Max Capacity and Auto-Select', () => {
+    it('should handle max capacity across multiple projects', () => {
+      const projects = createTestProjects(2);
+      const projectsMap = new Map();
+      projects.forEach((p) => projectsMap.set(p.id, p));
+      useProjectsStore.setState({ projects: projectsMap });
+
+      const agentsMap = new Map();
+
+      // Project 1: Create MAX_TABS agents
+      const project1Agents = createTestAgents(MAX_TABS, { projectId: projects[0].id });
+      project1Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+      useProjectsStore.setState({ selectedProjectId: projects[0].id });
+
+      const { updateTabState } = useUIStore.getState();
+      const project1Tabs = createTestTabs(MAX_TABS);
+      updateTabState(project1Tabs);
+
+      let state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(MAX_TABS);
+      expect(state?.maxTabs).toBe(MAX_TABS);
+
+      // Project 2: Should also allow MAX_TABS (independent capacity)
+      const project2Agents = createTestAgents(MAX_TABS, { projectId: projects[1].id });
+      project2Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+      useProjectsStore.setState({ selectedProjectId: projects[1].id });
+
+      const project2Tabs = createTestTabs(MAX_TABS);
+      updateTabState(project2Tabs);
+
+      state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(MAX_TABS);
+
+      // Verify both projects can have MAX_TABS independently
+      useProjectsStore.setState({ selectedProjectId: projects[0].id });
+      const allAgents = useAgentsStore.getState().agents;
+      const project1Count = Array.from(allAgents.values()).filter(
+        (a) => a.projectId === projects[0].id
+      ).length;
+      expect(project1Count).toBe(MAX_TABS);
+    });
+
+    it('should apply auto-select correctly on project switch', async () => {
+      const project1 = createTestProject({ id: 'project-1', folderName: 'project-1' });
+      const project2 = createTestProject({ id: 'project-2', folderName: 'project-2' });
+
+      const projectsMap = new Map();
+      projectsMap.set(project1.id, project1);
+      projectsMap.set(project2.id, project2);
+      useProjectsStore.setState({ projects: projectsMap });
+
+      // Setup project 1 with no persisted active tab
+      const project1Agents = createTestAgents(3, { projectId: project1.id });
+      const agentsMap = new Map();
+      project1Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+      useProjectsStore.setState({ selectedProjectId: project1.id });
+
+      const { updateTabState } = useUIStore.getState();
+      const tabs = createTestTabs(3);
+      updateTabState(tabs);
+
+      // Mock no persisted state
+      mockGetActiveTab.mockResolvedValueOnce(null);
+
+      // When no persisted state, first tab should be auto-selected
+      const state = useUIStore.getState().tabState;
+      if (state && state.tabs.length > 0 && !state.activeTabId) {
+        useUIStore.getState().setActiveTab(state.tabs[0].id);
+      }
+
+      const finalState = useUIStore.getState().tabState;
+      expect(finalState?.activeTabId).toBe(tabs[0].id);
+    });
+
+    it('should handle tab deletion at max capacity and auto-select next tab', () => {
+      const project = createTestProject({ id: 'project-1', folderName: 'project-1' });
+      const projectsMap = new Map();
+      projectsMap.set(project.id, project);
+      useProjectsStore.setState({ projects: projectsMap, selectedProjectId: project.id });
+
+      // Create MAX_TABS tabs
+      const agents = createTestAgents(MAX_TABS, { projectId: project.id });
+      const agentsMap = new Map();
+      agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+
+      const { updateTabState, setActiveTab, removeTab } = useUIStore.getState();
+      const tabs = createTestTabs(MAX_TABS);
+      updateTabState(tabs);
+      setActiveTab(tabs[0].id);
+
+      // Verify at max capacity
+      let state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(MAX_TABS);
+
+      // Delete active tab
+      removeTab(tabs[0].id);
+
+      // Verify tab count reduced
+      state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(MAX_TABS - 1);
+
+      // Verify next tab was auto-selected
+      expect(state?.activeTabId).toBe(tabs[1].id);
+
+      // Now should be able to create new tab (no longer at max)
+      const newAgent = createTestAgent({ projectId: project.id });
+      agentsMap.set(newAgent.id, newAgent);
+      useAgentsStore.setState({ agents: agentsMap });
+
+      const newTab = createTestTab({ id: newAgent.id, agentId: newAgent.id });
+      const updatedTabs = [...(state?.tabs || []), newTab];
+      updateTabState(updatedTabs);
+
+      state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(MAX_TABS);
+    });
+  });
+
+  describe('Full Workflow Integration', () => {
+    it('should handle complete workflow: create tabs, switch projects, delete tabs, verify isolation', async () => {
+      // Phase 1: Setup two projects
+      const project1 = createTestProject({ id: 'project-1', folderName: 'project-1' });
+      const project2 = createTestProject({ id: 'project-2', folderName: 'project-2' });
+      const projectsMap = new Map();
+      projectsMap.set(project1.id, project1);
+      projectsMap.set(project2.id, project2);
+      useProjectsStore.setState({ projects: projectsMap });
+
+      logger.debug('[Test] Phase 1: Projects created');
+
+      // Phase 2: Create tabs in project 1
+      const project1Agents = createTestAgents(5, { projectId: project1.id });
+      const agentsMap = new Map();
+      project1Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+      useProjectsStore.setState({ selectedProjectId: project1.id });
+
+      const { updateTabState, setActiveTab, removeTab } = useUIStore.getState();
+      const project1Tabs = createTestTabs(5);
+      updateTabState(project1Tabs);
+      setActiveTab(project1Tabs[2].id); // Select middle tab
+
+      let state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(5);
+      expect(state?.activeTabId).toBe(project1Tabs[2].id);
+
+      logger.debug('[Test] Phase 2: Project 1 tabs created');
+
+      // Phase 3: Switch to project 2 and create tabs
+      const project2Agents = createTestAgents(3, { projectId: project2.id });
+      project2Agents.forEach((agent) => agentsMap.set(agent.id, agent));
+      useAgentsStore.setState({ agents: agentsMap });
+      useProjectsStore.setState({ selectedProjectId: project2.id });
+
+      const project2Tabs = createTestTabs(3);
+      updateTabState(project2Tabs);
+      setActiveTab(project2Tabs[1].id);
+
+      state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(3);
+      expect(state?.activeTabId).toBe(project2Tabs[1].id);
+
+      logger.debug('[Test] Phase 3: Project 2 tabs created');
+
+      // Phase 4: Delete a tab in project 2
+      removeTab(project2Tabs[1].id);
+
+      state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(2);
+      expect(state?.activeTabId).toBe(project2Tabs[0].id); // Auto-selected first tab
+
+      logger.debug('[Test] Phase 4: Tab deleted in project 2');
+
+      // Phase 5: Switch back to project 1 and verify state
+      mockGetActiveTab.mockResolvedValueOnce(project1Tabs[2].id);
+      useProjectsStore.setState({ selectedProjectId: project1.id });
+
+      // Restore project 1 tabs
+      const restoredProject1Tabs = createTestTabs(5);
+      updateTabState(restoredProject1Tabs);
+
+      const restoredTabId = await mockGetActiveTab(project1.folderName);
+      expect(restoredTabId).toBe(project1Tabs[2].id);
+
+      state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(5); // Project 1 still has 5 tabs
+
+      logger.debug('[Test] Phase 5: Returned to project 1, state restored');
+
+      // Phase 6: Verify complete isolation
+      const project1AgentCount = Array.from(agentsMap.values()).filter(
+        (a) => a.projectId === project1.id
+      ).length;
+      const project2AgentCount = Array.from(agentsMap.values()).filter(
+        (a) => a.projectId === project2.id
+      ).length;
+
+      expect(project1AgentCount).toBe(5);
+      expect(project2AgentCount).toBe(3);
+      expect(project1AgentCount).not.toBe(project2AgentCount);
+
+      logger.debug('[Test] Phase 6: Isolation verified');
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle switching to project with no agents', () => {
+      const project = createTestProject({ id: 'project-empty', folderName: 'project-empty' });
+      const projectsMap = new Map();
+      projectsMap.set(project.id, project);
+      useProjectsStore.setState({ projects: projectsMap, selectedProjectId: project.id });
+
+      // No agents for this project
+      useAgentsStore.setState({ agents: new Map() });
+
+      const { updateTabState } = useUIStore.getState();
+      updateTabState([]);
+
+      const state = useUIStore.getState().tabState;
+      expect(state?.tabs.length).toBe(0);
+      expect(state?.activeTabId).toBeFalsy();
+    });
+
+    it('should handle rapid project switching', async () => {
+      const projects = createTestProjects(3);
+      const projectsMap = new Map();
+      projects.forEach((p) => projectsMap.set(p.id, p));
+      useProjectsStore.setState({ projects: projectsMap });
+
+      const allAgents = new Map();
+      const { updateTabState } = useUIStore.getState();
+
+      // Rapidly switch between projects
+      for (let i = 0; i < 10; i++) {
+        const projectIndex = i % 3;
+        const project = projects[projectIndex];
+
+        useProjectsStore.setState({ selectedProjectId: project.id });
+
+        const agents = createTestAgents(2, { projectId: project.id });
+        agents.forEach((agent) => allAgents.set(agent.id, agent));
+        useAgentsStore.setState({ agents: allAgents });
+
+        const tabs = createTestTabs(2);
+        updateTabState(tabs);
+
+        const state = useUIStore.getState().tabState;
+        expect(state?.tabs.length).toBeGreaterThanOrEqual(0);
+      }
+
+      // System should remain stable
+      const finalState = useUIStore.getState().tabState;
+      expect(finalState).toBeTruthy();
+    });
+  });
+});

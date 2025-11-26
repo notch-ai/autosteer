@@ -1,9 +1,8 @@
+import { logger } from '@/commons/utils/logger';
 import { Agent, ResourceType } from '@/entities';
 import { ComputedMessage } from '@/stores/chat.selectors';
-import {} from '@/stores/chat.selectors';
-import { PermissionMode } from '@/types/permission.types';
+import { DEFAULT_PERMISSION_MODE, PermissionMode } from '@/types/permission.types';
 import { ConversationOptions } from '@/types/streaming.types';
-import { logger } from '@/commons/utils/logger';
 import { Attachment, ClaudeStreamingCallbacks, claudeCodeService } from '../ClaudeCodeService';
 import { ipcService } from '../IpcService';
 import { LLMConfig, LLMProvider, StreamingCallbacks } from '../LLMService';
@@ -140,7 +139,7 @@ export class ClaudeCodeProvider implements LLMProvider {
           const conversationOptions: ConversationOptions = {
             // system_prompt: this.buildSystemPrompt(agent),
             max_thinking_tokens: 32768,
-            permission_mode: options?.permissionMode || 'acceptEdits',
+            permission_mode: options?.permissionMode || DEFAULT_PERMISSION_MODE,
             ...(workingDirectory && { cwd: workingDirectory }),
             ...(options?.model && { model: options.model }),
             // Note: File attachments in Claude Code SDK work differently than our Python service
@@ -168,15 +167,36 @@ export class ClaudeCodeProvider implements LLMProvider {
               }
             },
             onError: (error) => {
-              // Call the error callback if provided
-              if (streamingCallbacks?.onError) {
-                streamingCallbacks.onError(error);
+              try {
+                logger.error('[ClaudeCodeProvider] Error in Claude Code query:', {
+                  error: error.message,
+                  stack: error.stack,
+                  agentId: agent.id,
+                });
+
+                // Call the error callback if provided
+                if (streamingCallbacks?.onError) {
+                  streamingCallbacks.onError(error);
+                }
+                reject(error);
+              } catch (err) {
+                logger.error('[ClaudeCodeProvider] Error in onError callback:', err);
+                reject(error);
               }
-              reject(error);
             },
             onSystem: async (message) => {
               // Capture Claude session ID on first message
               if (message.type === 'system' && message.subtype === 'init' && message.session_id) {
+                logger.info('[ClaudeCodeProvider] Init message received in onSystem callback:', {
+                  session_id: message.session_id,
+                  hasTools: !!(message as any).tools,
+                  toolsList: (message as any).tools,
+                  hasSkillTool: (message as any).tools?.includes('Skill'),
+                  slashCommandsCount: (message as any).slash_commands?.length || 0,
+                  agentsCount: (message as any).agents?.length || 0,
+                  messageKeys: Object.keys(message),
+                });
+
                 // Update the agent with the Claude session ID
                 try {
                   if (window.electron?.agents) {

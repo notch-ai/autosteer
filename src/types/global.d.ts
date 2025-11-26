@@ -182,6 +182,21 @@ interface Window {
       onError: (terminalId: string, callback: (error: string) => void) => () => void;
     };
 
+    // IDE methods
+    ide: {
+      detect: () => Promise<{
+        editors: string[];
+        preferred?: string;
+      }>;
+      setPreferred: (editor: string) => Promise<{ success: boolean }>;
+      openFile: (request: {
+        file: string;
+        line?: number;
+        column?: number;
+        editor?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+    };
+
     // Environment variables
     env: {
       NODE_ENV: string;

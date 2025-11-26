@@ -13,10 +13,10 @@
  *   const value = cache.get('key');
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import Database from 'better-sqlite3';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { getFetchTraceSettings } from '../../config/settings';
 
 export interface PersistentCacheOptions {
@@ -162,7 +162,7 @@ export class PersistentFetchCache {
       DELETE FROM cache_entries
       WHERE key IN (
         SELECT key FROM cache_entries
-        ORDER BY last_accessed_at ASC
+        ORDER BY last_accessed_at ASC, created_at ASC
         LIMIT ?
       )
     `);

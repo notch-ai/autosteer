@@ -355,16 +355,37 @@ export class GitService {
       const defaultBranch = await this.getDefaultBranch(mainRepoPath);
       log.info(`[GitService] Default branch is: ${defaultBranch}`);
 
-      // Step 3: Force update the remote tracking branch to ensure absolute latest
-      // This ensures origin/${defaultBranch} points to the most recent commit
-      // even if there's a race condition between fetch and worktree creation
+      // Step 3: Update remote tracking branch to ensure we have latest
+      // This updates origin/${defaultBranch} without touching the local branch
       log.info(
-        `[GitService] Force-updating remote tracking branch refs/remotes/origin/${defaultBranch}...`
+        `[GitService] Updating remote tracking branch refs/remotes/origin/${defaultBranch}...`
       );
       await execAsync(`git fetch origin ${defaultBranch}:refs/remotes/origin/${defaultBranch}`, {
         cwd: mainRepoPath,
         timeout: 120000,
       });
+
+      // Step 3.5: Update local default branch to match remote (only if not checked out)
+      // Git refuses to fetch into a checked-out branch, so we need to check first
+      log.info(`[GitService] Checking if ${defaultBranch} is currently checked out...`);
+      const currentBranch = await this.getCurrentBranch(mainRepoPath);
+
+      if (currentBranch !== defaultBranch) {
+        // Safe to update local branch directly since it's not checked out
+        log.info(
+          `[GitService] Updating local ${defaultBranch} to match origin/${defaultBranch}...`
+        );
+        await execAsync(`git branch -f ${defaultBranch} origin/${defaultBranch}`, {
+          cwd: mainRepoPath,
+          timeout: 30000,
+        });
+      } else {
+        // Branch is checked out - skip updating local branch
+        // The remote tracking branch (origin/main) is already up-to-date from Step 3
+        log.info(
+          `[GitService] Skipping local ${defaultBranch} update (currently checked out in main repo)`
+        );
+      }
 
       // Step 4: Check if the branch exists remotely
       // This determines whether we track an existing remote branch or create a new one
@@ -481,15 +502,29 @@ export class GitService {
   }
 
   /**
-   * Removes a worktree (but keeps the main repo)
+   * Removes a worktree and optionally deletes the associated git branch
+   *
+   * @param options - Worktree removal options
+   * @param options.mainRepoPath - Path to the main repository
+   * @param options.worktreePath - Path to the worktree to remove
+   * @param options.branchName - Optional branch name for cleanup
+   * @param options.deleteBranch - Whether to delete the branch from remote (defaults to false)
+   * @returns Operation result with success status and message
+   *
+   * Behavior:
+   * - Always removes the worktree directory and git tracking
+   * - If branchName provided: Deletes local branch
+   * - If deleteBranch=true and branchName provided: Also deletes remote branch
+   * - Branch deletion errors are logged as warnings (non-blocking)
    */
   async removeWorktree(options: {
     mainRepoPath: string;
     worktreePath: string;
     branchName?: string;
+    deleteBranch?: boolean;
   }): Promise<GitOperationResult> {
     try {
-      const { mainRepoPath, worktreePath, branchName } = options;
+      const { mainRepoPath, worktreePath, branchName, deleteBranch = false } = options;
 
       // Remove the worktree from git tracking
       await execAsync(`git worktree remove --force "${worktreePath}"`, {
@@ -530,6 +565,33 @@ export class GitService {
           log.warn(
             `[GitService] Failed to delete local branch '${branchName}' (continuing anyway): ${branchErrorMessage}`
           );
+        }
+
+        // Delete the remote branch if deleteBranch flag is true
+        if (deleteBranch) {
+          try {
+            // Check if branch exists on remote before attempting deletion
+            const remoteBranchExists = await this.remoteBranchExists(mainRepoPath, branchName);
+
+            if (remoteBranchExists) {
+              log.info(`[GitService] Deleting remote branch: ${branchName}`);
+              await execAsync(`git push origin --delete "${branchName}"`, {
+                cwd: mainRepoPath,
+                timeout: 60000,
+              });
+              log.info(`[GitService] Deleted remote branch: ${branchName}`);
+            } else {
+              log.debug(
+                `[GitService] Remote branch '${branchName}' does not exist, skipping deletion`
+              );
+            }
+          } catch (remoteBranchError) {
+            const remoteBranchErrorMessage =
+              remoteBranchError instanceof Error ? remoteBranchError.message : 'Unknown error';
+            log.warn(
+              `[GitService] Failed to delete remote branch '${branchName}' (continuing anyway): ${remoteBranchErrorMessage}`
+            );
+          }
         }
       }
 
@@ -799,5 +861,153 @@ export class GitService {
     // Extract repository name from URL
     const match = repoUrl.match(/\/([^/]+?)(?:\.git)?$/);
     return match ? match[1] : 'unknown-repo';
+  }
+
+  /**
+   * Check if a local branch exists in the repository
+   *
+   * @param repoPath - Path to the git repository
+   * @param branchName - Name of the branch to check
+   * @returns True if the branch exists locally, false otherwise
+   */
+  async localBranchExists(repoPath: string, branchName: string): Promise<boolean> {
+    try {
+      const { stdout } = await execAsync('git branch', {
+        cwd: repoPath,
+      });
+
+      const branches = stdout
+        .split('\n')
+        .map((line) => line.trim().replace(/^\*\s+/, ''))
+        .filter((line) => line.length > 0);
+
+      return branches.includes(branchName);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log.error(`[GitService] Error checking local branch "${branchName}":`, errorMessage);
+      return false;
+    }
+  }
+
+  /**
+   * Get the count of unpushed commits for a branch
+   *
+   * @param repoPath - Path to the git repository
+   * @param branchName - Name of the branch to check
+   * @returns Number of unpushed commits, or 0 if branch is up to date or on error
+   */
+  async getUnpushedCommitCount(repoPath: string, branchName: string): Promise<number> {
+    try {
+      const { stdout } = await execAsync(
+        `git rev-list origin/${branchName}..${branchName} --count`,
+        {
+          cwd: repoPath,
+        }
+      );
+
+      const count = parseInt(stdout.trim(), 10);
+      return isNaN(count) ? 0 : count;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log.debug(`[GitService] Could not get unpushed commits for "${branchName}": ${errorMessage}`);
+      return 0;
+    }
+  }
+
+  /**
+   * Check if a branch is protected (main, master, develop, staging, production)
+   *
+   * @param branchName - Name of the branch to check
+   * @returns True if the branch is protected, false otherwise
+   */
+  isProtectedBranch(branchName?: string): boolean {
+    if (!branchName) return false;
+    const protectedBranches = ['main', 'master', 'develop', 'staging', 'production'];
+    return protectedBranches.includes(branchName.toLowerCase());
+  }
+
+  /**
+   * Check if a branch has been merged into the current branch
+   *
+   * @param mainRepoPath - Path to the git repository
+   * @param branchName - Name of the branch to check
+   * @returns True if the branch is merged, false otherwise
+   */
+  async checkBranchMerged(mainRepoPath: string, branchName: string): Promise<boolean> {
+    try {
+      log.debug(`[GitService] Checking if branch "${branchName}" is merged`);
+      const { stdout } = await execAsync('git branch --merged', {
+        cwd: mainRepoPath,
+      });
+
+      const mergedBranches = stdout
+        .split('\n')
+        .map((line) => line.trim().replace(/^\*\s+/, ''))
+        .filter((line) => line.length > 0);
+
+      const isMerged = mergedBranches.includes(branchName);
+      log.debug(`[GitService] Branch "${branchName}" ${isMerged ? 'is' : 'is not'} merged`);
+      return isMerged;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log.error(`[GitService] Error checking if branch "${branchName}" is merged:`, errorMessage);
+      return false;
+    }
+  }
+
+  /**
+   * Delete a git branch from the local repository
+   *
+   * @param mainRepoPath - Path to the git repository
+   * @param branchName - Name of the branch to delete
+   * @param force - Whether to force delete (use -D instead of -d)
+   * @throws Error if deletion fails
+   */
+  async deleteBranch(mainRepoPath: string, branchName: string, force?: boolean): Promise<void> {
+    const flag = force ? '-D' : '-d';
+    const command = `git branch ${flag} "${branchName}"`;
+
+    try {
+      log.debug(`[GitService] Deleting local branch "${branchName}" with ${flag}`);
+      await execAsync(command, {
+        cwd: mainRepoPath,
+      });
+      log.info(`[GitService] Successfully deleted local branch: ${branchName}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log.error(`[GitService] Failed to delete branch "${branchName}":`, errorMessage);
+      throw error;
+    }
+  }
+
+  /**
+   * Check the number of unpushed commits for a branch
+   *
+   * @param mainRepoPath - Path to the git repository
+   * @param branchName - Name of the branch to check
+   * @returns Number of unpushed commits, or 0 if none or on error
+   */
+  async checkUnpushedCommits(mainRepoPath: string, branchName: string): Promise<number> {
+    try {
+      log.debug(`[GitService] Checking unpushed commits for branch "${branchName}"`);
+      const { stdout } = await execAsync(`git log origin/${branchName}..${branchName} --oneline`, {
+        cwd: mainRepoPath,
+      });
+
+      const lines = stdout
+        .trim()
+        .split('\n')
+        .filter((line) => line.length > 0);
+
+      const count = lines.length;
+      log.debug(`[GitService] Branch "${branchName}" has ${count} unpushed commits`);
+      return count;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log.debug(
+        `[GitService] Could not check unpushed commits for "${branchName}": ${errorMessage}`
+      );
+      return 0;
+    }
   }
 }

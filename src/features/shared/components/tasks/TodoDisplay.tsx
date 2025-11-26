@@ -38,8 +38,8 @@ export const TodoDisplay: React.FC<TodoDisplayProps> = ({ todos, isActive = fals
       className={cn(
         'h-auto py-0.5 px-2 text-[11px] focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none focus-visible:outline-none',
         isActive
-          ? 'bg-white text-text border-border shadow-xs hover:bg-white hover:text-text hover:border-border hover:shadow-xs'
-          : 'bg-muted text-text-muted border-border hover:bg-white hover:text-text hover:border-border hover:shadow-xs'
+          ? 'bg-white text-black border-border shadow-xs hover:bg-white hover:text-black hover:border-border hover:shadow-xs'
+          : 'bg-muted text-muted-foreground border-border hover:bg-white hover:text-black hover:border-border hover:shadow-xs'
       )}
       onClick={onToggle}
     >

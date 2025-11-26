@@ -192,6 +192,7 @@ export const ChangesTab: React.FC<ChangesTabProps> = ({ className }) => {
           selectedFile={selectedFile}
           onSelect={handleFileSelect}
           onDiscardFile={handleDiscardFile}
+          {...(workingDirectory ? { workingDirectory } : {})}
         />
       </div>
 

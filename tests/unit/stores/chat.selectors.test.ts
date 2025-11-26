@@ -1,12 +1,12 @@
 /**
  * Chat Selectors Tests
  *
- * Tests for memoized selector layer with 80%+ coverage.
+ * Tests for selector layer that works with pre-transformed ComputedMessage[].
+ * Messages are transformed at source (claude.handlers.ts or ClaudeCodeService.ts)
+ * before being stored, so selectors just pass through the data.
  */
 
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import {
-  clearSelectorCache,
   selectAssistantMessages,
   selectCurrentMessages,
   selectLastMessage,
@@ -17,77 +17,61 @@ import {
   selectTotalTokenUsage,
   selectUserMessages,
   type ChatStoreState,
+  type ComputedMessage,
 } from '@/stores/chat.selectors';
 
 // Helper to create valid UUID for tests
 const uuid = (id: string): `${string}-${string}-${string}-${string}-${string}` =>
   `${id}-0000-0000-0000-000000000000` as const;
 
-// Factory functions for SDK messages
-const userMsg = (id: string, content: string): SDKMessage =>
-  ({
-    type: 'user',
-    uuid: uuid(id),
-    session_id: 'sess-1',
-    parent_tool_use_id: null,
-    message: { role: 'user', content },
-  }) as any;
+// Factory functions for ComputedMessage (store contains pre-transformed messages)
+const userMsg = (id: string, content: string): ComputedMessage => ({
+  id: uuid(id),
+  role: 'user',
+  content,
+  timestamp: new Date('2024-01-01'),
+});
 
-const assistantMsg = (id: string, content: string): SDKMessage =>
-  ({
-    type: 'assistant',
-    uuid: uuid(id),
-    session_id: 'sess-1',
-    parent_tool_use_id: null,
-    message: {
-      id: uuid(id),
-      type: 'message',
-      role: 'assistant',
-      model: 'claude-sonnet-4',
-      content: [{ type: 'text', text: content, citations: null }],
-      stop_reason: 'end_turn',
-      stop_sequence: null,
-      usage: {
-        input_tokens: 10,
-        output_tokens: 5,
-        cache_creation_input_tokens: 0,
-        cache_read_input_tokens: 0,
-        cache_creation: null,
-        server_tool_use: null,
-        service_tier: null,
-      },
-    },
-  }) as any;
+const assistantMsg = (
+  id: string,
+  content: string,
+  usage?: { input: number; output: number }
+): ComputedMessage => {
+  const msg: ComputedMessage = {
+    id: uuid(id),
+    role: 'assistant',
+    content,
+    timestamp: new Date('2024-01-01'),
+  };
 
-const resultMsg = (id: string, cost: number): SDKMessage =>
-  ({
-    type: 'result',
-    subtype: 'success',
-    uuid: uuid(id),
-    session_id: 'sess-1',
-    duration_ms: 1000,
-    duration_api_ms: 800,
-    is_error: false,
-    num_turns: 1,
-    result: 'Success',
-    total_cost_usd: cost,
-    usage: {
-      input_tokens: 100,
-      output_tokens: 50,
-      cache_creation_input_tokens: 10,
-      cache_read_input_tokens: 20,
-      cache_creation: null,
-      server_tool_use: null,
-      service_tier: null,
-    },
-    modelUsage: {},
-    permission_denials: [],
-  }) as any;
+  if (usage) {
+    msg.tokenUsage = {
+      inputTokens: usage.input,
+      outputTokens: usage.output,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+    };
+  }
+
+  return msg;
+};
+
+const resultMsg = (id: string, cost: number): ComputedMessage => ({
+  id: uuid(id),
+  role: 'assistant',
+  content: 'Result',
+  timestamp: new Date('2024-01-01'),
+  tokenUsage: {
+    inputTokens: 100,
+    outputTokens: 50,
+    cacheCreationInputTokens: 10,
+    cacheReadInputTokens: 20,
+  },
+  totalCostUSD: cost,
+});
 
 describe('chat.selectors', () => {
-  beforeEach(() => {
-    clearSelectorCache();
-  });
+  // Note: No need to clear cache - selectors just pass through pre-transformed messages
 
   describe('selectMessages', () => {
     it('should return empty array when no messages', () => {
@@ -99,7 +83,7 @@ describe('chat.selectors', () => {
       expect(selectMessages(state, 'agent-1')).toEqual([]);
     });
 
-    it('should transform user messages', () => {
+    it('should return user messages from store', () => {
       const state: ChatStoreState = {
         messages: new Map([['agent-1', [userMsg('1', 'Hello')]]]),
         activeChat: 'agent-1',
@@ -115,9 +99,9 @@ describe('chat.selectors', () => {
       });
     });
 
-    it('should transform assistant messages', () => {
+    it('should return assistant messages from store', () => {
       const state: ChatStoreState = {
-        messages: new Map([['agent-1', [assistantMsg('2', 'Hi there')]]]),
+        messages: new Map([['agent-1', [assistantMsg('2', 'Hi there', { input: 10, output: 5 })]]]),
         activeChat: 'agent-1',
       };
 
@@ -128,10 +112,14 @@ describe('chat.selectors', () => {
         id: uuid('2'),
         role: 'assistant',
         content: 'Hi there',
+        tokenUsage: {
+          inputTokens: 10,
+          outputTokens: 5,
+        },
       });
     });
 
-    it('should transform result messages', () => {
+    it('should return result messages with cost', () => {
       const state: ChatStoreState = {
         messages: new Map([['agent-1', [resultMsg('3', 0.05)]]]),
         activeChat: 'agent-1',
@@ -142,21 +130,26 @@ describe('chat.selectors', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         id: uuid('3'),
-        role: 'system',
+        role: 'assistant',
         totalCostUSD: 0.05,
       });
     });
 
-    it('should memoize results', () => {
+    it('should return same array reference for same map', () => {
+      const messagesArray = [userMsg('1', 'Test')];
+      const messagesMap = new Map([['agent-1', messagesArray]]);
+
       const state: ChatStoreState = {
-        messages: new Map([['agent-1', [userMsg('1', 'Test')]]]),
+        messages: messagesMap,
         activeChat: 'agent-1',
       };
 
       const result1 = selectMessages(state, 'agent-1');
       const result2 = selectMessages(state, 'agent-1');
 
+      // Same array reference since messages map hasn't changed
       expect(result1).toBe(result2);
+      expect(result1).toBe(messagesArray); // Direct reference to store array
     });
   });
 
@@ -254,8 +247,8 @@ describe('chat.selectors', () => {
 
   describe('selectTotalTokenUsage', () => {
     it('should calculate total token usage', () => {
-      const msg1 = assistantMsg('1', 'Response 1');
-      const msg2 = assistantMsg('2', 'Response 2');
+      const msg1 = assistantMsg('1', 'Response 1', { input: 10, output: 5 });
+      const msg2 = assistantMsg('2', 'Response 2', { input: 10, output: 5 });
 
       const state: ChatStoreState = {
         messages: new Map([['agent-1', [msg1, msg2]]]),
@@ -331,394 +324,68 @@ describe('chat.selectors', () => {
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle messages without uuid', () => {
-      const msg: SDKMessage = {
-        type: 'user',
-        session_id: 'sess-1',
-        parent_tool_use_id: null,
-        message: { role: 'user', content: 'Test' },
-      } as any;
+  describe('Store Integration', () => {
+    it('should return messages directly from Map storage', () => {
+      const messages = [userMsg('1', 'Test'), assistantMsg('2', 'Response')];
+      const messagesMap = new Map([['agent-1', messages]]);
 
       const state: ChatStoreState = {
-        messages: new Map([['agent-1', [msg]]]),
+        messages: messagesMap,
         activeChat: 'agent-1',
       };
 
       const result = selectMessages(state, 'agent-1');
 
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toMatch(/^temp-\d+$/);
+      expect(result).toHaveLength(2);
+      expect(result).toBe(messages); // Direct reference - no transformation
     });
 
-    it('should handle streaming events', () => {
-      const streamMsg: SDKMessage = {
-        type: 'stream_event',
-        uuid: uuid('1'),
-        session_id: 'sess-1',
-        parent_tool_use_id: null,
-        event: {
-          type: 'content_block_delta',
-          index: 0,
-          delta: { type: 'text_delta', text: 'Streaming...' },
-        },
-      } as any;
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', [streamMsg]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result = selectMessages(state, 'agent-1');
-
-      expect(result[0]).toMatchObject({
-        role: 'assistant',
-        isPartial: true,
-        content: 'Streaming...',
-      });
-    });
-
-    it('should handle system init messages', () => {
-      const initMsg: SDKMessage = {
-        type: 'system',
-        subtype: 'init',
-        uuid: uuid('1'),
-        session_id: 'sess-1',
-        agents: [],
-        apiKeySource: 'user',
-        claude_code_version: '0.1.0',
-        cwd: '/test',
-        tools: [],
-        mcp_servers: [],
-        model: 'claude-sonnet-4',
-        permissionMode: 'default',
-        slash_commands: [],
-        output_style: 'json',
+    it('should handle metadata flags preserved from source', () => {
+      const msgWithMetadata: ComputedMessage = {
+        id: uuid('1'),
+        role: 'user',
+        content: 'Test',
+        timestamp: new Date('2024-01-01'),
+        isSynthetic: true, // Preserved from source transformation
+        isReplay: false,
       };
 
       const state: ChatStoreState = {
-        messages: new Map([['agent-1', [initMsg]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result = selectMessages(state, 'agent-1');
-
-      expect(result[0].content).toContain('Session initialized');
-    });
-
-    it('should handle compact boundary messages', () => {
-      const compactMsg: SDKMessage = {
-        type: 'system',
-        subtype: 'compact_boundary',
-        uuid: uuid('1'),
-        session_id: 'sess-1',
-        compact_metadata: {
-          trigger: 'auto',
-          pre_tokens: 28000,
-        },
-      };
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', [compactMsg]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result = selectMessages(state, 'agent-1');
-
-      expect(result[0].content).toContain('Compaction triggered');
-    });
-
-    it('should handle messages with array content', () => {
-      const msg: SDKMessage = {
-        type: 'user',
-        uuid: uuid('1'),
-        session_id: 'sess-1',
-        parent_tool_use_id: null,
-        message: [
-          { type: 'text', text: 'Part 1' },
-          { type: 'text', text: 'Part 2' },
-        ] as any,
-      } as any;
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', [msg]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result = selectMessages(state, 'agent-1');
-
-      expect(result[0].content).toBe('Part 1\nPart 2');
-    });
-
-    it('should handle messages with tool blocks', () => {
-      const msg = assistantMsg('1', 'Text response');
-      (msg as any).message.content = [
-        { type: 'text', text: 'Using tool' },
-        { type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/test' } },
-      ];
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', [msg]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result = selectMessages(state, 'agent-1');
-
-      expect(result[0].content).toBe('Using tool');
-      expect(result[0].toolCalls).toHaveLength(1);
-      expect(result[0].toolCalls?.[0]).toMatchObject({
-        type: 'tool_use',
-        id: 'tool-1',
-        name: 'Read',
-      });
-    });
-
-    it('should handle result message errors', () => {
-      const errorMsg: SDKMessage = {
-        type: 'result',
-        subtype: 'error_during_execution',
-        uuid: uuid('1'),
-        session_id: 'sess-1',
-        duration_ms: 500,
-        duration_api_ms: 400,
-        is_error: true,
-        num_turns: 1,
-        total_cost_usd: 0,
-        usage: {
-          input_tokens: 50,
-          output_tokens: 0,
-          cache_creation_input_tokens: 0,
-          cache_read_input_tokens: 0,
-        },
-        modelUsage: {},
-        permission_denials: [],
-        error: {
-          type: 'execution_error',
-          message: 'Failed to execute',
-        },
-      } as any;
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', [errorMsg]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result = selectMessages(state, 'agent-1');
-
-      expect(result[0].role).toBe('system');
-      expect(result[0].error).toBeDefined();
-      expect(result[0].content).toContain('Failed to execute');
-    });
-
-    it('should handle synthetic user messages', () => {
-      const syntheticMsg: SDKMessage = {
-        type: 'user',
-        uuid: uuid('1'),
-        session_id: 'sess-1',
-        parent_tool_use_id: null,
-        isSynthetic: true,
-        message: { role: 'user', content: 'Synthetic message' },
-      } as any;
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', [syntheticMsg]]]),
+        messages: new Map([['agent-1', [msgWithMetadata]]]),
         activeChat: 'agent-1',
       };
 
       const result = selectMessages(state, 'agent-1');
 
       expect(result[0].isSynthetic).toBe(true);
+      expect(result[0].isReplay).toBe(false);
     });
 
-    it('should handle replay messages', () => {
-      const replayMsg: SDKMessage = {
-        type: 'user',
-        uuid: uuid('1'),
-        session_id: 'sess-1',
-        parent_tool_use_id: null,
-        isReplay: true,
-        message: { role: 'user', content: 'Replay message' },
-      } as any;
+    it('should handle tool calls preserved from source', () => {
+      const msgWithTools: ComputedMessage = {
+        id: uuid('1'),
+        role: 'assistant',
+        content: 'Using tool',
+        timestamp: new Date('2024-01-01'),
+        toolCalls: [
+          {
+            type: 'tool_use',
+            id: 'tool-1',
+            name: 'Read',
+            input: { file_path: '/test' },
+          },
+        ],
+      };
 
       const state: ChatStoreState = {
-        messages: new Map([['agent-1', [replayMsg]]]),
+        messages: new Map([['agent-1', [msgWithTools]]]),
         activeChat: 'agent-1',
       };
 
       const result = selectMessages(state, 'agent-1');
 
-      expect(result[0].isReplay).toBe(true);
-    });
-
-    it('should handle string message content', () => {
-      const msg: SDKMessage = {
-        type: 'user',
-        uuid: uuid('1'),
-        session_id: 'sess-1',
-        parent_tool_use_id: null,
-        message: 'Simple string content',
-      } as any;
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', [msg]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result = selectMessages(state, 'agent-1');
-
-      expect(result[0].content).toBe('Simple string content');
-    });
-
-    it('should handle unknown message types gracefully', () => {
-      const unknownMsg: SDKMessage = {
-        type: 'unknown_type',
-        uuid: uuid('1'),
-        session_id: 'sess-1',
-      } as any;
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', [unknownMsg]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result = selectMessages(state, 'agent-1');
-
-      expect(result[0].content).toBe('[Unknown message type]');
-    });
-  });
-
-  describe('Memoization Behavior', () => {
-    it('should return same reference for identical state', () => {
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', [userMsg('1', 'Test')]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result1 = selectMessages(state, 'agent-1');
-      const result2 = selectMessages(state, 'agent-1');
-
-      expect(result1).toBe(result2);
-    });
-
-    it('should invalidate cache when messages change', () => {
-      const state1: ChatStoreState = {
-        messages: new Map([['agent-1', [userMsg('1', 'Test')]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result1 = selectMessages(state1, 'agent-1');
-
-      const state2: ChatStoreState = {
-        messages: new Map([['agent-1', [userMsg('1', 'Test'), userMsg('2', 'New')]]]),
-        activeChat: 'agent-1',
-      };
-
-      const result2 = selectMessages(state2, 'agent-1');
-
-      expect(result1).not.toBe(result2);
-      expect(result2).toHaveLength(2);
-    });
-
-    it('should cache per agent independently', () => {
-      const state: ChatStoreState = {
-        messages: new Map([
-          ['agent-1', [userMsg('1', 'Agent 1')]],
-          ['agent-2', [userMsg('2', 'Agent 2')]],
-        ]),
-        activeChat: null,
-      };
-
-      const agent1Result1 = selectMessages(state, 'agent-1');
-      const agent1Result2 = selectMessages(state, 'agent-1');
-      const agent2Result1 = selectMessages(state, 'agent-2');
-
-      expect(agent1Result1).toBe(agent1Result2);
-      expect(agent1Result1).not.toBe(agent2Result1);
-    });
-  });
-
-  describe('Performance', () => {
-    it('should handle large message arrays efficiently', () => {
-      const messages: SDKMessage[] = [];
-      for (let i = 0; i < 1000; i++) {
-        messages.push(userMsg(String(i), `Message ${i}`));
-      }
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', messages]]),
-        activeChat: 'agent-1',
-      };
-
-      const start = Date.now();
-      const result = selectMessages(state, 'agent-1');
-      const duration = Date.now() - start;
-
-      expect(result).toHaveLength(1000);
-      expect(duration).toBeLessThan(100); // Should complete in <100ms
-    });
-
-    it('should memoize large arrays effectively', () => {
-      const messages: SDKMessage[] = [];
-      for (let i = 0; i < 1000; i++) {
-        messages.push(userMsg(String(i), `Message ${i}`));
-      }
-
-      const state: ChatStoreState = {
-        messages: new Map([['agent-1', messages]]),
-        activeChat: 'agent-1',
-      };
-
-      // First call - compute
-      const result1 = selectMessages(state, 'agent-1');
-      // Second call - should return cached reference
-      const result2 = selectMessages(state, 'agent-1');
-
-      // Should return same reference (memoized)
-      expect(result1).toBe(result2);
-    });
-  });
-
-  describe('Integration with Store', () => {
-    it('should work with Map-based storage', () => {
-      const messagesMap = new Map<string, SDKMessage[]>();
-      messagesMap.set('agent-1', [userMsg('1', 'Test')]);
-
-      const state: ChatStoreState = {
-        messages: messagesMap,
-        activeChat: 'agent-1',
-      };
-
-      const result = selectMessages(state, 'agent-1');
-
-      expect(result).toHaveLength(1);
-      expect(result[0].content).toBe('Test');
-    });
-
-    it('should handle Map mutations properly', () => {
-      const messagesMap = new Map<string, SDKMessage[]>();
-      messagesMap.set('agent-1', [userMsg('1', 'Original')]);
-
-      const state1: ChatStoreState = {
-        messages: messagesMap,
-        activeChat: 'agent-1',
-      };
-
-      const result1 = selectMessages(state1, 'agent-1');
-      expect(result1).toHaveLength(1);
-
-      // Create new Map with updated messages
-      const messagesMap2 = new Map<string, SDKMessage[]>();
-      messagesMap2.set('agent-1', [userMsg('1', 'Original'), userMsg('2', 'New')]);
-
-      const state2: ChatStoreState = {
-        messages: messagesMap2,
-        activeChat: 'agent-1',
-      };
-
-      const result2 = selectMessages(state2, 'agent-1');
-
-      // Should reflect the change with new Map
-      expect(result2).toHaveLength(2);
+      expect(result[0].toolCalls).toHaveLength(1);
+      expect(result[0].toolCalls?.[0].name).toBe('Read');
     });
   });
 });

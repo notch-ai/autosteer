@@ -90,11 +90,11 @@ export const VerticalSplitPanel: React.FC<VerticalSplitPanelProps> = ({
         <div
           className={cn(
             'absolute inset-0 flex items-center justify-center',
-            'group-hover:bg-primary/10 transition-colors'
+            'group-hover:bg-primary/10 transition-colors',
+            isResizing && 'bg-primary/30'
           )}
           style={{
             height: '8px',
-            backgroundColor: isResizing ? 'rgb(59 130 246 / 0.3)' : undefined,
           }}
         />
       </div>

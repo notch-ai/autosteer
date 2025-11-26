@@ -46,13 +46,13 @@ export const Disabled: Story = {
     <div className="flex flex-col gap-3">
       <div className="flex items-center space-x-2">
         <Switch id="disabled-off" disabled />
-        <Label htmlFor="disabled-off" className="text-text-muted">
+        <Label htmlFor="disabled-off" className="text-muted-foreground">
           Disabled (Off)
         </Label>
       </div>
       <div className="flex items-center space-x-2">
         <Switch id="disabled-on" disabled defaultChecked />
-        <Label htmlFor="disabled-on" className="text-text-muted">
+        <Label htmlFor="disabled-on" className="text-muted-foreground">
           Disabled (On)
         </Label>
       </div>
@@ -67,21 +67,21 @@ export const FormExample: Story = {
       <div className="flex items-center justify-between">
         <div className="space-y-0.5">
           <Label htmlFor="notifications">Notifications</Label>
-          <p className="text-sm text-text-muted">Receive notifications about your account</p>
+          <p className="text-sm text-muted-foreground">Receive notifications about your account</p>
         </div>
         <Switch id="notifications" defaultChecked />
       </div>
       <div className="flex items-center justify-between">
         <div className="space-y-0.5">
           <Label htmlFor="marketing">Marketing emails</Label>
-          <p className="text-sm text-text-muted">Receive emails about new products</p>
+          <p className="text-sm text-muted-foreground">Receive emails about new products</p>
         </div>
         <Switch id="marketing" />
       </div>
       <div className="flex items-center justify-between">
         <div className="space-y-0.5">
           <Label htmlFor="security">Security alerts</Label>
-          <p className="text-sm text-text-muted">Get notified about security issues</p>
+          <p className="text-sm text-muted-foreground">Get notified about security issues</p>
         </div>
         <Switch id="security" defaultChecked />
       </div>
@@ -94,7 +94,7 @@ export const ThemeComparison: Story = {
   render: () => (
     <div className="grid grid-cols-2 gap-8">
       <div className="theme-day p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Day Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Day Theme</h3>
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
             <Switch id="day-1" defaultChecked />
@@ -107,7 +107,7 @@ export const ThemeComparison: Story = {
         </div>
       </div>
       <div className="theme-night p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Night Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Night Theme</h3>
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
             <Switch id="night-1" defaultChecked />

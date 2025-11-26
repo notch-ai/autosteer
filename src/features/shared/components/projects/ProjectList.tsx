@@ -12,7 +12,7 @@ import {
   useUIStore,
   useWorktreeStatsStore,
 } from '@/stores';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 export const ProjectList: React.FC = () => {
   // Use hooks with auto-load
@@ -69,8 +69,7 @@ export const ProjectList: React.FC = () => {
         void selectProject(firstProject.id);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects.length]); // Trigger when projects are loaded
+  }, [projects.length, selectedProjectId, selectProject]); // Trigger when projects are loaded
 
   const handleDelete = async (e: React.MouseEvent, projectId: string, agentId?: string) => {
     e.stopPropagation();
@@ -200,10 +199,14 @@ export const ProjectList: React.FC = () => {
   };
 
   // Get agents for a specific project
-  const getProjectAgents = (projectFolderName: string | undefined) => {
-    if (!projectFolderName) return [];
-    return agents.filter((agent) => agent.projectId === projectFolderName);
-  };
+  // Memoize to prevent filtering on every render
+  const getProjectAgents = useCallback(
+    (projectFolderName: string | undefined) => {
+      if (!projectFolderName) return [];
+      return agents.filter((agent) => agent.projectId === projectFolderName);
+    },
+    [agents]
+  );
 
   // SVG Status Icons - custom SVG to avoid pixelation
   const StatusIcon: React.FC<{
@@ -211,27 +214,27 @@ export const ProjectList: React.FC = () => {
     size?: number;
     className?: string;
     isStreaming?: boolean;
-  }> = ({ status, size = 12, isStreaming = false }) => {
-    const getStatusColor = (status: AgentStatus, isStreaming: boolean): string => {
+  }> = ({ status, size = 10, isStreaming = false }) => {
+    const getStatusColorClass = (status: AgentStatus, isStreaming: boolean): string => {
       // If streaming, always show green for better visibility
       if (isStreaming) {
-        return '#10b981'; // Green for better visibility
+        return 'fill-success';
       }
 
       switch (status) {
         case AgentStatus.COMPLETED:
-          return 'var(--color-success)';
+          return 'fill-success';
         case AgentStatus.IN_PROGRESS:
-          return 'var(--color-warning)';
+          return 'fill-warning';
         case AgentStatus.REVIEW:
-          return 'var(--color-error)';
+          return 'fill-destructive';
         case AgentStatus.DRAFT:
         default:
-          return 'rgb(var(--color-text-muted))';
+          return 'fill-muted-foreground';
       }
     };
 
-    const color = getStatusColor(status, isStreaming);
+    const colorClass = getStatusColorClass(status, isStreaming);
 
     // Show indicator as SVG for consistency
     return (
@@ -242,7 +245,7 @@ export const ProjectList: React.FC = () => {
         style={{ minWidth: `${size}px`, minHeight: `${size}px` }}
         className={isStreaming ? 'task-indicator--active' : ''}
       >
-        <circle cx="12" cy="12" r="8" fill={color} />
+        <circle cx="12" cy="12" r="5" className={colorClass} />
       </svg>
     );
   };
@@ -371,7 +374,7 @@ export const ProjectList: React.FC = () => {
     <div
       id="project-list"
       data-component="ProjectList"
-      className="flex flex-col h-full bg-surface project-list-container"
+      className="flex flex-col h-full bg-card project-list-container"
     >
       {/* Header */}
       <div>
@@ -381,14 +384,14 @@ export const ProjectList: React.FC = () => {
           className="flex items-center justify-between px-3 h-10 worktree-header"
         >
           <div className="flex items-center gap-2">
-            <h3 className="text-text text-sm font-medium worktree-title">Projects</h3>
+            <h3 className="text-foreground text-sm font-medium worktree-title">Projects</h3>
           </div>
           <Button
             id="add-project-btn"
             data-action="add-project"
             variant="outline"
             size="icon-sm"
-            className="bg-button-special shadow-xs"
+            className="bg-background shadow-xs"
             onClick={handleAddProject}
             title="Add new project"
           >
@@ -417,15 +420,15 @@ export const ProjectList: React.FC = () => {
               <div key={repoName} className="mb-2 mr-2">
                 {/* Repository header */}
                 <div
-                  className="group px-3 py-1.5 cursor-pointer hover:bg-surface-hover transition-colors flex items-center gap-2"
+                  className="group px-3 py-1.5 cursor-pointer hover:bg-card-hover transition-colors flex items-center gap-2"
                   onClick={(e) => toggleRepoExpanded(e, repoName)}
                 >
                   <Icon
                     name={isRepoExpanded ? 'chevron-down' : 'chevron-right'}
                     size={14}
-                    className="text-text-muted flex-shrink-0"
+                    className="text-muted-foreground flex-shrink-0"
                   />
-                  <span className="text-text text-sm font-semibold truncate">{repoName}</span>
+                  <span className="text-foreground text-sm font-semibold truncate">{repoName}</span>
                 </div>
 
                 {/* Worktrees under this repo */}
@@ -436,7 +439,7 @@ export const ProjectList: React.FC = () => {
                       const isSelected = project.id === selectedProjectId;
 
                       // Check if any agent for this project is currently streaming
-                      const isAnyAgentStreaming = projectAgents.some(
+                      const isAnyAgentQuerying = projectAgents.some(
                         (agent) => streamingStates.get(agent.id) || false
                       );
 
@@ -449,9 +452,9 @@ export const ProjectList: React.FC = () => {
                           data-selected={isSelected}
                           role="button"
                           tabIndex={0}
-                          aria-label={`Select worktree ${project.branchName}`}
-                          className={`group px-2 py-0.5 cursor-pointer hover:bg-surface-hover transition-colors rounded ${
-                            isSelected ? 'bg-surface-active selected' : ''
+                          aria-label={`Select project ${project.branchName}`}
+                          className={`group px-2 py-2 cursor-pointer hover:bg-card-hover transition-colors rounded ${
+                            isSelected ? 'bg-card-active selected' : ''
                           }`}
                           onClick={async () => {
                             await selectProject(project.id);
@@ -464,14 +467,14 @@ export const ProjectList: React.FC = () => {
                           }}
                         >
                           <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 min-w-0 text-xs flex-1">
                               <StatusIcon
                                 status={AgentStatus.DRAFT}
-                                isStreaming={isAnyAgentStreaming}
+                                isStreaming={isAnyAgentQuerying}
                               />
                               <div className="flex flex-col min-w-0 flex-1">
                                 <span
-                                  className="text-text text-sm truncate"
+                                  className="text-foreground text-sm truncate"
                                   title={project.branchName}
                                 >
                                   {project.branchName}

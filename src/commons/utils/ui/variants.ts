@@ -19,15 +19,21 @@ export const buttonVariants = cva(
       variant: {
         primary: ['bg-primary hover:bg-primary-light text-background', 'shadow-sm hover:shadow-md'],
         secondary: [
-          'bg-surface hover:bg-surface-hover text-text',
+          'bg-card hover:bg-card-hover text-foreground',
           'border border-border hover:border-primary',
         ],
-        ghost: ['hover:bg-surface hover:text-text', 'text-text-muted hover:text-text'],
+        ghost: [
+          'hover:bg-card-hover hover:text-foreground',
+          'text-muted-foreground hover:text-foreground',
+        ],
         danger: ['bg-danger hover:bg-red-600 text-white', 'shadow-sm hover:shadow-md'],
         success: ['bg-success hover:bg-green-600 text-white', 'shadow-sm hover:shadow-md'],
         warning: ['bg-warning hover:bg-orange-600 text-white', 'shadow-sm hover:shadow-md'],
         info: ['bg-info hover:bg-blue-600 text-white', 'shadow-sm hover:shadow-md'],
-        outline: ['border border-border hover:bg-surface', 'text-text hover:text-text'],
+        outline: [
+          'border border-border hover:bg-card-hover',
+          'text-foreground hover:text-foreground',
+        ],
         link: ['text-primary hover:text-primary-light underline-offset-4', 'hover:underline'],
       },
       size: {
@@ -51,9 +57,9 @@ export const buttonVariants = cva(
  */
 export const inputVariants = cva(
   [
-    'flex w-full rounded border border-border bg-surface',
-    'px-sm py-xs text-base text-text',
-    'placeholder:text-text-muted',
+    'flex w-full rounded border border-border bg-card',
+    'px-sm py-xs text-base text-foreground',
+    'placeholder:text-muted-foreground',
     'transition-colors duration-fast',
     'focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none',
     'disabled:cursor-not-allowed disabled:opacity-50',
@@ -94,13 +100,13 @@ export const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: ['border-transparent bg-surface-hover text-text-muted', 'hover:bg-surface'],
-        secondary: ['border-transparent bg-surface text-text', 'hover:bg-surface-hover'],
+        default: ['border-transparent bg-card-hover text-muted-foreground', 'hover:bg-card-hover'],
+        secondary: ['border-transparent bg-card text-foreground', 'hover:bg-card-hover'],
         success: ['border-transparent bg-success text-white', 'hover:bg-green-600'],
         danger: ['border-transparent bg-danger text-white', 'hover:bg-red-600'],
         warning: ['border-transparent bg-warning text-white', 'hover:bg-orange-600'],
         info: ['border-transparent bg-info text-white', 'hover:bg-blue-600'],
-        outline: ['border-border text-text', 'hover:bg-surface'],
+        outline: ['border-border text-foreground', 'hover:bg-card-hover'],
       },
       size: {
         sm: ['px-1 py-0.5 text-sm'],
@@ -119,14 +125,14 @@ export const badgeVariants = cva(
  * Card component variants
  */
 export const cardVariants = cva(
-  ['rounded-lg border border-border bg-surface text-text', 'transition-all duration-base'],
+  ['rounded-lg border border-border bg-card text-foreground', 'transition-all duration-base'],
   {
     variants: {
       variant: {
         default: [],
         elevated: ['shadow-md'],
         interactive: [
-          'cursor-pointer hover:bg-surface-hover',
+          'cursor-pointer hover:bg-card-hover',
           'hover:shadow-md hover:-translate-y-px',
         ],
         outline: ['border-2'],
@@ -153,7 +159,7 @@ export const alertVariants = cva(
   {
     variants: {
       variant: {
-        default: ['bg-surface border-border text-text'],
+        default: ['bg-card border-border text-foreground'],
         success: ['bg-green-opacity-10 border-success text-success', '[&>svg]:text-success'],
         danger: ['bg-red-opacity-10 border-danger text-danger', '[&>svg]:text-danger'],
         warning: ['bg-orange-opacity-10 border-warning text-warning', '[&>svg]:text-warning'],

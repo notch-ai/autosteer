@@ -21,9 +21,10 @@ https://github.com/user-attachments/assets/65219ff1-f600-412a-8a5f-fe7a1880704f
 - Worktree-First Architecture - Organize projects in isolated workspaces with independent file systems and contexts
 - Persistent Sessions - Save and resume conversations per worktree, maintaining full context across work sessions
 - Multi-Project Management - Switch seamlessly between different projects without losing state or context
+- Per-Project Tab Management - Session tabs scoped to projects with auto-select behavior and persistent state
 - Cross-Platform - Native support for macOS, Linux, and Windows (via WSL)
 - Context Preservation - Automatically saves conversation state, allowing you to pick up exactly where you left off
-- Fast Context Switching - Instantly switch between worktrees
+- Fast Context Switching - Instantly switch between worktrees and tabs
 - Token Usage Tracking - Monitor token usage and costs per message and per worktree
 - Status Panel - View session information, manage MCP servers, and handle MCP authentication
 - Protocol Trace Viewer - Inspect detailed protocol messages for debugging and understanding agent behavior
@@ -134,15 +135,15 @@ pnpm make
 autosteer/
 ├── src/
 │   ├── main/                           # Electron main process
-│   │   └── ipc/                        # Inter-process communication layer 
-│   │       ├── handlers/               # 4 consolidated domain handlers 
+│   │   └── ipc/                        # Inter-process communication layer
+│   │       ├── handlers/               # 4 consolidated domain handlers
 │   │       │   ├── claude.handlers.ts  # Agent, MCP, SlashCommand operations
 │   │       │   ├── project.handlers.ts # File, Resource management
 │   │       │   ├── git.handlers.ts     # Git operations
 │   │       │   └── system.handlers.ts  # Terminal, Badge, Config, Log, Store, Update
 │   │       ├── utils/handlerFactory.ts # Reusable error handling, logging, validation
 │   │       └── IpcRegistrar.ts         # Centralized handler registration
-│   ├── features/                       # Domain-based feature organization 
+│   ├── features/                       # Domain-based feature organization
 │   │   ├── chat/                       # Chat feature domain (15 components)
 │   │   ├── monitoring/                 # Monitoring feature domain (10 components)
 │   │   ├── settings/                   # Settings feature domain (4 components)
@@ -159,15 +160,20 @@ autosteer/
 │   ├── components/                     # Common UI layer (shadcn/ui primitives)
 │   ├── services/                       # Application services
 │   ├── stores/                         # State management (Zustand)
-│   ├── hooks/                          # React hooks 
+│   ├── hooks/                          # React hooks
+│   │   └── useSessionTabs.ts           # Tab management hook 
 │   ├── commons/
 │   │   ├── utils/                      # Utility functions
 │   │   │   └── slash-commands/         # Slash command utilities
 │   │   ├── contexts/                   # React contexts
 │   │   ├── constants/                  # Constants and config
+│   │   │   └── tabs.ts                 # Tab constants (MAX_TABS, system tab IDs)
 │   │   └── config/                     # Theme and styling
 │   ├── entities/                       # Data models (Lite Clean Architecture)
-│   └── types/                          # TypeScript types
+│   ├── types/                          # TypeScript types
+│   │   └── ui.types.ts                 # Tab type definitions (SessionTab, MaximizeTab, TabState)
+│   └── docs/                           # Documentation
+│       └── tab-management.md           # Tab management guide
 ├── assets/                             # App icons and images
 ├── tests/
 │   ├── unit/                           # Unit tests (80% coverage target)
@@ -179,6 +185,26 @@ autosteer/
 ```
 
 **Import Pattern**: `@/features/[domain]/components/[Component]`
+
+### Tab Management
+
+AutoSteer provides robust tab management with per-project isolation. See `docs/tab-management.md` for detailed documentation.
+
+**Key Features**:
+- Per-project tab isolation: Only tabs for the selected project are visible
+- Auto-select behavior: Automatically switches to another tab when closing
+- Persistent state: Tab selection survives application restarts
+- System tabs: Terminal and Changes tabs always present
+- Maximize tabs: Dynamic tabs for maximize view
+
+**Configuration**:
+```json
+{
+  "settings": {
+    "confirmSessionTabDeletion": true
+  }
+}
+```
 
 ## 🤝 Contributing
 
@@ -330,14 +356,12 @@ When updating `@anthropic-ai/claude-agent-sdk`:
 
 4. **Update Trace Documentation**
    - Document new message types in README
-   - Update Pydantic models in `.sketchpad/claude_message_types.py`
 
 ### Pydantic Model Changes
 
 #### Adding New Message Types
 
 1. **Update Python Models**
-   - Add new message type to `.sketchpad/claude_message_types.py`
    - Follow existing BaseModel pattern
    - Add to `SDKMessage` union type
 

@@ -30,7 +30,7 @@ jest.mock('@/commons/utils/logger', () => ({
 jest.mock('@/renderer/hooks/useTerminalPool', () => ({
   useTerminalPool: jest.fn(() => ({
     getPoolSize: jest.fn(() => 0),
-    getAllTerminalIds: jest.fn(() => []),
+    getAllProjectIds: jest.fn(() => []),
   })),
 }));
 
@@ -95,7 +95,7 @@ describe('useTerminal Hook - Pool Coordination', () => {
       const mockGetPoolSize = jest.fn(() => 3);
       useTerminalPool.mockReturnValue({
         getPoolSize: mockGetPoolSize,
-        getAllTerminalIds: jest.fn(() => ['term-1', 'term-2', 'term-3']),
+        getAllProjectIds: jest.fn(() => ['term-1', 'term-2', 'term-3']),
       });
 
       mockIpcInvoke.mockResolvedValueOnce({
@@ -177,7 +177,7 @@ describe('useTerminal Hook - Pool Coordination', () => {
       const mockGetPoolSize = jest.fn(() => 2);
       useTerminalPool.mockReturnValue({
         getPoolSize: mockGetPoolSize,
-        getAllTerminalIds: jest.fn(() => ['term-1', 'term-2']),
+        getAllProjectIds: jest.fn(() => ['term-1', 'term-2']),
       });
 
       mockIpcInvoke.mockResolvedValueOnce({ success: true });
@@ -202,7 +202,7 @@ describe('useTerminal Hook - Pool Coordination', () => {
       const { useTerminalPool } = require('@/renderer/hooks/useTerminalPool');
       useTerminalPool.mockReturnValue({
         getPoolSize: jest.fn(() => 7),
-        getAllTerminalIds: jest.fn(() =>
+        getAllProjectIds: jest.fn(() =>
           Array(7)
             .fill(null)
             .map((_, i) => `term-${i}`)
@@ -225,7 +225,7 @@ describe('useTerminal Hook - Pool Coordination', () => {
       const { useTerminalPool } = require('@/renderer/hooks/useTerminalPool');
       useTerminalPool.mockReturnValue({
         getPoolSize: jest.fn(() => 8),
-        getAllTerminalIds: jest.fn(() =>
+        getAllProjectIds: jest.fn(() =>
           Array(8)
             .fill(null)
             .map((_, i) => `term-${i}`)
@@ -250,7 +250,7 @@ describe('useTerminal Hook - Pool Coordination', () => {
 
       useTerminalPool.mockReturnValue({
         getPoolSize: mockGetPoolSize,
-        getAllTerminalIds: jest.fn(() =>
+        getAllProjectIds: jest.fn(() =>
           Array(8)
             .fill(null)
             .map((_, i) => `term-${i}`)
@@ -301,7 +301,7 @@ describe('useTerminal Hook - Pool Coordination', () => {
       const { useTerminalPool } = require('@/renderer/hooks/useTerminalPool');
       useTerminalPool.mockReturnValue({
         getPoolSize: jest.fn(() => 5),
-        getAllTerminalIds: jest.fn(() =>
+        getAllProjectIds: jest.fn(() =>
           Array(5)
             .fill(null)
             .map((_, i) => `term-${i}`)
@@ -472,7 +472,7 @@ describe('useTerminal Hook - Pool Coordination', () => {
       const mockHasTerminal = jest.fn(() => false);
       useTerminalPool.mockReturnValue({
         getPoolSize: jest.fn(() => 1),
-        getAllTerminalIds: jest.fn(() => ['existing-term']),
+        getAllProjectIds: jest.fn(() => ['existing-term']),
         hasTerminal: mockHasTerminal,
       });
 

@@ -67,6 +67,7 @@ export interface AutosteerConfig {
     maxTokens?: number;
     selectedProvider?: 'mock' | 'claude-code' | 'openai';
     devMode?: boolean; // Development mode for verbose logging
+    autoSelectFirstTab?: boolean; // Auto-select first tab when no active tab (default: true)
 
     // Layout state (optional persistence)
     layout?: {
@@ -86,6 +87,14 @@ export interface AutosteerConfig {
 
   // Recent projects (optional)
   recentProjects?: string[];
+
+  // Per-session settings
+  sessionSettings?: {
+    [agentId: string]: {
+      permissionMode?: string; // 'plan' | 'acceptEdits' | 'bypassPermissions'
+      model?: string | null; // Model selection
+    };
+  };
 
   // Generic store for miscellaneous data
   store?: Record<string, unknown>;

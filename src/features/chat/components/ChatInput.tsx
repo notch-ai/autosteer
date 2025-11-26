@@ -2,12 +2,27 @@ import { cn } from '@/commons/utils';
 import { useChatInputHandler } from '@/hooks/useChatInputHandler';
 import { useChatStore, useResourcesStore } from '@/stores';
 import { ModelOption } from '@/types/model.types';
-import { PermissionMode } from '@/types/permission.types';
+import { DEFAULT_PERMISSION_MODE, PermissionMode } from '@/types/permission.types';
 import { forwardRef, memo, useImperativeHandle, useRef } from 'react';
 import { RichTextEditor } from './RichTextEditor';
 
+/**
+ * Imperative handle interface for ChatInput
+ * Allows parent components to programmatically control the input
+ */
 export interface ChatInputHandle {
+  /**
+   * Focus the chat input editor
+   * Used for restoring focus after operations like stream cancellation
+   * Implementation: Focuses the CodeMirror editor within the component's container
+   * Safety: Uses preventScroll to avoid interfering with scroll position restoration
+   */
   focus: () => void;
+
+  /**
+   * Reset the input state
+   * Clears message content, permission mode, and model selection
+   */
   reset: () => void;
 }
 
@@ -16,12 +31,12 @@ interface ChatInputProps {
     content: string,
     options?: { permissionMode?: PermissionMode; model?: ModelOption }
   ) => void;
-  isLoading: boolean;
   attachedResourceIds: string[];
   onRemoveResource: (resourceId: string) => void;
   onAttachResources?: (resourceIds: string[]) => void;
   isStreaming: boolean;
   selectedAgentId: string | null;
+  onStopStreaming?: (options?: { focusCallback?: () => void; silentCancel?: boolean }) => void;
 }
 
 /**
@@ -48,17 +63,18 @@ export const ChatInput = memo(
     (
       {
         onSendMessage,
-        isLoading,
         attachedResourceIds,
         onRemoveResource,
         onAttachResources,
         isStreaming,
         selectedAgentId,
+        onStopStreaming,
       },
       ref
     ) => {
       const resources = useResourcesStore((state) => state.resources);
-      const stopStreaming = useChatStore((state) => state.stopStreaming);
+      const stopStreamingFromStore = useChatStore((state) => state.stopStreaming);
+      const stopStreaming = onStopStreaming || stopStreamingFromStore;
       const containerRef = useRef<HTMLDivElement>(null);
 
       // Delegate all business logic to handler
@@ -75,13 +91,12 @@ export const ChatInput = memo(
         handleCursorPositionChange,
       } = useChatInputHandler({
         onSendMessage,
-        isLoading,
+        isStreaming,
         selectedAgentId,
       });
 
       const isCompactingConversation = false; // TODO: Implement compacting state in CoreStore
-      const isDisabled =
-        (isLoading && !isStreaming) || isCompactingConversation || !selectedAgentId;
+      const isDisabled = isCompactingConversation || !selectedAgentId;
 
       // Expose focus and reset methods to parent
       useImperativeHandle(
@@ -110,7 +125,7 @@ export const ChatInput = memo(
             // Clear the message input
             setMessage('');
             // Reset permission mode to default
-            setPermissionMode('default');
+            setPermissionMode(DEFAULT_PERMISSION_MODE);
             // Reset model (null means use settings default)
             setModel(null as any);
           },

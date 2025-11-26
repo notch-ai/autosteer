@@ -83,9 +83,11 @@ export class XtermService {
     window: BrowserWindow,
     params?: TerminalCreateParams
   ): Promise<TerminalData> {
-    if (this.terminals.size >= this.maxTerminals) {
+    const ptyCount = this.terminals.size;
+
+    if (ptyCount >= this.maxTerminals) {
       log.error(
-        `Maximum terminal limit reached (${this.maxTerminals}). Active terminals:`,
+        `[XtermService] Maximum terminal limit reached. Max: ${this.maxTerminals}, PTY count: ${ptyCount}. Active terminals:`,
         this.getAllTerminals()
       );
       throw new Error(`Maximum terminal limit reached (${this.maxTerminals})`);
@@ -131,6 +133,10 @@ export class XtermService {
       // Setup PTY event handlers
       this.setupPtyHandlers(terminalId, pty, window);
 
+      log.debug(
+        `[XtermService] Created terminal ${terminalId} (pid: ${pty.pid}). PTY count: ${this.terminals.size}/${this.maxTerminals}`
+      );
+
       const now = new Date();
       return {
         id: terminalId,
@@ -145,7 +151,7 @@ export class XtermService {
         status: 'running',
       };
     } catch (error) {
-      log.error('Failed to create PTY terminal:', error);
+      log.error(`[XtermService] Failed to create PTY terminal. PTY count: ${ptyCount}`, error);
       throw error;
     }
   }
@@ -193,6 +199,9 @@ export class XtermService {
         }
 
         this.terminals.delete(terminalId);
+        log.debug(
+          `[XtermService] Terminal ${terminalId} exited (code: ${exitCode}, signal: ${signal}). PTY count: ${this.terminals.size}/${this.maxTerminals}`
+        );
       }
     );
 
@@ -248,43 +257,58 @@ export class XtermService {
       throw new Error(`Terminal not found: ${terminalId}`);
     }
 
+    // Remove from map immediately
+    this.terminals.delete(terminalId);
+    log.debug(
+      `[XtermService] Removed terminal ${terminalId} from map. PTY count: ${this.terminals.size}/${this.maxTerminals}`
+    );
+
+    // Kill the PTY process
+    await this.killTerminalPty(terminalId, terminal);
+  }
+
+  /**
+   * Kill PTY process with graceful shutdown
+   * This is separated to allow cleanup without map removal
+   */
+  private async killTerminalPty(terminalId: string, terminal: XtermTerminal): Promise<void> {
     try {
-      // Step 1: Mark as inactive
+      // Step 1: Mark as inactive and cleanup disposables immediately
       terminal.isActive = false;
+
+      // Cleanup disposables right away since terminal is removed from map
+      // and onExit handler won't be able to find it
+      terminal.disposables.forEach((d) => {
+        try {
+          d.dispose();
+        } catch (error) {
+          log.error(`Failed to dispose terminal ${terminalId} listener:`, error);
+        }
+      });
 
       // Step 2: Graceful shutdown (SIGTERM)
       terminal.pty.kill('SIGTERM');
 
       // Step 3: Force kill after 1s timeout if not exited
-      const killTimeout = setTimeout(() => {
+      setTimeout(() => {
         if (!terminal.hasExited) {
           log.warn(`Terminal ${terminalId} did not exit gracefully, forcing SIGKILL`);
           terminal.pty.kill('SIGKILL');
 
-          // Fallback cleanup if onExit doesn't fire within 2s
+          // Final check after SIGKILL
           setTimeout(() => {
-            if (this.terminals.has(terminalId)) {
-              log.error(`Terminal ${terminalId} still in map after SIGKILL, forcing cleanup`);
-              const term = this.terminals.get(terminalId);
-              if (term) {
-                term.disposables.forEach((d) => {
-                  try {
-                    d.dispose();
-                  } catch (error) {
-                    log.error(`Failed to dispose terminal ${terminalId} listener:`, error);
-                  }
-                });
-              }
-              this.terminals.delete(terminalId);
+            if (!terminal.hasExited) {
+              log.error(
+                `Terminal ${terminalId} still hasn't exited after SIGKILL (pid: ${terminal.pid})`
+              );
+              terminal.hasExited = true; // Mark as exited to prevent further attempts
             }
           }, 2000);
-        } else {
-          clearTimeout(killTimeout);
         }
       }, 1000);
     } catch (error) {
       log.error(`Failed to kill PTY terminal ${terminalId}:`, error);
-      // Attempt cleanup even on error
+      // Ensure disposables are cleaned up even on error
       terminal.disposables.forEach((d) => {
         try {
           d.dispose();
@@ -292,7 +316,6 @@ export class XtermService {
           log.error(`Failed to dispose terminal ${terminalId} listener:`, disposeError);
         }
       });
-      this.terminals.delete(terminalId);
       throw error;
     }
   }
@@ -346,6 +369,56 @@ export class XtermService {
     delete env.GITHUB_TOKEN;
 
     return env;
+  }
+
+  /**
+   * Cleanup all terminals for a specific window
+   * Used when window reloads or is destroyed
+   */
+  async cleanupWindowTerminals(window: BrowserWindow): Promise<void> {
+    const windowId = window.id;
+    const terminalsToKill: Array<{ id: string; terminal: XtermTerminal }> = [];
+
+    // Find all terminals belonging to this window
+    this.terminals.forEach((terminal, terminalId) => {
+      if (terminal.window.id === windowId) {
+        terminalsToKill.push({ id: terminalId, terminal });
+      }
+    });
+
+    if (terminalsToKill.length === 0) {
+      log.debug(`[XtermService] No terminals to cleanup for window ${windowId}`);
+      return;
+    }
+
+    log.info(
+      `[XtermService] Cleaning up ${terminalsToKill.length} terminals for window ${windowId}: ${terminalsToKill.map((t) => t.id).join(', ')}`
+    );
+
+    // CRITICAL: Remove from map immediately to free up capacity
+    // This prevents hitting the max terminal limit during reload
+    terminalsToKill.forEach(({ id }) => {
+      this.terminals.delete(id);
+    });
+
+    log.debug(
+      `[XtermService] Removed ${terminalsToKill.length} terminals from map. Remaining: ${this.terminals.size}`
+    );
+
+    // Kill PTY processes in background (async cleanup)
+    const killPromises = terminalsToKill.map(({ id, terminal }) => {
+      log.debug(`[XtermService] Killing PTY for terminal ${id}`);
+      return this.killTerminalPty(id, terminal).catch((error) => {
+        log.error(`[XtermService] Error killing PTY terminal ${id}:`, error);
+      });
+    });
+
+    // Don't wait for PTY cleanup - it happens in background with timeouts
+    Promise.allSettled(killPromises).then(() => {
+      log.info(`[XtermService] All PTY processes cleaned up for window ${windowId}`);
+    });
+
+    log.info(`[XtermService] Cleanup complete. Remaining terminals: ${this.terminals.size}`);
   }
 
   /**

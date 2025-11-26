@@ -1,7 +1,10 @@
 import { renderHook, act } from '@testing-library/react';
-import { useTerminalPool } from '@/renderer/hooks/useTerminalPool';
+import {
+  useTerminalPool,
+  __resetGlobalPoolManagerForTesting,
+} from '@/renderer/hooks/useTerminalPool';
 import { TerminalPoolManager } from '@/renderer/services/TerminalPoolManager';
-import { Terminal, TerminalBufferState } from '@/types/terminal.types';
+import { Terminal } from '@/types/terminal.types';
 import { logger } from '@/commons/utils/logger';
 
 // Mock TerminalPoolManager
@@ -17,7 +20,7 @@ jest.mock('@/commons/utils/logger', () => ({
   },
 }));
 
-describe('useTerminalPool', () => {
+describe('useTerminalPool - Z-Index Stacking Pattern', () => {
   let mockPoolManager: jest.Mocked<TerminalPoolManager>;
 
   const createMockTerminal = (id: string): Terminal => ({
@@ -33,40 +36,29 @@ describe('useTerminalPool', () => {
     status: 'running',
   });
 
-  const createMockBufferState = (terminalId: string): TerminalBufferState => ({
-    terminalId,
-    content: 'test content',
-    scrollback: ['line1', 'line2', 'line3'],
-    cursorX: 0,
-    cursorY: 0,
-    cols: 80,
-    rows: 24,
-    timestamp: new Date('2025-01-01T00:00:00Z'),
-    sizeBytes: 1024,
-  });
-
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Create mock pool manager instance
+    // Reset global singleton for test isolation
+    __resetGlobalPoolManagerForTesting();
+
+    // Create mock pool manager instance (simplified API - no attach/detach/capture/restore)
     mockPoolManager = {
       createTerminal: jest.fn(),
       getTerminal: jest.fn(),
       hasTerminal: jest.fn(),
-      attachTerminal: jest.fn(),
-      detachTerminal: jest.fn(),
       focusTerminal: jest.fn(),
       blurTerminal: jest.fn(),
       fitTerminal: jest.fn(),
       resizeTerminal: jest.fn(),
-      captureBufferState: jest.fn(),
-      restoreBufferState: jest.fn(),
+      scrollToTop: jest.fn(),
+      scrollToBottom: jest.fn(),
       destroyTerminal: jest.fn(),
       getPoolSize: jest.fn().mockReturnValue(0),
       getMaxPoolSize: jest.fn().mockReturnValue(10),
-      getAllTerminalIds: jest.fn().mockReturnValue([]),
+      getAllProjectIds: jest.fn().mockReturnValue([]),
+      getTerminalId: jest.fn(),
       getTerminalMetadata: jest.fn(),
-      isTerminalAttached: jest.fn(),
       clearAll: jest.fn(),
     } as any;
 
@@ -95,13 +87,16 @@ describe('useTerminalPool', () => {
     it('should log initialization', () => {
       renderHook(() => useTerminalPool());
 
-      expect(logger.debug).toHaveBeenCalledWith('[useTerminalPool] Pool manager initialized');
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[useTerminalPool] 🌍 Global TerminalPoolManager created'
+      );
     });
   });
 
   describe('Terminal Lifecycle Operations', () => {
     it('should create terminal', () => {
       const { result } = renderHook(() => useTerminalPool());
+      const projectId = 'project1';
       const terminal = createMockTerminal('term1');
       const element = document.createElement('div');
       const mockAdapter = {} as any;
@@ -109,13 +104,13 @@ describe('useTerminalPool', () => {
       mockPoolManager.createTerminal.mockReturnValue(mockAdapter);
 
       act(() => {
-        result.current.createTerminal(terminal, element);
+        result.current.createTerminal(projectId, terminal, element);
       });
 
-      expect(mockPoolManager.createTerminal).toHaveBeenCalledWith(terminal, element);
+      expect(mockPoolManager.createTerminal).toHaveBeenCalledWith(projectId, terminal, element);
       expect(logger.debug).toHaveBeenCalledWith(
         '[useTerminalPool] Creating terminal',
-        expect.objectContaining({ terminalId: 'term1' })
+        expect.objectContaining({ projectId, terminalId: 'term1' })
       );
     });
 
@@ -150,44 +145,13 @@ describe('useTerminalPool', () => {
       const { result } = renderHook(() => useTerminalPool());
 
       act(() => {
-        result.current.destroyTerminal('term1');
+        result.current.destroyTerminal('project1');
       });
 
-      expect(mockPoolManager.destroyTerminal).toHaveBeenCalledWith('term1');
+      expect(mockPoolManager.destroyTerminal).toHaveBeenCalledWith('project1');
       expect(logger.debug).toHaveBeenCalledWith(
         '[useTerminalPool] Destroying terminal',
-        expect.objectContaining({ terminalId: 'term1' })
-      );
-    });
-  });
-
-  describe('DOM Attachment Operations', () => {
-    it('should attach terminal to element', () => {
-      const { result } = renderHook(() => useTerminalPool());
-      const element = document.createElement('div');
-
-      act(() => {
-        result.current.attachTerminal('term1', element);
-      });
-
-      expect(mockPoolManager.attachTerminal).toHaveBeenCalledWith('term1', element);
-      expect(logger.debug).toHaveBeenCalledWith(
-        '[useTerminalPool] Attaching terminal',
-        expect.objectContaining({ terminalId: 'term1' })
-      );
-    });
-
-    it('should detach terminal from DOM', () => {
-      const { result } = renderHook(() => useTerminalPool());
-
-      act(() => {
-        result.current.detachTerminal('term1');
-      });
-
-      expect(mockPoolManager.detachTerminal).toHaveBeenCalledWith('term1');
-      expect(logger.debug).toHaveBeenCalledWith(
-        '[useTerminalPool] Detaching terminal',
-        expect.objectContaining({ terminalId: 'term1' })
+        expect.objectContaining({ projectId: 'project1' })
       );
     });
   });
@@ -234,41 +198,6 @@ describe('useTerminalPool', () => {
     });
   });
 
-  describe('Buffer State Operations', () => {
-    it('should capture buffer state', () => {
-      const { result } = renderHook(() => useTerminalPool());
-      const mockBufferState = createMockBufferState('term1');
-
-      mockPoolManager.captureBufferState.mockReturnValue(mockBufferState);
-
-      act(() => {
-        const state = result.current.captureBufferState('term1');
-        expect(state).toBe(mockBufferState);
-      });
-
-      expect(mockPoolManager.captureBufferState).toHaveBeenCalledWith('term1');
-      expect(logger.debug).toHaveBeenCalledWith(
-        '[useTerminalPool] Capturing buffer state',
-        expect.objectContaining({ terminalId: 'term1' })
-      );
-    });
-
-    it('should restore buffer state', () => {
-      const { result } = renderHook(() => useTerminalPool());
-      const mockBufferState = createMockBufferState('term1');
-
-      act(() => {
-        result.current.restoreBufferState('term1', mockBufferState);
-      });
-
-      expect(mockPoolManager.restoreBufferState).toHaveBeenCalledWith('term1', mockBufferState);
-      expect(logger.debug).toHaveBeenCalledWith(
-        '[useTerminalPool] Restoring buffer state',
-        expect.objectContaining({ terminalId: 'term1' })
-      );
-    });
-  });
-
   describe('Pool Information Operations', () => {
     it('should get pool size', () => {
       const { result } = renderHook(() => useTerminalPool());
@@ -296,17 +225,17 @@ describe('useTerminalPool', () => {
       expect(mockPoolManager.getMaxPoolSize).toHaveBeenCalled();
     });
 
-    it('should get all terminal IDs', () => {
+    it('should get all project IDs', () => {
       const { result } = renderHook(() => useTerminalPool());
 
-      mockPoolManager.getAllTerminalIds.mockReturnValue(['term1', 'term2', 'term3']);
+      mockPoolManager.getAllProjectIds.mockReturnValue(['project1', 'project2', 'project3']);
 
       act(() => {
-        const ids = result.current.getAllTerminalIds();
-        expect(ids).toEqual(['term1', 'term2', 'term3']);
+        const ids = result.current.getAllProjectIds();
+        expect(ids).toEqual(['project1', 'project2', 'project3']);
       });
 
-      expect(mockPoolManager.getAllTerminalIds).toHaveBeenCalled();
+      expect(mockPoolManager.getAllProjectIds).toHaveBeenCalled();
     });
 
     it('should get terminal metadata', () => {
@@ -323,25 +252,12 @@ describe('useTerminalPool', () => {
       expect(mockPoolManager.getTerminalMetadata).toHaveBeenCalledWith('term1');
     });
 
-    it('should check if terminal is attached', () => {
-      const { result } = renderHook(() => useTerminalPool());
-
-      mockPoolManager.isTerminalAttached.mockReturnValue(true);
-
-      act(() => {
-        const isAttached = result.current.isTerminalAttached('term1');
-        expect(isAttached).toBe(true);
-      });
-
-      expect(mockPoolManager.isTerminalAttached).toHaveBeenCalledWith('term1');
-    });
-
     it('should get pool stats', () => {
       const { result } = renderHook(() => useTerminalPool());
 
       mockPoolManager.getPoolSize.mockReturnValue(3);
       mockPoolManager.getMaxPoolSize.mockReturnValue(10);
-      mockPoolManager.getAllTerminalIds.mockReturnValue(['term1', 'term2', 'term3']);
+      mockPoolManager.getAllProjectIds.mockReturnValue(['project1', 'project2', 'project3']);
 
       act(() => {
         const stats = result.current.getPoolStats();
@@ -349,7 +265,7 @@ describe('useTerminalPool', () => {
         expect(stats).toEqual({
           size: 3,
           maxSize: 10,
-          terminalIds: ['term1', 'term2', 'term3'],
+          terminalIds: ['project1', 'project2', 'project3'],
           availableSlots: 7,
         });
       });
@@ -358,7 +274,7 @@ describe('useTerminalPool', () => {
 
   describe('Error Handling', () => {
     it('should handle pool limit errors with user-friendly message', () => {
-      const { result } = renderHook(() => useTerminalPool());
+      const projectId = 'project1';
       const terminal = createMockTerminal('term1');
       const element = document.createElement('div');
 
@@ -366,84 +282,42 @@ describe('useTerminalPool', () => {
         throw new Error('Terminal pool limit reached (10)');
       });
 
+      const { result } = renderHook(() => useTerminalPool());
+
       expect(() => {
         act(() => {
-          result.current.createTerminal(terminal, element);
+          result.current.createTerminal(projectId, terminal, element);
         });
       }).toThrow('Terminal pool limit reached (10)');
 
       expect(logger.error).toHaveBeenCalledWith(
         '[useTerminalPool] Failed to create terminal',
         expect.objectContaining({
+          projectId,
           terminalId: 'term1',
           error: 'Terminal pool limit reached (10)',
         })
       );
     });
 
-    it('should handle attach errors gracefully', () => {
-      const { result } = renderHook(() => useTerminalPool());
-      const element = document.createElement('div');
-
-      mockPoolManager.attachTerminal.mockImplementation(() => {
-        throw new Error('Terminal not found in pool: term1');
-      });
-
-      expect(() => {
-        act(() => {
-          result.current.attachTerminal('term1', element);
-        });
-      }).toThrow('Terminal not found in pool: term1');
-
-      expect(logger.error).toHaveBeenCalledWith(
-        '[useTerminalPool] Failed to attach terminal',
-        expect.objectContaining({
-          terminalId: 'term1',
-          error: 'Terminal not found in pool: term1',
-        })
-      );
-    });
-
-    it('should handle detach errors gracefully', () => {
-      const { result } = renderHook(() => useTerminalPool());
-
-      mockPoolManager.detachTerminal.mockImplementation(() => {
-        throw new Error('Terminal not found in pool: term1');
-      });
-
-      expect(() => {
-        act(() => {
-          result.current.detachTerminal('term1');
-        });
-      }).toThrow('Terminal not found in pool: term1');
-
-      expect(logger.error).toHaveBeenCalledWith(
-        '[useTerminalPool] Failed to detach terminal',
-        expect.objectContaining({
-          terminalId: 'term1',
-          error: 'Terminal not found in pool: term1',
-        })
-      );
-    });
-
     it('should handle destroy errors gracefully', () => {
-      const { result } = renderHook(() => useTerminalPool());
-
       mockPoolManager.destroyTerminal.mockImplementation(() => {
-        throw new Error('Terminal not found in pool: term1');
+        throw new Error('Terminal not found in pool: project1');
       });
+
+      const { result } = renderHook(() => useTerminalPool());
 
       expect(() => {
         act(() => {
-          result.current.destroyTerminal('term1');
+          result.current.destroyTerminal('project1');
         });
-      }).toThrow('Terminal not found in pool: term1');
+      }).toThrow('Terminal not found in pool: project1');
 
       expect(logger.error).toHaveBeenCalledWith(
         '[useTerminalPool] Failed to destroy terminal',
         expect.objectContaining({
-          terminalId: 'term1',
-          error: 'Terminal not found in pool: term1',
+          projectId: 'project1',
+          error: 'Terminal not found in pool: project1',
         })
       );
     });
@@ -467,14 +341,88 @@ describe('useTerminalPool', () => {
       const { result, rerender } = renderHook(() => useTerminalPool());
 
       const initialCreateTerminal = result.current.createTerminal;
-      const initialAttachTerminal = result.current.attachTerminal;
-      const initialDetachTerminal = result.current.detachTerminal;
+      const initialDestroyTerminal = result.current.destroyTerminal;
+      const initialFocusTerminal = result.current.focusTerminal;
 
       rerender();
 
       expect(result.current.createTerminal).toBe(initialCreateTerminal);
-      expect(result.current.attachTerminal).toBe(initialAttachTerminal);
-      expect(result.current.detachTerminal).toBe(initialDetachTerminal);
+      expect(result.current.destroyTerminal).toBe(initialDestroyTerminal);
+      expect(result.current.focusTerminal).toBe(initialFocusTerminal);
+    });
+  });
+
+  describe('Scroll Operations', () => {
+    it('should scroll terminal to top', () => {
+      const { result } = renderHook(() => useTerminalPool());
+
+      act(() => {
+        result.current.scrollToTop('project1');
+      });
+
+      expect(mockPoolManager.scrollToTop).toHaveBeenCalledWith('project1');
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[useTerminalPool] Scrolling terminal to top',
+        expect.objectContaining({ projectId: 'project1' })
+      );
+    });
+
+    it('should scroll terminal to bottom', () => {
+      const { result } = renderHook(() => useTerminalPool());
+
+      act(() => {
+        result.current.scrollToBottom('project1');
+      });
+
+      expect(mockPoolManager.scrollToBottom).toHaveBeenCalledWith('project1');
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[useTerminalPool] Scrolling terminal to bottom',
+        expect.objectContaining({ projectId: 'project1' })
+      );
+    });
+
+    it('should handle scroll to top errors', () => {
+      mockPoolManager.scrollToTop.mockImplementation(() => {
+        throw new Error('No terminal found for project: project1');
+      });
+
+      const { result } = renderHook(() => useTerminalPool());
+
+      expect(() => {
+        act(() => {
+          result.current.scrollToTop('project1');
+        });
+      }).toThrow('No terminal found for project: project1');
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[useTerminalPool] Failed to scroll terminal to top',
+        expect.objectContaining({
+          projectId: 'project1',
+          error: 'No terminal found for project: project1',
+        })
+      );
+    });
+
+    it('should handle scroll to bottom errors', () => {
+      mockPoolManager.scrollToBottom.mockImplementation(() => {
+        throw new Error('No terminal found for project: project1');
+      });
+
+      const { result } = renderHook(() => useTerminalPool());
+
+      expect(() => {
+        act(() => {
+          result.current.scrollToBottom('project1');
+        });
+      }).toThrow('No terminal found for project: project1');
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[useTerminalPool] Failed to scroll terminal to bottom',
+        expect.objectContaining({
+          projectId: 'project1',
+          error: 'No terminal found for project: project1',
+        })
+      );
     });
   });
 });

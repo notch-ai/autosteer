@@ -73,10 +73,9 @@ export const useTerminalScrollPreservation = () => {
       };
 
       scrollPositionsRef.current.set(terminalId, position);
-
       logger.debug('[useTerminalScrollPreservation] Saved terminal scroll position', {
         terminalId,
-        position,
+        scrollTop: position.scrollTop,
       });
     } catch (error) {
       logger.error('[useTerminalScrollPreservation] Failed to save scroll position', {
@@ -108,7 +107,7 @@ export const useTerminalScrollPreservation = () => {
         // Get viewport element from xterm.js
         const viewportElement = terminal.element?.querySelector('.xterm-viewport');
         if (!viewportElement) {
-          logger.warn('[useTerminalScrollPreservation] Viewport element not found', {
+          logger.warn('[useTerminalScrollPreservation] No viewport element found', {
             terminalId,
           });
           return;
@@ -117,18 +116,15 @@ export const useTerminalScrollPreservation = () => {
         if (!savedPosition) {
           // No saved position - scroll to bottom by default
           viewportElement.scrollTop = viewportElement.scrollHeight;
-
           logger.debug('[useTerminalScrollPreservation] No saved position, scrolled to bottom', {
             terminalId,
             scrollTop: viewportElement.scrollTop,
-            scrollHeight: viewportElement.scrollHeight,
           });
           return;
         }
 
         // Restore saved position
         viewportElement.scrollTop = savedPosition.scrollTop;
-
         logger.debug('[useTerminalScrollPreservation] Restored terminal scroll position', {
           terminalId,
           scrollTop: savedPosition.scrollTop,
@@ -148,7 +144,6 @@ export const useTerminalScrollPreservation = () => {
    */
   const clearTerminalScrollPosition = useCallback((terminalId: string) => {
     scrollPositionsRef.current.delete(terminalId);
-
     logger.debug('[useTerminalScrollPreservation] Cleared terminal scroll position', {
       terminalId,
     });
@@ -175,11 +170,6 @@ export const useTerminalScrollPreservation = () => {
 
       const toRemove = entries.slice(0, positions.size - MAX_STORED_POSITIONS);
       toRemove.forEach(([id]) => positions.delete(id));
-
-      logger.debug('[useTerminalScrollPreservation] Cleaned up old positions', {
-        removed: toRemove.length,
-        remaining: positions.size,
-      });
     }
   });
 

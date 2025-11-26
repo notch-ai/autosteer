@@ -9,6 +9,64 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+/**
+ * Check if a path represents a folder (ends with /)
+ * @param path - File path to check
+ * @returns true if path ends with '/', false otherwise
+ */
+export function isFolder(path: string | null | undefined): boolean {
+  if (!path) return false;
+  return path.trim().endsWith('/');
+}
+
+/**
+ * Expand an untracked folder into individual file paths
+ * @param folderPath - The folder path to expand (must end with /)
+ * @param cwd - Working directory for git command
+ * @returns Array of file paths within the folder
+ * @throws Error if git command fails
+ */
+export async function expandUntrackedFolder(folderPath: string, cwd: string): Promise<string[]> {
+  try {
+    log.debug('[Git] Expanding untracked folder', { folderPath, cwd });
+
+    const command = `git ls-files --others --exclude-standard "${folderPath}"`;
+    const { stdout, stderr } = await execAsync(command, {
+      cwd,
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024,
+    });
+
+    if (stderr && !stderr.includes('warning:')) {
+      log.warn('[Git] Command stderr:', stderr);
+    }
+
+    // Parse output: split by newline, filter empty lines, filter to folder prefix
+    const files = stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .filter((file) => file.startsWith(folderPath.replace(/\/$/, ''))); // Remove trailing slash for prefix matching
+
+    const fileCount = files.length;
+    if (fileCount === 0) {
+      log.debug('[Git] No files found in folder', { folderPath });
+    } else {
+      log.debug('[Git] Found files in folder', { folderPath, fileCount });
+    }
+
+    return files;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    log.error('[Git] Failed to expand untracked folder', {
+      folderPath,
+      cwd,
+      error: errorMessage,
+    });
+    throw error;
+  }
+}
+
 export function registerGitHandlers(): void {
   /**
    * Execute a git command in a specific directory
@@ -95,8 +153,8 @@ export function registerGitHandlers(): void {
 
         // Git status --porcelain format: XY<space>path
         // X = staged status, Y = unstaged status
-        const stagedStatus = line[0] || ' ';
-        const unstagedStatus = line[1] || ' ';
+        const stagedStatus: string = line[0] || ' ';
+        const unstagedStatus: string = line[1] || ' ';
 
         // Find where the actual path starts (after the status codes and separator)
         // Standard format has status at 0-1, then the path starts after index 2
@@ -117,11 +175,45 @@ export function registerGitHandlers(): void {
           }
         }
 
-        fileStatusMap.set(filePath, {
-          staged: stagedStatus !== ' ' ? stagedStatus : null,
-          unstaged: unstagedStatus !== ' ' ? unstagedStatus : null,
-          ...(oldPath && { oldPath }),
-        });
+        // Check if this is an untracked folder and expand it
+        if (isFolder(filePath) && stagedStatus === '?' && unstagedStatus === '?') {
+          try {
+            log.debug('[Git] Detected untracked folder, expanding', { filePath });
+            const expandedFiles = await expandUntrackedFolder(filePath, cwd);
+
+            // Add each file from the expanded folder to the status map
+            for (const expandedFile of expandedFiles) {
+              fileStatusMap.set(expandedFile, {
+                staged: '?',
+                unstaged: '?',
+              });
+            }
+
+            log.debug('[Git] Expanded folder to files', {
+              folderPath: filePath,
+              fileCount: expandedFiles.length,
+            });
+          } catch (error) {
+            log.error('[Git] Failed to expand folder, treating as single entry', {
+              folderPath: filePath,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+            // If expansion fails, treat the folder as a single entry
+            // At this point, both stagedStatus and unstagedStatus are '?' (untracked)
+            fileStatusMap.set(filePath, {
+              staged: '?',
+              unstaged: '?',
+              ...(oldPath && { oldPath }),
+            });
+          }
+        } else {
+          // Regular file or tracked folder
+          fileStatusMap.set(filePath, {
+            staged: stagedStatus !== ' ' ? stagedStatus : null,
+            unstaged: unstagedStatus !== ' ' ? unstagedStatus : null,
+            ...(oldPath && { oldPath }),
+          });
+        }
       }
 
       // Get numstat for staged changes

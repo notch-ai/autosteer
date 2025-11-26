@@ -34,8 +34,8 @@ describe('FetchCacheService', () => {
     });
 
     describe('set and get', () => {
-      it('should set and retrieve a value', () => {
-        cache.set('key1', 'value1');
+      it('should set and retrieve a value', async () => {
+        await cache.set('key1', 'value1');
         expect(cache.get('key1')).toBe('value1');
       });
 
@@ -43,68 +43,76 @@ describe('FetchCacheService', () => {
         expect(cache.get('non-existent')).toBeUndefined();
       });
 
-      it('should overwrite existing key', () => {
-        cache.set('key1', 'value1');
-        cache.set('key1', 'value2');
+      it('should overwrite existing key', async () => {
+        await cache.set('key1', 'value1');
+        await cache.set('key1', 'value2');
         expect(cache.get('key1')).toBe('value2');
       });
 
-      it('should store complex objects', () => {
+      it('should store complex objects', async () => {
         const complexValue = {
           status: 200,
           headers: { 'content-type': 'application/json' },
           body: { data: 'test' },
         };
-        cache.set('key1', complexValue);
+        await cache.set('key1', complexValue);
         expect(cache.get('key1')).toEqual(complexValue);
       });
 
-      it('should store arrays', () => {
+      it('should store arrays', async () => {
         const arrayValue = [1, 2, 3, 4, 5];
-        cache.set('key1', arrayValue);
+        await cache.set('key1', arrayValue);
         expect(cache.get('key1')).toEqual(arrayValue);
       });
     });
 
     describe('LRU eviction', () => {
-      it('should evict least recently used item when maxSize is exceeded', () => {
+      it('should evict least recently used item when maxSize is exceeded', async () => {
         // Fill cache to max capacity
-        cache.set('key1', 'value1');
-        cache.set('key2', 'value2');
-        cache.set('key3', 'value3');
-        cache.set('key4', 'value4');
-        cache.set('key5', 'value5');
+        await cache.set('key1', 'value1');
+        await cache.set('key2', 'value2');
+        await cache.set('key3', 'value3');
+        await cache.set('key4', 'value4');
+        await cache.set('key5', 'value5');
 
         // Add one more item - should evict key1 (least recently used)
-        cache.set('key6', 'value6');
+        await cache.set('key6', 'value6');
 
         expect(cache.get('key1')).toBeUndefined();
         expect(cache.get('key2')).toBe('value2');
         expect(cache.get('key6')).toBe('value6');
       });
 
-      it('should update LRU order on get', () => {
-        cache.set('key1', 'value1');
-        cache.set('key2', 'value2');
-        cache.set('key3', 'value3');
-        cache.set('key4', 'value4');
-        cache.set('key5', 'value5');
+      it('should update LRU order on get', async () => {
+        await cache.set('key1', 'value1');
+        await cache.set('key2', 'value2');
+        await cache.set('key3', 'value3');
+        await cache.set('key4', 'value4');
+        await cache.set('key5', 'value5');
 
-        // Access key1 to make it most recently used
+        // Access key1 twice to ensure LRU tracking
+        cache.get('key1');
         cache.get('key1');
 
-        // Add one more item - should evict key2 (now least recently used)
-        cache.set('key6', 'value6');
+        // Small delay to ensure LRU update completes in SQLite WAL mode
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
-        expect(cache.get('key1')).toBe('value1');
-        expect(cache.get('key2')).toBeUndefined();
+        // Add one more item - should evict key2 (now least recently used)
+        await cache.set('key6', 'value6');
+
+        // Verify key1 survived and key2 was evicted
+        const key1Value = cache.get('key1');
+        const key2Value = cache.get('key2');
+
+        expect(key1Value).toBe('value1');
+        expect(key2Value).toBeUndefined();
       });
     });
 
     describe('TTL expiration', () => {
       it('should expire items after TTL', async () => {
         const shortTtlCache = new FetchCacheService({ ttl: 100, persistenceEnabled: false });
-        shortTtlCache.set('key1', 'value1');
+        await shortTtlCache.set('key1', 'value1');
 
         // Value should exist immediately
         expect(shortTtlCache.get('key1')).toBe('value1');
@@ -118,7 +126,7 @@ describe('FetchCacheService', () => {
 
       it('should not expire items before TTL', async () => {
         const longTtlCache = new FetchCacheService({ ttl: 1000, persistenceEnabled: false });
-        longTtlCache.set('key1', 'value1');
+        await longTtlCache.set('key1', 'value1');
 
         // Wait a short time (less than TTL)
         await new Promise((resolve) => setTimeout(resolve, 50));
@@ -129,10 +137,10 @@ describe('FetchCacheService', () => {
     });
 
     describe('clear', () => {
-      it('should clear all cached items', () => {
-        cache.set('key1', 'value1');
-        cache.set('key2', 'value2');
-        cache.set('key3', 'value3');
+      it('should clear all cached items', async () => {
+        await cache.set('key1', 'value1');
+        await cache.set('key2', 'value2');
+        await cache.set('key3', 'value3');
 
         cache.clear();
 
@@ -141,10 +149,10 @@ describe('FetchCacheService', () => {
         expect(cache.get('key3')).toBeUndefined();
       });
 
-      it('should allow setting values after clear', () => {
-        cache.set('key1', 'value1');
+      it('should allow setting values after clear', async () => {
+        await cache.set('key1', 'value1');
         cache.clear();
-        cache.set('key2', 'value2');
+        await cache.set('key2', 'value2');
 
         expect(cache.get('key1')).toBeUndefined();
         expect(cache.get('key2')).toBe('value2');
@@ -152,8 +160,8 @@ describe('FetchCacheService', () => {
     });
 
     describe('has', () => {
-      it('should return true for existing key', () => {
-        cache.set('key1', 'value1');
+      it('should return true for existing key', async () => {
+        await cache.set('key1', 'value1');
         expect(cache.has('key1')).toBe(true);
       });
 
@@ -163,7 +171,7 @@ describe('FetchCacheService', () => {
 
       it('should return false for expired key', async () => {
         const shortTtlCache = new FetchCacheService({ ttl: 100, persistenceEnabled: false });
-        shortTtlCache.set('key1', 'value1');
+        await shortTtlCache.set('key1', 'value1');
 
         expect(shortTtlCache.has('key1')).toBe(true);
 
@@ -178,28 +186,28 @@ describe('FetchCacheService', () => {
         expect(cache.size()).toBe(0);
       });
 
-      it('should return correct size after adding items', () => {
-        cache.set('key1', 'value1');
-        cache.set('key2', 'value2');
-        cache.set('key3', 'value3');
+      it('should return correct size after adding items', async () => {
+        await cache.set('key1', 'value1');
+        await cache.set('key2', 'value2');
+        await cache.set('key3', 'value3');
 
         expect(cache.size()).toBe(3);
       });
 
-      it('should not exceed maxSize', () => {
-        cache.set('key1', 'value1');
-        cache.set('key2', 'value2');
-        cache.set('key3', 'value3');
-        cache.set('key4', 'value4');
-        cache.set('key5', 'value5');
-        cache.set('key6', 'value6');
+      it('should not exceed maxSize', async () => {
+        await cache.set('key1', 'value1');
+        await cache.set('key2', 'value2');
+        await cache.set('key3', 'value3');
+        await cache.set('key4', 'value4');
+        await cache.set('key5', 'value5');
+        await cache.set('key6', 'value6');
 
         expect(cache.size()).toBe(5);
       });
 
-      it('should return 0 after clear', () => {
-        cache.set('key1', 'value1');
-        cache.set('key2', 'value2');
+      it('should return 0 after clear', async () => {
+        await cache.set('key1', 'value1');
+        await cache.set('key2', 'value2');
         cache.clear();
 
         expect(cache.size()).toBe(0);
@@ -208,37 +216,37 @@ describe('FetchCacheService', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should handle setting null values', () => {
+    it('should handle setting null values', async () => {
       const cache = new FetchCacheService({ persistenceEnabled: false });
-      cache.set('key1', null);
+      await cache.set('key1', null);
       expect(cache.get('key1')).toBe(null);
     });
 
-    it('should handle setting undefined values', () => {
+    it('should handle setting undefined values', async () => {
       const cache = new FetchCacheService({ persistenceEnabled: false });
-      cache.set('key1', undefined);
+      await cache.set('key1', undefined);
       expect(cache.get('key1')).toBe(undefined);
     });
 
-    it('should handle empty string keys', () => {
+    it('should handle empty string keys', async () => {
       const cache = new FetchCacheService({ persistenceEnabled: false });
-      cache.set('', 'value1');
+      await cache.set('', 'value1');
       expect(cache.get('')).toBe('value1');
     });
 
-    it('should handle very large objects', () => {
+    it('should handle very large objects', async () => {
       const cache = new FetchCacheService({ persistenceEnabled: false });
       const largeObject = {
         data: new Array(1000).fill(0).map((_, i) => ({ id: i, value: `item-${i}` })),
       };
-      cache.set('large', largeObject);
+      await cache.set('large', largeObject);
       expect(cache.get('large')).toEqual(largeObject);
     });
 
-    it('should handle maxSize of 1', () => {
+    it('should handle maxSize of 1', async () => {
       const cache = new FetchCacheService({ maxSize: 1, persistenceEnabled: false });
-      cache.set('key1', 'value1');
-      cache.set('key2', 'value2');
+      await cache.set('key1', 'value1');
+      await cache.set('key2', 'value2');
 
       expect(cache.get('key1')).toBeUndefined();
       expect(cache.get('key2')).toBe('value2');
@@ -471,9 +479,9 @@ describe('FetchCacheService', () => {
         });
       });
 
-      it('should track cache hits', () => {
+      it('should track cache hits', async () => {
         const key = 'test-key';
-        cache.set(key, { data: 'test' });
+        await cache.set(key, { data: 'test' });
         cache.get(key);
         cache.get(key);
 
@@ -493,11 +501,11 @@ describe('FetchCacheService', () => {
         expect(stats.hitRate).toBe(0);
       });
 
-      it('should calculate hit rate correctly', () => {
+      it('should calculate hit rate correctly', async () => {
         const key1 = 'key1';
         const key2 = 'key2';
 
-        cache.set(key1, { data: 'test1' });
+        await cache.set(key1, { data: 'test1' });
         cache.get(key1);
         cache.get(key2);
         cache.get(key1);
@@ -509,16 +517,16 @@ describe('FetchCacheService', () => {
         expect(stats.hitRate).toBe(0.5);
       });
 
-      it('should track evictions when cache is full', () => {
+      it('should track evictions when cache is full', async () => {
         const smallCache = new FetchCacheService({
           maxSize: 2,
           ttl: 60000,
           persistenceEnabled: false,
         });
 
-        smallCache.set('key1', { data: 'test1' });
-        smallCache.set('key2', { data: 'test2' });
-        smallCache.set('key3', { data: 'test3' });
+        await smallCache.set('key1', { data: 'test1' });
+        await smallCache.set('key2', { data: 'test2' });
+        await smallCache.set('key3', { data: 'test3' });
 
         const stats = smallCache.getStats();
         expect(stats.evictions).toBe(1);
@@ -560,13 +568,13 @@ describe('FetchCacheService', () => {
     });
 
     describe('Metadata Methods (getWithMetadata / setWithMetadata)', () => {
-      it('should cache and retrieve values with metadata', () => {
+      it('should cache and retrieve values with metadata', async () => {
         const method = 'POST';
         const url = 'https://api.example.com/users';
         const body = { name: 'John', age: 30 };
         const value = { status: 200, data: 'response' };
 
-        cache.setWithMetadata(method, url, body, value);
+        await cache.setWithMetadata(method, url, body, value);
         const result = cache.getWithMetadata(method, url, body);
 
         expect(result).toEqual(value);
@@ -582,37 +590,37 @@ describe('FetchCacheService', () => {
         expect(result).toBeUndefined();
       });
 
-      it('should handle null body in metadata methods', () => {
+      it('should handle null body in metadata methods', async () => {
         const method = 'GET';
         const url = 'https://api.example.com/null-body';
         const body = null;
         const value = { status: 200 };
 
-        cache.setWithMetadata(method, url, body, value);
+        await cache.setWithMetadata(method, url, body, value);
         const result = cache.getWithMetadata(method, url, body);
 
         expect(result).toEqual(value);
       });
 
-      it('should normalize URL in metadata methods', () => {
+      it('should normalize URL in metadata methods', async () => {
         const method = 'GET';
         const url1 = 'https://api.example.com/users?z=3&a=1';
         const url2 = 'https://api.example.com/users?a=1&z=3';
         const value = { status: 200 };
 
-        cache.setWithMetadata(method, url1, undefined, value);
+        await cache.setWithMetadata(method, url1, undefined, value);
         const result = cache.getWithMetadata(method, url2, undefined);
 
         expect(result).toEqual(value);
       });
 
-      it('should update stats correctly with metadata methods', () => {
+      it('should update stats correctly with metadata methods', async () => {
         const method = 'POST';
         const url = 'https://api.example.com/stats';
         const body = { test: true };
         const value = { status: 200 };
 
-        cache.setWithMetadata(method, url, body, value);
+        await cache.setWithMetadata(method, url, body, value);
         cache.getWithMetadata(method, url, body); // HIT
         cache.getWithMetadata(method, url, { different: true }); // MISS
 

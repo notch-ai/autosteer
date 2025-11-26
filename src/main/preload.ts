@@ -253,6 +253,14 @@ const electronAPI = {
     monitorSize: (sessionId: string) => ipcRenderer.invoke('cache:monitorSize', sessionId),
   },
 
+  // IDE methods
+  ide: {
+    detect: () => ipcRenderer.invoke('ide:detect'),
+    setPreferred: (editor: string) => ipcRenderer.invoke('ide:setPreferred', editor),
+    openFile: (request: { file: string; line?: number; column?: number; editor?: string }) =>
+      ipcRenderer.invoke('ide:openFile', request),
+  },
+
   // Environment variables (safe subset)
   env: {
     NODE_ENV: process.env.NODE_ENV || 'development',

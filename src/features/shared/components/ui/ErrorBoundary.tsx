@@ -32,7 +32,25 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    logger.error('Error caught by boundary:', error, errorInfo);
+    // Enhanced error logging with full context
+    logger.error('[ERROR_BOUNDARY] Error caught by boundary:', {
+      error: error,
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      componentStack: errorInfo.componentStack,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Log to console for development debugging
+    console.error('[ERROR_BOUNDARY] Full error details:', {
+      error,
+      errorInfo,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      componentStack: errorInfo.componentStack,
+    });
+
     this.setState({ error, errorInfo });
 
     // Show error toast notification
@@ -54,18 +72,22 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   handleReset = () => {
+    logger.info('[ERROR_BOUNDARY] Reset triggered, clearing error state');
     this.setState({ hasError: false, error: null, errorInfo: null });
 
     // Clear chatError from store if it exists
     try {
       // @ts-expect-error - Access global store for emergency cleanup
       if (window.useChatStore) {
+        logger.info('[ERROR_BOUNDARY] Clearing chat error from store');
         // @ts-expect-error - Dynamic state update for cleanup
         window.useChatStore.setState({ chatError: null });
       }
     } catch (err) {
+      logger.warn('[ERROR_BOUNDARY] Failed to clear chat error from store:', err);
       // Ignore cleanup errors
     }
+    logger.info('[ERROR_BOUNDARY] Reset complete');
   };
 
   override render() {
@@ -88,8 +110,8 @@ export class ErrorBoundary extends Component<Props, State> {
               </Alert>
 
               {this.isDevelopment() && this.state.errorInfo && (
-                <div className="bg-surface p-4 rounded-md overflow-auto max-h-64">
-                  <pre className="text-sm text-text-muted">
+                <div className="bg-card p-4 rounded-md overflow-auto max-h-64">
+                  <pre className="text-sm text-muted-foreground">
                     {this.state.errorInfo.componentStack}
                   </pre>
                 </div>

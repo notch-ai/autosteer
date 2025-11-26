@@ -12,24 +12,26 @@ interface UseTerminalTabHandlerParams {
   projectPath?: string | undefined;
   terminalRef: React.RefObject<HTMLDivElement>;
   onTerminalCreated?: ((terminal: Terminal) => void) | undefined;
+  isActive?: boolean;
 }
 
 /**
- *
  * Business logic handler for terminal tab component operations.
- * Manages complete terminal lifecycle including XTerm initialization,
- * event handlers, and cleanup.
+ *
+ * SIMPLIFIED ARCHITECTURE:
+ * - 1 Project = 1 Terminal (enforced by pool)
+ * - Terminal keyed by projectId in pool
+ * - No session cache needed (pool IS the cache)
+ * - Direct pool lookup by projectId
  *
  * Key Features:
- * - Pool-based terminal creation (attach/detach pattern)
- * - Complete lifecycle management (no useEffect needed in component)
+ * - Pool-based terminal management (1:1 with projects)
  * - XTerm initialization with IPC listeners
  * - Event handlers (onData, onResize)
  * - Automatic cleanup on unmount
- * - Session coordination with TerminalStore
- * - Error handling for pool limits and creation failures
+ * - Terminal reuse across project switches
  *
- * @param projectId - Current project ID
+ * @param projectId - Current project ID (folderName)
  * @param projectPath - Project local path for terminal cwd
  * @param terminalRef - Ref to terminal container element
  * @param onTerminalCreated - Callback when terminal is created
@@ -40,21 +42,16 @@ export const useTerminalTabHandler = ({
   projectPath,
   terminalRef,
   onTerminalCreated,
+  isActive = false,
 }: UseTerminalTabHandlerParams) => {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const xtermRef = useRef<XTerm | null>(null);
-  const terminalIdRef = useRef<string | null>(null);
-  const terminalOwnerProjectRef = useRef<string | null>(null);
   const isCreatingRef = useRef<boolean>(false);
-  const prevProjectIdRef = useRef<string | null>(null);
-  const lastRestoredTerminalIdRef = useRef<string | null>(null);
+  const eventHandlersInitializedRef = useRef<boolean>(false);
 
-  const saveTerminalSession = useTerminalStore((state) => state.saveTerminalSession);
-  const getTerminalSession = useTerminalStore((state) => state.getTerminalSession);
-  const getLastTerminalForProject = useTerminalStore((state) => state.getLastTerminalForProject);
   const setActiveTerminal = useTerminalStore((state) => state.setActiveTerminal);
 
   const {
@@ -69,16 +66,18 @@ export const useTerminalTabHandler = ({
     createTerminal: createPoolTerminal,
     getTerminal: getPoolTerminal,
     hasTerminal: hasPoolTerminal,
-    attachTerminal: attachPoolTerminal,
-    detachTerminal: detachPoolTerminal,
     fitTerminal: fitPoolTerminal,
+    getPoolSize,
+    getMaxPoolSize,
+    getTerminalId,
+    getTerminalMetadata,
   } = useTerminalPool();
 
   const { saveTerminalScrollPosition, restoreTerminalScrollPosition } =
     useTerminalScrollPreservation();
 
   const handleCreateTerminal = useCallback(async () => {
-    if (isCreatingRef.current) {
+    if (!projectId || isCreatingRef.current) {
       return;
     }
 
@@ -88,6 +87,7 @@ export const useTerminalTabHandler = ({
       setIsLoading(true);
       setError(null);
 
+      // Create terminal via IPC
       const newTerminal = await createTerminalIPC(
         projectPath
           ? {
@@ -97,67 +97,110 @@ export const useTerminalTabHandler = ({
           : { size: { cols: 80, rows: 24 } }
       );
 
+      // Add to store
       const { addTerminal } = useTerminalStore.getState();
-      try {
-        addTerminal(newTerminal);
-      } catch (err) {
-        logger.error('[useTerminalTabHandler] Failed to add terminal to store', {
-          terminalId: newTerminal.id,
-          error: err,
-        });
-        throw err;
-      }
+      addTerminal(newTerminal);
 
-      terminalIdRef.current = newTerminal.id;
-      terminalOwnerProjectRef.current = projectId;
+      // Set as active
+      setActiveTerminal(newTerminal.id);
       setTerminal(newTerminal);
       onTerminalCreated?.(newTerminal);
+
       isCreatingRef.current = false;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create terminal';
       setError(errorMessage);
       logger.error('[useTerminalTabHandler] Terminal creation failed', {
+        projectId: projectId?.substring(0, 20),
         error: errorMessage,
-        projectPath,
       });
       isCreatingRef.current = false;
     } finally {
       setIsLoading(false);
     }
-  }, [createTerminalIPC, onTerminalCreated, projectPath, projectId]);
+  }, [
+    projectId,
+    projectPath,
+    createTerminalIPC,
+    onTerminalCreated,
+    getPoolSize,
+    getMaxPoolSize,
+    setActiveTerminal,
+  ]);
 
   const handleRetry = useCallback(() => {
     void handleCreateTerminal();
   }, [handleCreateTerminal]);
 
-  // Effect 1: XTerm initialization + event handlers
+  // Effect 1: Project changed - attach/create terminal for this project
   useEffect(() => {
-    if (!terminal || !terminalRef.current || xtermRef.current) {
+    if (!projectId || !terminalRef.current) {
       return undefined;
     }
 
-    const terminalId = terminal.id;
+    // Check if this project already has a terminal in pool
+    const existingTerminal = getTerminalMetadata(projectId);
+    const hasTerminal = hasPoolTerminal(projectId);
+
+    if (existingTerminal && hasTerminal) {
+      // Terminal exists - attach it
+      setTerminal(existingTerminal);
+      setActiveTerminal(existingTerminal.id);
+
+      // Pool attachment happens in Effect 2 when terminal state is set
+    } else {
+      // No terminal for this project - create new
+      const timeoutId = setTimeout(() => {
+        void handleCreateTerminal();
+      }, 10);
+
+      return () => clearTimeout(timeoutId);
+    }
+
+    return undefined;
+  }, [projectId, handleCreateTerminal, getTerminalMetadata, hasPoolTerminal, setActiveTerminal]);
+
+  // Effect 2: XTerm initialization + event handlers (ONCE on creation)
+  // Terminal stays permanently attached, no detach on tab switch
+  useEffect(() => {
+    if (!projectId || !terminal || !terminalRef.current) {
+      return undefined;
+    }
+
     const container = terminalRef.current;
+    const terminalId = terminal.id;
+
+    // Only initialize if not already initialized
+    // Terminal attaches ONCE and stays attached permanently
+    if (xtermRef.current && eventHandlersInitializedRef.current) {
+      return undefined;
+    }
 
     try {
-      // Initialize XTerm with pool
+      // Terminal attaches ONCE on creation and stays permanently attached
+      // Get existing terminal adapter (already attached) or create new one (attaches on creation)
       let adapter;
-      if (hasPoolTerminal(terminalId)) {
-        attachPoolTerminal(terminalId, container);
-        adapter = getPoolTerminal(terminalId);
+      if (hasPoolTerminal(projectId)) {
+        // Terminal exists in pool - already permanently attached
+        adapter = getPoolTerminal(projectId);
       } else {
-        adapter = createPoolTerminal(terminal, container);
+        // Create new terminal in pool - attaches permanently on creation
+        adapter = createPoolTerminal(projectId, terminal, container);
       }
 
       if (!adapter) {
+        logger.error('[useTerminalTabHandler] Failed to get/create adapter', {
+          projectId: projectId.substring(0, 20),
+        });
         return undefined;
       }
 
       const xterm = adapter.getXtermInstance();
       xtermRef.current = xterm;
-      fitPoolTerminal(terminalId);
 
-      // Restore scroll position from previous session
+      fitPoolTerminal(projectId);
+
+      // Restore scroll position
       restoreTerminalScrollPosition(terminalId, xterm);
 
       // Set up IPC listeners
@@ -174,19 +217,23 @@ export const useTerminalTabHandler = ({
       // Focus terminal
       xterm.focus();
 
-      // Set up XTerm event handlers
-      const terminalIdForHandlers = { current: terminalId };
+      // Mark event handlers as initialized
+      eventHandlersInitializedRef.current = true;
 
+      // Set up XTerm event handlers
       const onDataDisposable = xterm.onData((data) => {
         const terminals = useTerminalStore.getState().terminals;
-        const isInStore = terminals.has(terminalIdForHandlers.current);
-
-        if (!isInStore) {
+        if (!terminals.has(terminalId)) {
+          logger.error('[useTerminalTabHandler] Terminal not in store - blocking input!', {
+            terminalId: terminalId.substring(0, 8),
+            expectedTerminalId: terminalId,
+            storeTerminalIds: Array.from(terminals.keys()),
+          });
           return;
         }
-        writeToTerminal(terminalIdForHandlers.current, data).catch((err) => {
+        writeToTerminal(terminalId, data).catch((err) => {
           logger.error('[useTerminalTabHandler] Failed to write to terminal', {
-            terminalId: terminalIdForHandlers.current,
+            terminalId,
             error: err,
           });
         });
@@ -194,12 +241,12 @@ export const useTerminalTabHandler = ({
 
       const onResizeDisposable = xterm.onResize(({ cols, rows }) => {
         const terminals = useTerminalStore.getState().terminals;
-        if (!terminals.has(terminalIdForHandlers.current)) {
+        if (!terminals.has(terminalId)) {
           return;
         }
-        resizeTerminal(terminalIdForHandlers.current, cols, rows).catch((err) => {
+        resizeTerminal(terminalId, cols, rows).catch((err) => {
           logger.error('[useTerminalTabHandler] Failed to resize terminal', {
-            terminalId: terminalIdForHandlers.current,
+            terminalId,
             cols,
             rows,
             error: err,
@@ -209,187 +256,80 @@ export const useTerminalTabHandler = ({
 
       // Window resize handler
       const handleResize = () => {
-        if (hasPoolTerminal(terminalId)) {
-          fitPoolTerminal(terminalId);
+        if (hasPoolTerminal(projectId)) {
+          fitPoolTerminal(projectId);
         }
       };
 
       window.addEventListener('resize', handleResize);
 
-      // Cleanup function
+      // Cleanup function - dispose handlers but terminal stays attached
       return () => {
         onDataDisposable.dispose();
         onResizeDisposable.dispose();
         window.removeEventListener('resize', handleResize);
+        eventHandlersInitializedRef.current = false;
       };
     } catch (error) {
       logger.error('[useTerminalTabHandler] Failed to initialize terminal', {
-        terminalId: terminalId.substring(0, 8),
+        projectId: projectId.substring(0, 20),
         error,
       });
       return undefined;
     }
   }, [
+    projectId,
     terminal,
     terminalRef,
     hasPoolTerminal,
-    attachPoolTerminal,
     getPoolTerminal,
     createPoolTerminal,
     fitPoolTerminal,
     setupTerminalListeners,
     writeToTerminal,
     resizeTerminal,
+    restoreTerminalScrollPosition,
+    getPoolSize,
+    getMaxPoolSize,
   ]);
 
-  // Effect 2: Project switching and session management
+  // Effect 3: Cleanup when switching projects or unmounting
+  // No detach - terminal stays permanently attached for z-index stacking
   useEffect(() => {
+    // Capture current projectId for cleanup
     const currentProjectId = projectId;
-    const prevProjectId = prevProjectIdRef.current;
 
-    if (!currentProjectId) {
-      return undefined;
-    }
-
-    const projectChanged = prevProjectId !== null && prevProjectId !== currentProjectId;
-
-    if (projectChanged) {
-      lastRestoredTerminalIdRef.current = null;
-    }
-
-    if (projectChanged && prevProjectId && terminal && terminalIdRef.current) {
-      const ownerProject = terminalOwnerProjectRef.current || prevProjectId;
-      const adapter = getPoolTerminal(terminalIdRef.current);
-
-      if (adapter) {
-        const xterm = adapter.getXtermInstance();
-        const cursorY = xterm?.buffer?.active.cursorY || 0;
-        const cursorX = xterm?.buffer?.active.cursorX || 0;
-        const cols = xterm?.cols || 0;
-        const rows = xterm?.rows || 0;
-
-        // Save scroll position before switching
-        saveTerminalScrollPosition(terminal.id, xterm);
-
-        saveTerminalSession(terminal.id, {
-          terminal,
-          terminalId: terminal.id,
-          ownerProjectId: ownerProject,
-          xtermInstance: undefined,
-          fitAddon: undefined,
-          cursorY,
-          cursorX,
-          cols,
-          rows,
-          lastActive: new Date(),
-        });
-      }
-
-      removeTerminalListeners(terminal.id);
-
-      if (terminal.id && hasPoolTerminal(terminal.id)) {
-        detachPoolTerminal(terminal.id);
-      }
-
-      setTerminal(null);
-      xtermRef.current = null;
-      terminalIdRef.current = null;
-      terminalOwnerProjectRef.current = null;
-      isCreatingRef.current = false;
-    }
-
-    let existingSession;
-
-    if (terminalIdRef.current) {
-      existingSession = getTerminalSession(terminalIdRef.current);
-    } else if (currentProjectId) {
-      existingSession = getLastTerminalForProject(currentProjectId);
-    }
-
-    // Restore terminal if:
-    // 1. We found an existing session for this project
-    // 2. AND (no current terminal OR project just changed)
-    if (existingSession && (!terminal || projectChanged)) {
-      if (lastRestoredTerminalIdRef.current === existingSession.terminalId) {
-        return undefined;
-      }
-
-      const inPool = hasPoolTerminal(existingSession.terminalId);
-
-      // ✅ FIX: If terminal NOT in pool, don't restore - create new instead
-      if (!inPool) {
-        logger.warn('[useTerminalTabHandler] 🚨 Terminal in cache but NOT in pool - creating new', {
-          terminalId: existingSession.terminalId.substring(0, 8),
-          ownerProjectId: existingSession.ownerProjectId?.substring(0, 8),
-          action: 'Will create NEW terminal instead of corrupted session',
-        });
-
-        // Don't restore corrupted session - create new terminal
-        const timeoutId = setTimeout(() => {
-          void handleCreateTerminal();
-        }, 10);
-
-        prevProjectIdRef.current = currentProjectId;
-
-        return () => clearTimeout(timeoutId);
-      }
-
-      // ✅ Session exists AND in pool - safe to restore
-      setTerminal(existingSession.terminal);
-      setActiveTerminal(existingSession.terminalId);
-      terminalOwnerProjectRef.current = existingSession.ownerProjectId;
-      lastRestoredTerminalIdRef.current = existingSession.terminalId;
-
-      prevProjectIdRef.current = currentProjectId;
-    } else if (!existingSession && !terminal && !isLoading && !error) {
-      const timeoutId = setTimeout(() => {
-        void handleCreateTerminal();
-      }, 10);
-
-      prevProjectIdRef.current = currentProjectId;
-
-      return () => clearTimeout(timeoutId);
-    } else if (terminal && prevProjectId === null) {
-      prevProjectIdRef.current = currentProjectId;
-    }
-
-    return undefined;
-  }, [
-    projectId,
-    terminal,
-    isLoading,
-    error,
-    handleCreateTerminal,
-    saveTerminalSession,
-    getTerminalSession,
-    getLastTerminalForProject,
-    getPoolTerminal,
-    removeTerminalListeners,
-    hasPoolTerminal,
-    detachPoolTerminal,
-  ]);
-
-  // Effect 3: Cleanup on unmount
-  useEffect(() => {
     return () => {
-      if (terminal?.id && xtermRef.current) {
-        // Save scroll position before cleanup
-        saveTerminalScrollPosition(terminal.id, xtermRef.current);
-
-        removeTerminalListeners(terminal.id);
-        if (hasPoolTerminal(terminal.id)) {
-          detachPoolTerminal(terminal.id);
-        }
-        xtermRef.current = null;
+      if (!currentProjectId || !xtermRef.current) {
+        return;
       }
+
+      const terminalId = getTerminalId(currentProjectId);
+      if (!terminalId) {
+        return;
+      }
+
+      // Save scroll position
+      saveTerminalScrollPosition(terminalId, xtermRef.current);
+
+      // Remove IPC listeners
+      removeTerminalListeners(terminalId);
+
+      // No detach - terminal stays attached permanently
+      // Z-index stacking handles visibility
+
+      // Reset refs - Effect 2 will re-initialize for new project
+      xtermRef.current = null;
+      eventHandlersInitializedRef.current = false;
     };
-  }, [
-    terminal?.id,
-    removeTerminalListeners,
-    detachPoolTerminal,
-    hasPoolTerminal,
-    saveTerminalScrollPosition,
-  ]);
+  }, [projectId, getTerminalId, saveTerminalScrollPosition, removeTerminalListeners]);
+
+  // Effect 4: Focus terminal when tab becomes active
+  useEffect(() => {
+    if (isActive && xtermRef.current) {
+      xtermRef.current.focus();
+    }
+  }, [isActive]);
 
   return {
     terminal,

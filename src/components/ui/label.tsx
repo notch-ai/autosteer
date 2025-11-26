@@ -6,7 +6,7 @@ import { cn } from '../../commons/utils';
 
 const labelVariants = cva(
   // AutoSteer styling - matching desktop app aesthetics
-  'text-sm font-medium leading-none text-text peer-disabled:cursor-default peer-disabled:opacity-70'
+  'text-sm font-medium leading-none text-foreground peer-disabled:cursor-default peer-disabled:opacity-70'
 );
 
 const Label = React.forwardRef<

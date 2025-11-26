@@ -54,7 +54,8 @@ export const GitDiffViewer: React.FC<GitDiffViewerProps> = ({
   onRefresh,
   onClose,
 }) => {
-  if (!files || files.length === 0) {
+  // Defensive check: ensure files is an array
+  if (!Array.isArray(files) || files.length === 0) {
     return (
       <div className="p-8 text-center">
         <div className="text-muted-foreground text-sm">No changes to display</div>
@@ -176,7 +177,13 @@ const FileDiff: React.FC<FileDiffProps> = ({ file, hideHeader = false, repoPath,
       {!hideHeader && (
         <div className="bg-muted px-4 py-0">
           <div className="flex items-center gap-3 min-h-8">
-            <div className="ml-auto flex items-center gap-2">
+            <span
+              className="text-sm font-medium text-foreground truncate select-text cursor-text"
+              title={filePath}
+            >
+              {filePath}
+            </span>
+            <div className="ml-auto flex items-center gap-2 flex-shrink-0">
               {repoPath && isValidFilePath && canDiscardLinesOrHunks && hasSelectedLines && (
                 <Button
                   variant="ghost"
@@ -505,29 +512,29 @@ const DiffLine: React.FC<DiffLineProps> = ({
 // Helper component to show conflict explanation
 export const ConflictExplainer: React.FC = () => {
   return (
-    <div className="bg-surface p-4 border border-border rounded mb-4 text-sm">
-      <h3 className="font-semibold text-text mb-2">Understanding Merge Conflicts</h3>
+    <div className="bg-card p-4 border border-border rounded mb-4 text-sm">
+      <h3 className="font-semibold text-foreground mb-2">Understanding Merge Conflicts</h3>
       <div className="space-y-2">
         <div className="flex items-start gap-2">
           <span className="bg-purple text-white px-2 py-0.5 rounded font-mono text-sm min-w-[80px]">
             {'<<<<<<<'}
           </span>
-          <span className="text-text-muted">Start of YOUR changes (current branch)</span>
+          <span className="text-muted-foreground">Start of YOUR changes (current branch)</span>
         </div>
         <div className="flex items-start gap-2">
           <span className="bg-yellow text-black px-2 py-0.5 rounded font-mono text-sm min-w-[80px]">
             =======
           </span>
-          <span className="text-text-muted">Divider between changes</span>
+          <span className="text-muted-foreground">Divider between changes</span>
         </div>
         <div className="flex items-start gap-2">
           <span className="bg-blue text-white px-2 py-0.5 rounded font-mono text-sm min-w-[80px]">
             {'>>>>>>>'}
           </span>
-          <span className="text-text-muted">End with THEIR changes (incoming branch)</span>
+          <span className="text-muted-foreground">End with THEIR changes (incoming branch)</span>
         </div>
       </div>
-      <p className="mt-3 text-text-muted text-sm">
+      <p className="mt-3 text-muted-foreground text-sm">
         To resolve: Choose one version, combine both, or write new code. Then remove the conflict
         markers.
       </p>

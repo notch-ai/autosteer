@@ -87,7 +87,7 @@ export const WithMultipleTabs: Story = {
       <TabsContent value="overview" className="space-y-4">
         <div className="space-y-2">
           <h3 className="text-lg font-medium">Overview</h3>
-          <p className="text-sm text-text-muted">
+          <p className="text-sm text-muted-foreground">
             Your personal dashboard overview with key metrics and insights.
           </p>
         </div>
@@ -95,7 +95,7 @@ export const WithMultipleTabs: Story = {
       <TabsContent value="analytics" className="space-y-4">
         <div className="space-y-2">
           <h3 className="text-lg font-medium">Analytics</h3>
-          <p className="text-sm text-text-muted">
+          <p className="text-sm text-muted-foreground">
             Detailed analytics and performance metrics for your account.
           </p>
         </div>
@@ -103,13 +103,15 @@ export const WithMultipleTabs: Story = {
       <TabsContent value="reports" className="space-y-4">
         <div className="space-y-2">
           <h3 className="text-lg font-medium">Reports</h3>
-          <p className="text-sm text-text-muted">Generate and download comprehensive reports.</p>
+          <p className="text-sm text-muted-foreground">
+            Generate and download comprehensive reports.
+          </p>
         </div>
       </TabsContent>
       <TabsContent value="notifications" className="space-y-4">
         <div className="space-y-2">
           <h3 className="text-lg font-medium">Notifications</h3>
-          <p className="text-sm text-text-muted">
+          <p className="text-sm text-muted-foreground">
             Manage your notification preferences and settings.
           </p>
         </div>
@@ -144,7 +146,7 @@ export const ThemeComparison: Story = {
   render: () => (
     <div className="grid grid-cols-2 gap-8">
       <div className="theme-day p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Day Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Day Theme</h3>
         <Tabs defaultValue="tab1" className="w-[300px]">
           <TabsList>
             <TabsTrigger value="tab1">Tab 1</TabsTrigger>
@@ -159,7 +161,7 @@ export const ThemeComparison: Story = {
         </Tabs>
       </div>
       <div className="theme-night p-6 rounded-lg bg-background border">
-        <h3 className="mb-4 font-semibold text-text">Night Theme</h3>
+        <h3 className="mb-4 font-semibold text-foreground">Night Theme</h3>
         <Tabs defaultValue="tab1" className="w-[300px]">
           <TabsList>
             <TabsTrigger value="tab1">Tab 1</TabsTrigger>

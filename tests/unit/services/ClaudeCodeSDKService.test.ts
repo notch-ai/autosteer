@@ -1,6 +1,7 @@
 import { ClaudeCodeSDKService } from '@/services/ClaudeCodeSDKService';
 import type { ClaudeCodeQueryOptions, Attachment } from '@/types/claudeCode.types';
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import { useSettingsStore } from '@/stores/settings';
 import * as fs from 'fs/promises';
 
 // Mock @anthropic-ai/claude-agent-sdk
@@ -59,10 +60,24 @@ jest.mock('uuid', () => ({
   v4: jest.fn(() => 'mock-uuid-1234'),
 }));
 
+// Mock settings store
+jest.mock('@/stores/settings', () => ({
+  useSettingsStore: {
+    getState: jest.fn(() => ({
+      preferences: {
+        enableSkills: true, // Default to true
+      } as any, // Cast to allow partial UserPreferences in tests
+    })),
+  },
+}));
+
 const mockQuery = query as jest.MockedFunction<typeof query>;
 const mockMkdtemp = fs.mkdtemp as jest.MockedFunction<typeof fs.mkdtemp>;
 const mockWriteFile = fs.writeFile as jest.MockedFunction<typeof fs.writeFile>;
 const mockRm = fs.rm as jest.MockedFunction<typeof fs.rm>;
+const mockGetState = useSettingsStore.getState as jest.MockedFunction<
+  typeof useSettingsStore.getState
+>;
 
 describe('ClaudeCodeSDKService', () => {
   beforeEach(() => {
@@ -260,7 +275,7 @@ describe('ClaudeCodeSDKService', () => {
           options: expect.objectContaining({
             maxTurns: 5,
             systemPrompt: 'You are a helpful assistant',
-            allowedTools: ['Read', 'Write'],
+            allowedTools: expect.arrayContaining(['Read', 'Write', 'Skill']), // Skills enabled by default
             model: 'claude-3-sonnet',
             permissionMode: 'strict',
           }),
@@ -690,6 +705,331 @@ describe('ClaudeCodeSDKService', () => {
     it('should return .bin for unknown mime types', () => {
       expect((service as any).getExtensionFromMimeType('unknown/type')).toBe('.bin');
       expect((service as any).getExtensionFromMimeType('application/octet-stream')).toBe('.bin');
+    });
+  });
+
+  describe('Skills Integration (NOTCH-1534)', () => {
+    let service: ClaudeCodeSDKService;
+
+    beforeEach(() => {
+      service = ClaudeCodeSDKService.getInstance();
+      mockMkdtemp.mockResolvedValue('/tmp/claude-attachments-789');
+      mockWriteFile.mockResolvedValue();
+      // Reset mockGetState to default (enableSkills: true)
+      mockGetState.mockReturnValue({
+        preferences: {
+          enableSkills: true,
+        },
+      } as any);
+    });
+
+    it('should add "Skill" to allowedTools when enableSkills is true', async () => {
+      const mockMessages = [
+        { type: 'init', session_id: 'test-session' },
+        { type: 'result', subtype: 'success' },
+      ];
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          for (const message of mockMessages) {
+            yield message;
+          }
+        },
+        interrupt: jest.fn(),
+      } as any);
+
+      // Mock settings store with enableSkills: true
+      mockGetState.mockReturnValue({
+        preferences: {
+          enableSkills: true,
+        },
+      } as any);
+
+      const queryOptions: ClaudeCodeQueryOptions = {
+        prompt: 'Test prompt',
+        options: {
+          allowedTools: ['Read', 'Write'],
+        },
+      };
+
+      const results = [];
+      for await (const message of service.queryClaudeCode('query-skills-1', queryOptions)) {
+        results.push(message);
+      }
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'Test prompt',
+          options: expect.objectContaining({
+            allowedTools: expect.arrayContaining(['Read', 'Write', 'Skill']),
+          }),
+        })
+      );
+    });
+
+    it('should NOT add "Skill" to allowedTools when enableSkills is false', async () => {
+      const mockMessages = [
+        { type: 'init', session_id: 'test-session' },
+        { type: 'result', subtype: 'success' },
+      ];
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          for (const message of mockMessages) {
+            yield message;
+          }
+        },
+        interrupt: jest.fn(),
+      } as any);
+
+      // Mock settings store with enableSkills: false
+      mockGetState.mockReturnValue({
+        preferences: {
+          enableSkills: false,
+        },
+      } as any);
+
+      const queryOptions: ClaudeCodeQueryOptions = {
+        prompt: 'Test prompt',
+        options: {
+          allowedTools: ['Read', 'Write'],
+        },
+      };
+
+      const results = [];
+      for await (const message of service.queryClaudeCode('query-skills-2', queryOptions)) {
+        results.push(message);
+      }
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'Test prompt',
+          options: expect.objectContaining({
+            allowedTools: ['Read', 'Write'], // Should NOT include 'Skill'
+          }),
+        })
+      );
+    });
+
+    it('should preserve existing allowedTools when adding Skill', async () => {
+      const mockMessages = [
+        { type: 'init', session_id: 'test-session' },
+        { type: 'result', subtype: 'success' },
+      ];
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          for (const message of mockMessages) {
+            yield message;
+          }
+        },
+        interrupt: jest.fn(),
+      } as any);
+
+      // Mock settings store with enableSkills: true
+      mockGetState.mockReturnValue({
+        preferences: {
+          enableSkills: true,
+        },
+      } as any);
+
+      const queryOptions: ClaudeCodeQueryOptions = {
+        prompt: 'Test prompt',
+        options: {
+          allowedTools: ['Read', 'Write', 'Bash', 'Edit'],
+        },
+      };
+
+      const results = [];
+      for await (const message of service.queryClaudeCode('query-skills-3', queryOptions)) {
+        results.push(message);
+      }
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'Test prompt',
+          options: expect.objectContaining({
+            allowedTools: expect.arrayContaining(['Read', 'Write', 'Bash', 'Edit', 'Skill']),
+          }),
+        })
+      );
+
+      // Verify exact length (should be 5 tools total)
+      const call = (mockQuery as jest.Mock).mock.calls[0][0];
+      expect(call.options.allowedTools).toHaveLength(5);
+    });
+
+    it('should NOT duplicate "Skill" if already in allowedTools', async () => {
+      const mockMessages = [
+        { type: 'init', session_id: 'test-session' },
+        { type: 'result', subtype: 'success' },
+      ];
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          for (const message of mockMessages) {
+            yield message;
+          }
+        },
+        interrupt: jest.fn(),
+      } as any);
+
+      // Mock settings store with enableSkills: true
+      mockGetState.mockReturnValue({
+        preferences: {
+          enableSkills: true,
+        },
+      } as any);
+
+      const queryOptions: ClaudeCodeQueryOptions = {
+        prompt: 'Test prompt',
+        options: {
+          allowedTools: ['Read', 'Skill', 'Write'], // Skill already present
+        },
+      };
+
+      const results = [];
+      for await (const message of service.queryClaudeCode('query-skills-4', queryOptions)) {
+        results.push(message);
+      }
+
+      // Should NOT add duplicate Skill
+      const call = (mockQuery as jest.Mock).mock.calls[0][0];
+      expect(call.options.allowedTools).toHaveLength(3);
+      expect(call.options.allowedTools.filter((tool: string) => tool === 'Skill')).toHaveLength(1);
+    });
+
+    it('should add "Skill" to allowedTools when no allowedTools specified', async () => {
+      const mockMessages = [
+        { type: 'init', session_id: 'test-session' },
+        { type: 'result', subtype: 'success' },
+      ];
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          for (const message of mockMessages) {
+            yield message;
+          }
+        },
+        interrupt: jest.fn(),
+      } as any);
+
+      // Mock settings store with enableSkills: true
+      mockGetState.mockReturnValue({
+        preferences: {
+          enableSkills: true,
+        },
+      } as any);
+
+      const queryOptions: ClaudeCodeQueryOptions = {
+        prompt: 'Test prompt',
+        options: {
+          // No allowedTools specified
+        },
+      };
+
+      const results = [];
+      for await (const message of service.queryClaudeCode('query-skills-5', queryOptions)) {
+        results.push(message);
+      }
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'Test prompt',
+          options: expect.objectContaining({
+            allowedTools: ['Skill'],
+          }),
+        })
+      );
+    });
+
+    it('should NOT set allowedTools when enableSkills is false and no allowedTools specified', async () => {
+      const mockMessages = [
+        { type: 'init', session_id: 'test-session' },
+        { type: 'result', subtype: 'success' },
+      ];
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          for (const message of mockMessages) {
+            yield message;
+          }
+        },
+        interrupt: jest.fn(),
+      } as any);
+
+      // Mock settings store with enableSkills: false
+      mockGetState.mockReturnValue({
+        preferences: {
+          enableSkills: false,
+        },
+      } as any);
+
+      const queryOptions: ClaudeCodeQueryOptions = {
+        prompt: 'Test prompt',
+        options: {
+          // No allowedTools specified
+        },
+      };
+
+      const results = [];
+      for await (const message of service.queryClaudeCode('query-skills-6', queryOptions)) {
+        results.push(message);
+      }
+
+      // Should not set allowedTools at all
+      const call = (mockQuery as jest.Mock).mock.calls[0][0];
+      expect(call.options.allowedTools).toBeUndefined();
+    });
+
+    it('should work with attachments when skills are enabled', async () => {
+      const attachment: Attachment = {
+        type: 'image',
+        media_type: 'image/png',
+        data: Buffer.from('test image').toString('base64'),
+        filename: 'test.png',
+      };
+
+      const mockMessages = [
+        { type: 'init', session_id: 'test-session' },
+        { type: 'result', subtype: 'success' },
+      ];
+
+      mockQuery.mockReturnValue({
+        [Symbol.asyncIterator]: async function* () {
+          for (const message of mockMessages) {
+            yield message;
+          }
+        },
+        interrupt: jest.fn(),
+      } as any);
+
+      // Mock settings store with enableSkills: true
+      mockGetState.mockReturnValue({
+        preferences: {
+          enableSkills: true,
+        },
+      } as any);
+
+      const queryOptions: ClaudeCodeQueryOptions = {
+        prompt: 'Analyze this image',
+        attachments: [attachment],
+      };
+
+      const results = [];
+      for await (const message of service.queryClaudeCode('query-skills-7', queryOptions)) {
+        results.push(message);
+      }
+
+      // Should include both Read (for attachments) and Skill
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: expect.stringContaining('Attached files:'),
+          options: expect.objectContaining({
+            allowedTools: expect.arrayContaining(['Read', 'Skill']),
+          }),
+        })
+      );
     });
   });
 
